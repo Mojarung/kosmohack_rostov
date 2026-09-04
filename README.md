@@ -23,6 +23,22 @@ uv run python -m eda.run_all    # графики в reports/eda/figures/, чис
 
 Выводы и графики — в [docs/08-eda-report.md](docs/08-eda-report.md).
 
+## Зависимости
+
+Базовые зависимости ставятся `uv sync`. Остальное разбито на группы в `pyproject.toml` (все версии актуальны на сентябрь 2026 и имеют wheels под Python 3.14):
+
+| Группа | Что внутри | Команда |
+|---|---|---|
+| `ml` | scikit-learn, LightGBM, CatBoost, XGBoost, statsmodels, whittaker-eilers, optuna, shap | `uv sync --group ml` |
+| `dl` | torch, PyPOTS, pygrinder, chronos-forecasting | `uv sync --group dl` |
+| `geo` | pystac-client, odc-stac, stackstac, planetary-computer, rasterio, rioxarray, xarray, geopandas, shapely, earthengine-api, openmeteo-requests, osmnx, overpy | `uv sync --group geo` |
+| `openeo` | клиент Copernicus Data Space (конфликтует с `geo` по xarray) | `uv sync --group openeo` |
+| `service` | FastAPI, uvicorn, pydantic, httpx | `uv sync --group service` |
+| `agent` | pydantic-ai, anthropic, mcp | `uv sync --group agent` |
+| `dev` | ruff, pytest, pytest-cov, mypy | ставится по умолчанию |
+
+Обзор моделей, источников данных и обоснование выбора — в [docs/09-open-source-landscape.md](docs/09-open-source-landscape.md).
+
 ## Структура репозитория
 
 ```
