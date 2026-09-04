@@ -22,6 +22,7 @@ import pandas as pd
 from anomaly.climatology import crop_norms, norm_for_year, organizer_norm, status_from_z
 from anomaly.config import REPORT_DIR
 from anomaly.detect import find_episodes, norm_phenology, phenology, phenology_deviation, z_series
+from anomaly.indices import ndwi_anomaly, ndwi_note
 from anomaly.report import classify, describe, severity_label
 from anomaly.series import curves_by_year, harmonized_series
 from anomaly.weather import daily_weather, episode_weather, regional_weather
@@ -82,7 +83,7 @@ def season_row(s: SeasonContext) -> dict:
 
 
 def season_episodes(s: SeasonContext, weather: pd.DataFrame | None, weather_source: str, all_z: pd.DataFrame,
-                    strict: bool) -> list[dict]:
+                    strict: bool, series: pd.DataFrame | None = None) -> list[dict]:
     """Эпизоды сезона с погодой, региональным контекстом, причиной и текстом."""
     obs_days = s.obs_year.loc[~s.obs_year["artifact"], "day_num"].to_numpy()
     rows = []
@@ -93,9 +94,12 @@ def season_episodes(s: SeasonContext, weather: pd.DataFrame | None, weather_sour
         wx = episode_weather(weather, ep["start"], ep["end"]) | {"source": weather_source}
         region = region_context(all_z, s.pid, ep["start"], ep["end"])
         cause, conf, reasons = classify(ep, s.dev, s.pheno, wx, near, region)
+        ndwi = ndwi_anomaly(series, s.year, ep["start"], ep["end"]) if series is not None else {}
+        if (note := ndwi_note(ndwi)) is not None:
+            reasons = reasons + [note]
         rows.append({"pid": s.pid, "year": s.year, **ep, "severity": severity_label(ep), "cause": cause,
                      "confidence": conf, "norm_source": s.norm_source, "weather_source": weather_source,
-                     "artifacts_near": near, "region_z": region.get("region_z"),
+                     "artifacts_near": near, "region_z": region.get("region_z"), **ndwi,
                      "region_share_depressed": region.get("share_polygons_depressed"),
                      "weather": json.dumps(wx, ensure_ascii=False), "reasons": " | ".join(reasons),
                      "text": describe(s.pid, s.year, ep, cause, conf, reasons, s.norm_source)})
@@ -126,7 +130,7 @@ def run_all(obs: pd.DataFrame, grid: pd.DataFrame, pids: list[str], strict: bool
         wx, source = (wx, "ERA5 полигона") if wx is not None else (region_wx, "ERA5 региона (медиана соседних полей)")
         for s in seasons:
             if s.pid == pid:
-                episodes += season_episodes(s, wx, source, all_z, strict)
+                episodes += season_episodes(s, wx, source, all_z, strict, series_all[pid])
     org = pd.concat([organizer_norm(series_all[pid]) for pid in pids], ignore_index=True)
     return (pd.DataFrame(episodes), pd.DataFrame([season_row(s) for s in seasons if s.pid in wanted]),
             org[["pid", "date", "year", "sensor", "org_mean", "org_std", "org_z"]])

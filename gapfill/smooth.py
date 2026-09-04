@@ -23,15 +23,19 @@ def _weights(x_ctx: np.ndarray, x_eval: np.ndarray, bw: float) -> np.ndarray:
     return w
 
 
-def _solve(w: np.ndarray, d: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Взвешенная линейная подгонка y ≈ a + b·d по строкам матрицы весов; возвращает (a, b, сумма весов)."""
+def _solve(w: np.ndarray, d: np.ndarray, y: np.ndarray, min_points: float = 0.0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Взвешенная линейная подгонка y ≈ a + b·d по строкам матрицы весов; возвращает (a, b, сумма весов).
+
+    При эффективном числе точек (сумме весов) меньше min_points наклон не оценивается — берётся взвешенное
+    среднее: линейная экстраполяция по одной-двум точкам уводит кривую за физический диапазон.
+    """
     s0 = w.sum(1)
     s1 = (w * d).sum(1)
     s2 = (w * d * d).sum(1)
     t0 = (w * y[None, :]).sum(1)
     t1 = (w * d * y[None, :]).sum(1)
     det = s0 * s2 - s1 * s1
-    ok = det > EPS
+    ok = (det > EPS) & (s0 >= min_points)
     a = np.where(ok, (s2 * t0 - s1 * t1) / np.where(ok, det, 1.0), t0 / np.maximum(s0, EPS))
     b = np.where(ok, (s0 * t1 - s1 * t0) / np.where(ok, det, 1.0), 0.0)
     empty = s0 < 1e-6
@@ -41,10 +45,11 @@ def _solve(w: np.ndarray, d: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.
 
 
 def local_linear(x_ctx: np.ndarray, y_ctx: np.ndarray, x_eval: np.ndarray, bw: float,
-                 loo: bool = False) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+                 loo: bool = False, min_points: float = 0.0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Оценка (значение, наклон, сумма весов) в точках x_eval по контексту (x_ctx, y_ctx).
 
     При loo=True x_eval должен совпадать с x_ctx: каждая точка исключается из собственной оценки.
+    min_points — минимальная сумма весов для оценки наклона (0 — как в признаках gapfill).
     """
     x_ctx = np.asarray(x_ctx, dtype=float)
     y_ctx = np.asarray(y_ctx, dtype=float)
@@ -62,5 +67,5 @@ def local_linear(x_ctx: np.ndarray, y_ctx: np.ndarray, x_eval: np.ndarray, bw: f
             rows = np.arange(sl.start, sl.stop)
             w[rows - sl.start, rows] = 0.0
         d = x_ctx[None, :] - x_eval[sl, None]
-        a[sl], b[sl], s[sl] = _solve(w, d, y_ctx)
+        a[sl], b[sl], s[sl] = _solve(w, d, y_ctx, min_points)
     return a, b, s

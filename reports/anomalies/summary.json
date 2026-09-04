@@ -1,19 +1,19 @@
 {
   "n_polygons": 78,
   "n_seasons": 948,
-  "n_episodes": 474,
+  "n_episodes": 480,
   "episodes_by_cause": {
-    "weather_drought": 117,
-    "early_decline": 103,
+    "weather_drought": 120,
+    "early_decline": 100,
     "crop_rotation": 96,
-    "weak_season": 77,
-    "unsown_or_changed": 53,
-    "late_start": 22,
+    "weak_season": 69,
+    "unsown_or_changed": 54,
+    "late_start": 35,
     "data_suspect": 6
   },
   "episodes_by_severity": {
-    "умеренная": 349,
-    "критическая": 125
+    "умеренная": 359,
+    "критическая": 121
   },
   "org_check": {
     "n": 30520,

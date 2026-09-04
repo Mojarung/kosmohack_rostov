@@ -99,7 +99,7 @@ def phenology(curve: pd.DataFrame) -> dict:
     if main.sum() < 20:
         return {"valid": False}
     i_peak = int(np.flatnonzero(main)[np.argmax(v[main])])
-    peak, base = float(v[i_peak]), float(np.nanmin(v))
+    peak, base = float(v[i_peak]), float(np.nanpercentile(v, 5))   # база — 5-й перцентиль, устойчив к краевым провалам
     amp = peak - base
     thr = base + 0.2 * amp
     above = doy[(v >= thr) & main]

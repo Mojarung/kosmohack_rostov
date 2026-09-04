@@ -13,6 +13,8 @@ from gapfill.config import SENSOR_CODE, SENSOR_OFFSET
 from gapfill.smooth import local_linear
 
 SHRINK_PAIRS = 10       # сжатие смещения полигона к глобальному (в парах наблюдений)
+CURVE_RANGE = (-0.1, 1.0)  # физический диапазон NDVI для кривой
+MIN_SLOPE_POINTS = 2.0     # наклон кривой оценивается только при ≥ 2 эффективных точках в окне ядра
 EPOCH = pd.Timestamp("2000-01-01")
 
 
@@ -61,7 +63,9 @@ def daily_curve(series: pd.DataFrame, year: int, bw: float = CURVE_BW) -> pd.Dat
     sel = (series["year"] == year) & ~series["artifact"]
     day = series.loc[sel, "day_num"].to_numpy(dtype=float)
     h = series.loc[sel, "h"].to_numpy(dtype=float)
-    value, slope, weight = local_linear(day, h, grid["day_num"].to_numpy(dtype=float), bw)
+    value, slope, weight = local_linear(day, h, grid["day_num"].to_numpy(dtype=float), bw, min_points=MIN_SLOPE_POINTS)
+    # на всякий случай удерживаем кривую в физическом диапазоне NDVI
+    value = np.clip(value, CURVE_RANGE[0], CURVE_RANGE[1])
     return grid.assign(value=value, slope=slope, weight=weight, n_obs=int(sel.sum()))
 
 

@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pandas as pd
 
@@ -49,7 +51,8 @@ def norm_curve(curves: dict[int, pd.DataFrame], year: int, min_weight: float = 0
         return grid.assign(norm_mean=np.nan, norm_std=np.nan, norm_n=0)
     m = np.vstack(vals)
     n = np.isfinite(m).sum(0)
-    with np.errstate(all="ignore"):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)   # пустые столбцы дают NaN, это ожидаемо
         mean = np.nanmean(m, axis=0)
         std = np.nanstd(m, axis=0)
     return grid.assign(norm_mean=np.where(n > 0, mean, np.nan), norm_std=np.where(n > 1, np.maximum(std, STD_FLOOR), np.nan),
@@ -70,7 +73,8 @@ def crop_norms(curves_all: dict[str, dict[int, pd.DataFrame]], crop_of: dict[str
                 stacks.append(c2.reindex(range(91, 305)).to_numpy())
         m = np.vstack(stacks)
         n = np.isfinite(m).sum(0)
-        with np.errstate(all="ignore"):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
             out[crop] = pd.DataFrame({"doy": range(91, 305), "norm_mean": np.where(n > 2, np.nanmean(m, 0), np.nan),
                                       "norm_std": np.where(n > 2, np.maximum(np.nanstd(m, 0), STD_FLOOR), np.nan), "norm_n": n})
     return out

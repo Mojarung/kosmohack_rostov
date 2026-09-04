@@ -1,0 +1,198 @@
+"""Автоматический сбор данных для произвольного полигона: Sentinel-2, Landsat, MODIS (STAC) и ERA5 (Open-Meteo).
+
+Источники (без ключей и регистрации):
+- Sentinel-2 L2A: Earth Search v1 (Element84), коллекция sentinel-2-l2a, маска облаков по SCL;
+- Landsat 8/9 C2 L2: Microsoft Planetary Computer, коллекция landsat-c2-l2, маска по qa_pixel;
+- MODIS MOD13Q1 v061: Planetary Computer, коллекция modis-13Q1-061 (16-дневный композит, датируется началом окна);
+- ERA5 (среднесуточная температура, осадки): Open-Meteo Historical Weather API по центроиду полигона.
+Из них собирается таблица наблюдений в формате данных кейса (primary_ndvi = S2 → Landsat → MODIS) и ежедневная
+погода, после чего работает тот же пайплайн детекции (anomaly/).
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import json
+import urllib.parse
+import urllib.request
+
+import numpy as np
+import pandas as pd
+import planetary_computer
+import pystac_client
+from odc.stac import load as stac_load
+from rasterio.features import geometry_mask
+from shapely.geometry import shape
+
+EARTH_SEARCH = "https://earth-search.aws.element84.com/v1"
+PLANETARY = "https://planetarycomputer.microsoft.com/api/stac/v1"
+OPEN_METEO = "https://archive-api.open-meteo.com/v1/archive"
+OVERPASS = "https://overpass-api.de/api/interpreter"
+SEASON = ("04-01", "10-30")
+MIN_VALID_SHARE = 0.6          # доля чистых пикселей в полигоне, ниже — сцена отбрасывается
+MIN_PIXELS = 6
+S2_CLEAR_SCL = (4, 5, 6)       # растительность, открытая почва, вода
+LANDSAT_BAD_BITS = (1, 2, 3, 4, 5)   # dilated cloud, cirrus, cloud, shadow, snow
+
+
+def _season_range(year: int) -> str:
+    return f"{year}-{SEASON[0]}/{year}-{SEASON[1]}"
+
+
+def utm_crs(geom) -> str:
+    """Зона UTM по центроиду полигона (Ростовская область — 37N, но сервис не привязан к региону)."""
+    c = geom.centroid
+    zone = int((c.x + 180) // 6) + 1
+    return f"EPSG:{32600 + zone if c.y >= 0 else 32700 + zone}"
+
+
+def _polygon_mask(data, geom) -> np.ndarray:
+    """Булева маска пикселей внутри полигона в системе координат загруженного массива."""
+    from pyproj import Transformer
+    crs = data.odc.crs
+    transformer = Transformer.from_crs("EPSG:4326", crs, always_xy=True)
+    ring = [transformer.transform(x, y) for x, y in geom.exterior.coords]
+    return ~geometry_mask([{"type": "Polygon", "coordinates": [ring]}], out_shape=(data.sizes["y"], data.sizes["x"]),
+                          transform=data.odc.geobox.transform, invert=False)
+
+
+def _mean_index(num, den, clear, inside) -> tuple[float, float, float]:
+    """Средний NDVI по чистым пикселям полигона; возвращает (ndvi, доля чистых, число пикселей)."""
+    valid = clear & inside & np.isfinite(num) & np.isfinite(den) & ((num + den) != 0)
+    n_inside = int(inside.sum())
+    if n_inside < MIN_PIXELS or valid.sum() / max(n_inside, 1) < MIN_VALID_SHARE:
+        return np.nan, float(valid.sum() / max(n_inside, 1)), n_inside
+    ndvi = (num[valid] - den[valid]) / (num[valid] + den[valid])
+    return float(np.clip(ndvi.mean(), -1, 1)), float(valid.sum() / n_inside), n_inside
+
+
+def collect_s2(geom, years: range) -> pd.DataFrame:
+    """Sentinel-2 L2A: NDVI по чистым пикселям (SCL) на каждую сцену."""
+    client = pystac_client.Client.open(EARTH_SEARCH)
+    rows = []
+    for year in years:
+        items = list(client.search(collections=["sentinel-2-l2a"], intersects=geom.__geo_interface__,
+                                   datetime=_season_range(year), query={"eo:cloud_cover": {"lt": 80}}).items())
+        if not items:
+            continue
+        data = stac_load(items, bands=["red", "nir", "scl"], geopolygon=geom.__geo_interface__, resolution=10,
+                         chunks={}, groupby="solar_day", crs=utm_crs(geom))
+        inside = _polygon_mask(data, geom)
+        for t in data.time.values:
+            frame = data.sel(time=t)
+            scl = frame["scl"].values
+            ndvi, share, n = _mean_index(frame["nir"].values.astype(float), frame["red"].values.astype(float),
+                                         np.isin(scl, S2_CLEAR_SCL), inside)
+            if np.isfinite(ndvi):
+                rows.append({"date": pd.Timestamp(t).normalize(), "s2_ndvi": ndvi, "s2_clear_share": share})
+    return pd.DataFrame(rows)
+
+
+def collect_landsat(geom, years: range) -> pd.DataFrame:
+    """Landsat 8/9 C2 L2 (Planetary Computer): NDVI по пикселям без облаков/теней по qa_pixel."""
+    client = pystac_client.Client.open(PLANETARY, modifier=planetary_computer.sign_inplace)
+    rows = []
+    for year in years:
+        items = list(client.search(collections=["landsat-c2-l2"], intersects=geom.__geo_interface__,
+                                   datetime=_season_range(year), query={"eo:cloud_cover": {"lt": 80},
+                                                                        "platform": {"in": ["landsat-8", "landsat-9"]}}).items())
+        if not items:
+            continue
+        data = stac_load(items, bands=["red", "nir08", "qa_pixel"], geopolygon=geom.__geo_interface__, resolution=30,
+                         chunks={}, groupby="solar_day", crs=utm_crs(geom))
+        inside = _polygon_mask(data, geom)
+        for t in data.time.values:
+            frame = data.sel(time=t)
+            qa = frame["qa_pixel"].values.astype(np.int64)
+            bad = np.zeros(qa.shape, dtype=bool)
+            for bit in LANDSAT_BAD_BITS:
+                bad |= (qa >> bit) & 1 == 1
+            red = frame["red"].values.astype(float) * 0.0000275 - 0.2
+            nir = frame["nir08"].values.astype(float) * 0.0000275 - 0.2
+            ndvi, share, n = _mean_index(nir, red, ~bad & (qa != 0), inside)
+            if np.isfinite(ndvi):
+                rows.append({"date": pd.Timestamp(t).normalize(), "landsat_ndvi": ndvi, "landsat_clear_share": share})
+    return pd.DataFrame(rows)
+
+
+def collect_modis(geom, years: range) -> pd.DataFrame:
+    """MODIS MOD13Q1 (Planetary Computer): готовый NDVI композита с фильтром надёжности."""
+    client = pystac_client.Client.open(PLANETARY, modifier=planetary_computer.sign_inplace)
+    rows = []
+    for year in years:
+        items = list(client.search(collections=["modis-13Q1-061"], intersects=geom.__geo_interface__,
+                                   datetime=_season_range(year)).items())
+        if not items:
+            continue
+        data = stac_load(items, bands=["250m_16_days_NDVI", "250m_16_days_pixel_reliability"],
+                         geopolygon=geom.__geo_interface__, resolution=250, chunks={}, groupby="solar_day", crs=utm_crs(geom))
+        inside = _polygon_mask(data, geom)
+        for t in data.time.values:
+            frame = data.sel(time=t)
+            ndvi = frame["250m_16_days_NDVI"].values.astype(float) * 0.0001
+            good = np.isin(frame["250m_16_days_pixel_reliability"].values, (0, 1)) & inside & (ndvi > -1)
+            if good.sum() >= 1:
+                rows.append({"date": pd.Timestamp(t).normalize(), "modis_ndvi": float(np.clip(ndvi[good].mean(), -1, 1))})
+    return pd.DataFrame(rows)
+
+
+def collect_weather(lat: float, lon: float, years: range) -> pd.DataFrame:
+    """ERA5 по Open-Meteo: среднесуточная температура и осадки за все дни выбранных лет (с апреля по октябрь)."""
+    params = {"latitude": lat, "longitude": lon, "start_date": f"{years[0]}-04-01",
+              "end_date": min(dt.date(years[-1], 10, 30), dt.date.today() - dt.timedelta(days=6)).isoformat(),
+              "daily": "temperature_2m_mean,precipitation_sum", "timezone": "UTC"}
+    with urllib.request.urlopen(OPEN_METEO + "?" + urllib.parse.urlencode(params), timeout=60) as resp:
+        payload = json.load(resp)
+    d = payload["daily"]
+    w = pd.DataFrame({"date": pd.to_datetime(d["time"]), "era5_temp_c": d["temperature_2m_mean"],
+                      "era5_precip_mm": d["precipitation_sum"]})
+    return w[(w["date"].dt.dayofyear >= 91) & (w["date"].dt.dayofyear <= 304)]
+
+
+def osm_fields(bbox: tuple[float, float, float, float]) -> list[dict]:
+    """Готовые контуры полей OpenStreetMap (landuse=farmland) в рамке (юг, запад, север, восток)."""
+    s, w, n, e = bbox
+    query = f'[out:json][timeout:25];(way["landuse"="farmland"]({s},{w},{n},{e}););out geom 200;'
+    req = urllib.request.Request(OVERPASS, data=urllib.parse.urlencode({"data": query}).encode(),
+                                 headers={"User-Agent": "kosmohack-ndvi/0.1"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        payload = json.load(resp)
+    out = []
+    for el in payload.get("elements", []):
+        pts = [[p["lon"], p["lat"]] for p in el.get("geometry", [])]
+        if len(pts) >= 4:
+            out.append({"id": el["id"], "name": el.get("tags", {}).get("name", f"поле OSM {el['id']}"),
+                        "geometry": {"type": "Polygon", "coordinates": [pts]}})
+    return out
+
+
+def assemble_observations(pid: str, s2: pd.DataFrame, ls: pd.DataFrame, md: pd.DataFrame) -> pd.DataFrame:
+    """Таблица наблюдений в формате кейса: одна строка на дату, primary_ndvi по приоритету S2 → Landsat → MODIS."""
+    frames = [f.set_index("date") for f in (s2, ls, md) if len(f)]
+    if not frames:
+        raise ValueError("ни один спутниковый источник не вернул чистых наблюдений")
+    df = pd.concat(frames, axis=1).sort_index().reset_index()
+    for col in ("s2_ndvi", "landsat_ndvi", "modis_ndvi", "s2_evi", "s2_ndwi", "landsat_evi", "landsat_ndwi", "modis_evi"):
+        if col not in df:
+            df[col] = np.nan
+    df["primary_ndvi"] = df["s2_ndvi"].fillna(df["landsat_ndvi"]).fillna(df["modis_ndvi"])
+    df["sensor"] = np.select([df["s2_ndvi"].notna(), df["landsat_ndvi"].notna()], [0, 1], 2).astype("int8")
+    df = df.assign(pid=pid, day_num=(df["date"] - pd.Timestamp("2000-01-01")).dt.days.astype("int32"),
+                   year=df["date"].dt.year.astype("int16"), doy=df["date"].dt.dayofyear.astype("int16"), crop=-1)
+    return df.dropna(subset=["primary_ndvi"]).reset_index(drop=True)
+
+
+def analyze_geometry(geometry: dict, name: str, start_year: int, end_year: int) -> dict:
+    """Полный цикл для нового полигона: сбор → наблюдения → погода → детекция → JSON для интерфейса."""
+    from service.analyze_new import analyze_new_polygon
+    geom = shape(geometry)
+    years = range(start_year, end_year + 1)
+    s2, ls, md = collect_s2(geom, years), collect_landsat(geom, years), collect_modis(geom, years)
+    pid = f"NEW:{name}"
+    obs = assemble_observations(pid, s2, ls, md)
+    centroid = geom.centroid
+    weather = collect_weather(centroid.y, centroid.x, years).assign(pid=pid)
+    result = analyze_new_polygon(pid, obs, weather)
+    result["collected"] = f"S2 {len(s2)} сцен, Landsat {len(ls)}, MODIS {len(md)}, ERA5 {len(weather)} дней"
+    result["geometry"] = geometry
+    return result

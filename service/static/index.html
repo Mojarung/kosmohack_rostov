@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NDVI-мониторинг полей</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.2/plotly.min.js"></script>
+<style>
+  :root { --bg:#f6f4ee; --panel:#ffffff; --ink:#1f2a1f; --muted:#6b7266; --line:#e2ded3; --accent:#2f6f3e;
+          --warn:#e8a33d; --crit:#c8423f; --s2:#2b6cb0; --ls:#805ad5; --md:#dd6b20; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 "Segoe UI", system-ui, sans-serif; color:var(--ink); background:var(--bg); }
+  header { display:flex; align-items:baseline; gap:16px; padding:14px 22px; border-bottom:1px solid var(--line); background:var(--panel); }
+  header h1 { margin:0; font-size:20px; letter-spacing:.2px; }
+  header .sub { color:var(--muted); }
+  main { display:grid; grid-template-columns:320px 1fr; gap:16px; padding:16px 22px; }
+  aside { display:flex; flex-direction:column; gap:12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  .card h2 { margin:0 0 8px; font-size:13px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); }
+  input[type=search], select { width:100%; padding:7px 9px; border:1px solid var(--line); border-radius:6px; font:inherit; }
+  #list { max-height:46vh; overflow:auto; margin-top:8px; }
+  .poly { padding:7px 8px; border-radius:6px; cursor:pointer; display:flex; justify-content:space-between; gap:8px; }
+  .poly:hover { background:#f1efe6; } .poly.active { background:#e5efe7; }
+  .poly .meta { color:var(--muted); font-size:12px; }
+  .badge { display:inline-block; padding:1px 7px; border-radius:10px; font-size:12px; color:#fff; }
+  .badge.crit { background:var(--crit); } .badge.warn { background:var(--warn); } .badge.ok { background:var(--accent); }
+  #map { height:260px; border-radius:8px; }
+  .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .years { display:flex; gap:4px; flex-wrap:wrap; }
+  .years button { border:1px solid var(--line); background:#fff; border-radius:6px; padding:3px 8px; cursor:pointer; font:inherit; }
+  .years button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .years button.hasep { box-shadow: inset 0 -3px 0 var(--warn); }
+  .years button.hascrit { box-shadow: inset 0 -3px 0 var(--crit); }
+  #episodes .ep { border-left:4px solid var(--warn); padding:8px 10px; margin:8px 0; background:#fbfaf6; border-radius:0 6px 6px 0; }
+  #episodes .ep.crit { border-left-color:var(--crit); }
+  #episodes .ep .head { font-weight:600; }
+  #episodes .ep .cause { color:var(--muted); font-size:12px; }
+  .legend span { margin-right:12px; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+  .muted { color:var(--muted); }
+  button.primary { background:var(--accent); color:#fff; border:0; border-radius:6px; padding:8px 12px; cursor:pointer; font:inherit; }
+  button.primary:disabled { opacity:.5; cursor:default; }
+  #status { font-size:12px; color:var(--muted); min-height:16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>NDVI-мониторинг полей</h1>
+  <span class="sub">исходный и восстановленный ряд · климатическая норма · эпизоды угнетения и их причины</span>
+</header>
+<main>
+  <aside>
+    <div class="card">
+      <h2>Новая территория</h2>
+      <div id="map"></div>
+      <div class="row" style="margin-top:8px">
+        <input id="name" type="search" placeholder="название поля" style="flex:1" value="новое поле">
+        <button class="primary" id="analyze" disabled>Собрать данные и проанализировать</button>
+      </div>
+      <div id="status">Нарисуйте контур поля на карте (инструмент многоугольника слева вверху).</div>
+    </div>
+    <div class="card">
+      <h2>Полигоны кейса</h2>
+      <input id="search" type="search" placeholder="поиск по AOI, культуре">
+      <select id="sort" style="margin-top:6px">
+        <option value="crit">сначала критические</option>
+        <option value="eps">по числу эпизодов</option>
+        <option value="pid">по номеру</option>
+      </select>
+      <div id="list"></div>
+    </div>
+  </aside>
+  <section>
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div><b id="title">Выберите полигон</b> <span id="subtitle" class="muted"></span></div>
+        <div class="years" id="years"></div>
+      </div>
+      <div class="legend muted" style="margin:6px 0 2px">
+        <span><i class="dot" style="background:var(--s2)"></i>Sentinel-2</span>
+        <span><i class="dot" style="background:var(--ls)"></i>Landsat</span>
+        <span><i class="dot" style="background:var(--md)"></i>MODIS</span>
+        <span><i class="dot" style="background:#000"></i>восстановленная кривая</span>
+        <span><i class="dot" style="background:#e11d74"></i>восстановленные пропуски</span>
+        <span><i class="dot" style="background:#bbb"></i>норма ±1σ</span>
+        <span style="color:var(--crit)">✕ артефакт (облако/тень)</span>
+      </div>
+      <div id="ndvi" style="height:380px"></div>
+      <div id="zplot" style="height:170px"></div>
+      <div id="wx" style="height:170px"></div>
+    </div>
+    <div class="card" id="episodes"><h2>Эпизоды угнетения</h2><div class="muted">Нет данных</div></div>
+  </section>
+</main>
+<script>
+const S = { polys: [], current: null, data: null, year: null, drawn: null };
+const SENSOR_COLOR = { "Sentinel-2": "#2b6cb0", "Landsat": "#805ad5", "MODIS": "#dd6b20" };
+const CAUSE = { weather_drought: "погодный стресс", unsown_or_changed: "не засеяно / другая культура",
+  early_decline: "ранний спад", weak_season: "ослабленный сезон", late_start: "поздний старт",
+  crop_rotation: "севооборот (не угнетение)", data_suspect: "вероятная ошибка данных" };
+
+async function api(path, opts) { const r = await fetch(path, opts); if (!r.ok) throw new Error((await r.json()).detail || r.statusText); return r.json(); }
+
+function renderList() {
+  const q = document.getElementById("search").value.toLowerCase();
+  const sort = document.getElementById("sort").value;
+  let items = S.polys.filter(p => (p.pid + " " + p.crop).toLowerCase().includes(q));
+  if (sort === "crit") items.sort((a, b) => b.n_critical - a.n_critical || b.n_episodes - a.n_episodes);
+  else if (sort === "eps") items.sort((a, b) => b.n_episodes - a.n_episodes);
+  else items.sort((a, b) => a.pid.localeCompare(b.pid));
+  document.getElementById("list").innerHTML = items.map(p => `
+    <div class="poly ${S.current === p.pid ? "active" : ""}" data-pid="${p.pid}">
+      <div><div>${p.pid} <span class="meta">${p.crop}</span></div>
+           <div class="meta">${p.years[0]}–${p.years[p.years.length - 1]} · ${p.n_obs} набл.${p.n_gaps ? " · " + p.n_gaps + " контр. точек" : ""}</div></div>
+      <div>${p.n_critical ? `<span class="badge crit">${p.n_critical}</span>` : ""} ${p.n_episodes ? `<span class="badge warn">${p.n_episodes}</span>` : `<span class="badge ok">ок</span>`}</div>
+    </div>`).join("");
+  document.querySelectorAll(".poly").forEach(el => el.onclick = () => loadPolygon(el.dataset.pid));
+}
+
+async function loadPolygon(pid) {
+  S.current = pid; renderList();
+  S.data = await api(`/api/polygon/${pid}`);
+  showData(S.data, pid, S.data.crop + " · " + S.data.kind);
+}
+
+function showData(data, title, subtitle) {
+  S.data = data;
+  document.getElementById("title").textContent = title;
+  document.getElementById("subtitle").textContent = subtitle || "";
+  const years = Object.keys(data.years).map(Number).sort();
+  const epYears = new Set(data.episodes.map(e => e.year));
+  const critYears = new Set(data.episodes.filter(e => e.severity === "критическая").map(e => e.year));
+  S.year = years.includes(S.year) ? S.year : years[years.length - 1];
+  document.getElementById("years").innerHTML = years.map(y =>
+    `<button class="${y === S.year ? "active" : ""} ${critYears.has(y) ? "hascrit" : epYears.has(y) ? "hasep" : ""}" data-y="${y}">${y}</button>`).join("");
+  document.querySelectorAll("#years button").forEach(b => b.onclick = () => { S.year = Number(b.dataset.y); showData(S.data, title, subtitle); });
+  renderCharts(); renderEpisodes();
+}
+
+function shapes(eps) {
+  return eps.map(e => ({ type: "rect", xref: "x", yref: "paper", x0: e.start, x1: e.end, y0: 0, y1: 1,
+    fillcolor: e.severity === "критическая" ? "#c8423f" : "#e8a33d", opacity: 0.16, line: { width: 0 } }));
+}
+
+function renderCharts() {
+  const y = S.data.years[S.year]; if (!y) return;
+  const eps = S.data.episodes.filter(e => e.year === S.year);
+  const traces = [];
+  const nm = y.norm_mean, ns = y.norm_std;
+  if (nm.length) {
+    const sd = Object.fromEntries(ns.map(p => [p.date, p.value]));
+    traces.push({ x: nm.map(p => p.date), y: nm.map(p => p.value + (sd[p.date] || 0)), mode: "lines", line: { width: 0 }, showlegend: false, hoverinfo: "skip" });
+    traces.push({ x: nm.map(p => p.date), y: nm.map(p => p.value - (sd[p.date] || 0)), mode: "lines", line: { width: 0 }, fill: "tonexty", fillcolor: "rgba(150,150,150,.22)", name: "норма ±1σ (" + y.norm_source + ")", hoverinfo: "skip" });
+    traces.push({ x: nm.map(p => p.date), y: nm.map(p => p.value), mode: "lines", line: { color: "#888", width: 1.3 }, name: "норма" });
+  }
+  traces.push({ x: y.curve.map(p => p.date), y: y.curve.map(p => p.value), mode: "lines", line: { color: "#000", width: 2 }, name: "восстановленная кривая" });
+  for (const s of ["Sentinel-2", "Landsat", "MODIS"]) {
+    const pts = y.observations.filter(o => o.sensor === s && !o.artifact);
+    traces.push({ x: pts.map(o => o.date), y: pts.map(o => o.value), mode: "markers", marker: { color: SENSOR_COLOR[s], size: 7 }, name: s + " (исходный primary_ndvi)",
+      text: pts.map(o => `в шкале S2: ${o.harmonized.toFixed(3)}`), hovertemplate: "%{x}<br>%{y:.3f}<br>%{text}" });
+  }
+  const art = y.observations.filter(o => o.artifact);
+  if (art.length) traces.push({ x: art.map(o => o.date), y: art.map(o => o.value), mode: "markers", marker: { symbol: "x", color: "#c8423f", size: 9 }, name: "артефакт (исключён)" });
+  if (y.restored.length) traces.push({ x: y.restored.map(o => o.date), y: y.restored.map(o => o.value), mode: "markers", marker: { color: "#e11d74", size: 8, symbol: "diamond" }, name: "восстановленный пропуск (контрольная точка)" });
+  Plotly.newPlot("ndvi", traces, { margin: { l: 45, r: 10, t: 10, b: 30 }, yaxis: { title: "NDVI", range: [0, 1] }, shapes: shapes(eps), legend: { orientation: "h", y: -0.15 }, hovermode: "closest" }, { displayModeBar: false, responsive: true });
+  Plotly.newPlot("zplot", [{ x: y.z.map(p => p.date), y: y.z.map(p => p.value), mode: "lines", line: { color: "#000", width: 1.4 }, name: "Z-score" }],
+    { margin: { l: 45, r: 10, t: 5, b: 25 }, yaxis: { title: "Z-score", range: [-4, 3] }, shapes: [...shapes(eps),
+      { type: "line", xref: "paper", x0: 0, x1: 1, y0: -1, y1: -1, line: { color: "#e8a33d", dash: "dash", width: 1 } },
+      { type: "line", xref: "paper", x0: 0, x1: 1, y0: -2, y1: -2, line: { color: "#c8423f", dash: "dash", width: 1 } }], showlegend: false }, { displayModeBar: false, responsive: true });
+  const w = S.data.weather && S.data.weather[S.year];
+  if (w) Plotly.newPlot("wx", [{ x: w.date, y: w.precip, type: "bar", marker: { color: "#2b6cb0" }, name: "осадки, мм/день" },
+    { x: w.date, y: w.temp, mode: "lines", line: { color: "#dd6b20", width: 1 }, name: "температура, °C", yaxis: "y2" }],
+    { margin: { l: 45, r: 45, t: 5, b: 25 }, yaxis: { title: "мм" }, yaxis2: { title: "°C", overlaying: "y", side: "right" }, showlegend: false }, { displayModeBar: false, responsive: true });
+  else Plotly.purge("wx"), document.getElementById("wx").innerHTML = '<div class="muted" style="padding:20px">ERA5 для этого полигона нет: погода берётся по региону.</div>';
+}
+
+function renderEpisodes() {
+  const eps = S.data.episodes.filter(e => e.year === S.year).sort((a, b) => a.min_z - b.min_z);
+  const shape = (S.data.shape || []).filter(s => s.year === S.year);
+  const el = document.getElementById("episodes");
+  let html = "<h2>Эпизоды угнетения · " + S.year + "</h2>";
+  if (!eps.length) html += '<div class="muted">В этом сезоне устойчивых или сильных отклонений ниже нормы не найдено.</div>';
+  html += eps.map(e => `<div class="ep ${e.severity === "критическая" ? "crit" : ""}">
+      <div class="head">${e.start} — ${e.end} · ${e.days} дн. · ${e.severity} · Z<sub>min</sub> ${e.min_z.toFixed(1)}</div>
+      <div class="cause">причина: ${CAUSE[e.cause] || e.cause} (уверенность ${Math.round(e.confidence * 100)} %) · норма: ${e.norm_source} · погода: ${e.weather_source || "—"}</div>
+      <div>${e.text}</div></div>`).join("");
+  if (shape.length) html += shape.map(s => `<div class="ep" style="border-left-color:#888"><div class="head">Нетипичная форма сезона (${s.shape_direction})</div><div>${s.shape_reasons}</div></div>`).join("");
+  el.innerHTML = html;
+}
+
+// карта и рисование полигона
+const map = L.map("map").setView([47.2, 39.7], 8);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap" }).addTo(map);
+const drawn = new L.FeatureGroup().addTo(map);
+map.addControl(new L.Control.Draw({ draw: { polygon: { allowIntersection: false, showArea: true }, polyline: false, circle: false, rectangle: true, marker: false, circlemarker: false }, edit: { featureGroup: drawn } }));
+map.on(L.Draw.Event.CREATED, e => { drawn.clearLayers(); drawn.addLayer(e.layer); S.drawn = e.layer.toGeoJSON().geometry;
+  document.getElementById("analyze").disabled = false; document.getElementById("status").textContent = "Контур задан. Нажмите «Собрать данные»."; });
+document.getElementById("analyze").onclick = async () => {
+  const btn = document.getElementById("analyze"); btn.disabled = true;
+  document.getElementById("status").textContent = "Собираем Sentinel-2, Landsat, MODIS и ERA5… это занимает 1–3 минуты.";
+  try {
+    const data = await api("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ geometry: S.drawn, name: document.getElementById("name").value }) });
+    S.current = null; renderList(); showData(data, data.pid, data.kind);
+    document.getElementById("status").textContent = "Готово: " + (data.collected || "");
+  } catch (err) { document.getElementById("status").textContent = "Ошибка: " + err.message; }
+  btn.disabled = false;
+};
+document.getElementById("search").oninput = renderList;
+document.getElementById("sort").onchange = renderList;
+api("/api/polygons").then(p => { S.polys = p; renderList(); const first = [...p].sort((a, b) => b.n_critical - a.n_critical)[0]; if (first) loadPolygon(first.pid); });
+</script>
+</body>
+</html>
