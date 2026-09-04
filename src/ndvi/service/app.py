@@ -270,8 +270,8 @@ def demo_polygons():
                       "years": [int(sub.year.min()), int(sub.year.max())],
                       "role": role, "role_ru": store.ROLE_RU[role]})
     return {"ok": True, "items": sorted(items, key=lambda x: x["id"]),
-            "note": ("координат полей в датасете нет; их примерное положение оценено "
-                     "по погодному отпечатку и показано на карте зонами")}
+            "note": ("координат полей в датасете нет, поэтому на карте их контуры не рисуются; "
+                     "роль каждого поля — обучающее или тестовое — видна в этом списке")}
 
 
 @app.get("/api/demo/{pid}")
