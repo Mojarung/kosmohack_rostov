@@ -51,9 +51,9 @@ uv sync --group ml --group dl                       # LightGBM, CatBoost, torch 
 uv run python -m gapfill.train --n-masks 20 --clip -0.1 1.0 --out lgb_v3   # валидация LightGBM
 uv run python -m gapfill.nn_model --epochs 600 --dropout 0.25 --out nn_v2   # валидация нейросети
 uv run python -m gapfill.ensemble lgb_v3 nn_v2                              # веса смеси
-uv run python -m gapfill.predict --n-masks 30 --rounds 5000 --seeds 0 1 2 --out final_lgb
-uv run python -m gapfill.nn_model --final --epochs 600 --dropout 0.25 --seed 0 --out final_nn
-uv run python -m gapfill.make_submission final_lgb:0.6 final_nn:0.4         # → submission.csv
+uv run python -m gapfill.predict --n-masks 30 --rounds 5500 --seeds 0 1 2 --out final_lgb
+for s in 0 1 2; do uv run python -m gapfill.nn_model --final --epochs 600 --dropout 0.25 --seed $s --out final_nn; done
+uv run python -m gapfill.make_submission final_lgb:0.5 final_nn:0.5         # → submission.csv
 uv run pytest tests -q
 ```
 
@@ -66,8 +66,9 @@ uv run pytest tests -q
 | среднее двух соседей (baseline ТЗ) | 0.092 | — | — |
 | интерполяция того же сенсора (oracle-сенсор) | 0.084 | — | — |
 | LightGBM v3 | 0.0574 | 0.0644 | 0.0492 |
-| SeasonNet v1 | 0.0602 | 0.0667 | 0.0509 |
-| смесь 0.62 / 0.38 | **0.0559** | **0.0629** | **0.0472** |
+| CatBoost v1 | 0.0582 | 0.0653 | 0.0495 |
+| SeasonNet, один seed | 0.0598–0.0601 | 0.0660–0.0670 | 0.0501 |
+| **0.5 · LightGBM + 0.5 · среднее 4 seeds SeasonNet** | **0.0552** | **0.0622** | **0.0463** |
 
 Потолок: точки с соседом в одном дне восстанавливаются с усечённым RMSE 0.041 — это шум одного
 наблюдения; 1.2 % точек-выбросов target дают 43 % квадратичной ошибки и не предсказуемы.
