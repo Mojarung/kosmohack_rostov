@@ -76,7 +76,21 @@ service = [
     "uvicorn[standard]>=0.52.4",
 ]
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
 [tool.uv]
 # openeo (клиент Copernicus Data Space) требует xarray<2025.1.2 и несовместим с современным geo-стеком,
 # поэтому живёт в отдельной группе: uv sync --group openeo
 conflicts = [[{ group = "geo" }, { group = "openeo" }]]
+
+# torch с CUDA 13.0 для RTX 5070 (Blackwell, sm_120): на PyPI под Windows лежит CPU-сборка,
+# поэтому torch берём из индекса PyTorch (explicit = true — только для torch)
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu130", marker = "sys_platform == 'win32' or sys_platform == 'linux'" }]
