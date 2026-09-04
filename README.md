@@ -14,6 +14,7 @@
 - [Критерии оценки](docs/06-evaluation-criteria.md)
 - [Чек-лист сдачи](docs/07-submission-checklist.md)
 - [Отчёт EDA](docs/08-eda-report.md), [обзор open-source](docs/09-open-source-landscape.md), [сравнение двух EDA](docs/10-branch-comparison.md), [заметки первого EDA](docs/11-eda-v1-notes.md)
+- [Модель восстановления пропусков](docs/12-gapfill-model.md)
 
 ## Разведочный анализ (EDA)
 
@@ -25,6 +26,27 @@ uv run python -m eda.run_all    # графики в reports/eda/figures/, чис
 Выводы и графики — в [docs/08-eda-report.md](docs/08-eda-report.md). Скрипты первого прохода анализа и сборка дашборда — в [`eda/v1/`](eda/v1/README.md).
 
 Интерактивный дашборд «NDVI-атлас полей»: [`reports/dashboard/dashboard.html`](reports/dashboard/dashboard.html) (самодостаточный файл, открывается двойным кликом; пересборка `uv run python eda/v1/build_dashboard_data.py`).
+
+## Восстановление пропусков `primary_ndvi` (задача 1)
+
+Пакет [`gapfill/`](gapfill/): признаки по ряду полигона, циклам съёмки и «шуму дня» других полигонов,
+LightGBM + нейросеть по сезонной сетке (SeasonNet), смесь 0.5/0.5. Метод, валидация и результаты —
+в [docs/12-gapfill-model.md](docs/12-gapfill-model.md), журнал экспериментов — в [`experiments/`](experiments/README.md).
+
+```bash
+uv sync --group ml --group dl                                                # LightGBM, CatBoost, torch (CUDA 13.0)
+uv run python -m gapfill.train --n-masks 20 --clip -0.1 1.0 --out lgb_v3     # валидация LightGBM (RMSE 0.057)
+uv run python -m gapfill.nn_model --epochs 600 --dropout 0.25 --out nn_v2    # валидация SeasonNet (RMSE 0.060, GPU)
+uv run python -m gapfill.ensemble lgb_v3 nn_v2                               # смесь на валидации (RMSE 0.055)
+uv run python -m gapfill.predict --n-masks 30 --rounds 5500 --seeds 0 1 2 --out final_lgb
+for s in 0 1 2; do uv run python -m gapfill.nn_model --final --epochs 600 --dropout 0.25 --seed $s --out final_nn; done
+uv run python -m gapfill.make_submission final_lgb:0.5 final_nn:0.5          # → submission.csv (3 112 строк)
+uv run pytest tests -q
+```
+
+Готовый [`submission.csv`](submission.csv) лежит в корне. На валидации, имитирующей контрольные точки
+(15 % известных точек train + test), смесь даёт RMSE 0.055 (взвешенно под состав test 0.062, GapScore ≈ 11)
+против 0.092 у baseline «среднее соседей».
 
 ## Зависимости
 
@@ -54,9 +76,14 @@ uv run python -m eda.run_all    # графики в reports/eda/figures/, чис
 ├── docs/                   # ТЗ, критерии, чек-лист, отчёты 08–11, исходные PDF в source/
 ├── eda/                    # модули разведочного анализа (uv run python -m eda.run_all)
 │   └── v1/                 # скрипты первого прохода EDA и сборка дашборда
+├── gapfill/                # восстановление primary_ndvi: признаки, LightGBM, SeasonNet, смесь, submission
+├── experiments/            # журнал экспериментов по задаче 1 (exp-000…005)
+├── tests/                  # pytest для ядра gapfill
+├── submission.csv          # предсказания контрольных точек test (задача 1)
 ├── reports/
 │   ├── eda/                # графики и summary.json, генерируются EDA
 │   └── dashboard/          # template.html + собранный dashboard.html
+├── artifacts/              # модели и кэш признаков (не в git)
 ├── pyproject.toml          # зависимости по группам (uv)
 └── uv.lock
 ```
