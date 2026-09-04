@@ -36,6 +36,7 @@ def load_gap_preds(name: str) -> pd.Series:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Смесь итоговых предсказаний → submission.csv")
     parser.add_argument("parts", nargs="+", help="<папка>:<вес>")
+    parser.add_argument("--output", type=str, default=None, help="путь submission.csv (по умолчанию корень репозитория)")
     args = parser.parse_args()
     names, weights = zip(*[(p.split(":")[0], float(p.split(":")[1])) for p in args.parts])
     weights = np.array(weights) / np.sum(weights)
@@ -44,7 +45,7 @@ def main() -> None:
     preds = np.column_stack([load_gap_preds(n).reindex(key).to_numpy() for n in names])
     assert not np.isnan(preds).any(), "не для всех контрольных точек есть предсказания"
     blend = preds @ weights
-    sub = write_submission(gaps, blend)
+    sub = write_submission(gaps, blend, args.output) if args.output else write_submission(gaps, blend)
     corr = np.corrcoef(preds.T).round(4).tolist() if len(names) > 1 else None
     print(json.dumps({"parts": dict(zip(names, weights.round(3).tolist())), "n": len(sub),
                       "mean": float(sub["primary_ndvi_pred"].mean()), "corr_between_models": corr},

@@ -20,3 +20,4 @@ Thumbs.db
 .vscode/
 artifacts/
 catboost_info/
+reports/anomalies/organizer_norm.parquet

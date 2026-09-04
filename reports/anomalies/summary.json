@@ -1,0 +1,24 @@
+{
+  "n_polygons": 78,
+  "n_seasons": 948,
+  "n_episodes": 474,
+  "episodes_by_cause": {
+    "weather_drought": 117,
+    "early_decline": 103,
+    "crop_rotation": 96,
+    "weak_season": 77,
+    "unsown_or_changed": 53,
+    "late_start": 22,
+    "data_suspect": 6
+  },
+  "episodes_by_severity": {
+    "умеренная": 349,
+    "критическая": 125
+  },
+  "org_check": {
+    "n": 30520,
+    "clim_mean_rmse": 0.0034957182389662544,
+    "z_corr": 0.9997514203569766,
+    "status_agreement": 0.9965268676277851
+  }
+}

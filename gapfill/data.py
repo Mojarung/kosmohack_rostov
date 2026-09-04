@@ -41,14 +41,15 @@ def sensor_of(df: pd.DataFrame) -> np.ndarray:
     return np.select(conds, list(SENSOR_CODE.values()), default=-1).astype("int8")
 
 
-def load_all() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def load_all(train_path=TRAIN_PATH, test_path=TEST_PATH) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Возвращает (obs, grid, gaps).
 
     obs  — все строки с известным primary_ndvi из train и test (без контрольных точек), с кодом сенсора;
     grid — все строки обоих наборов (нужна ежедневная погода ERA5);
-    gaps — контрольные точки test, которые нужно предсказать.
+    gaps — контрольные точки test (is_synthetic_gap = True), которые нужно предсказать.
+    test_path — файл private_features.csv организаторов (в репозитории он назван data/test_dataset.csv).
     """
-    grid = pd.concat([_read(TRAIN_PATH, "train"), _read(TEST_PATH, "test")], ignore_index=True)
+    grid = pd.concat([_read(train_path, "train"), _read(test_path, "test")], ignore_index=True)
     grid = grid.sort_values(["pid", "date"]).reset_index(drop=True)
     obs = grid.loc[grid[TARGET].notna() & ~grid["is_gap"]].copy()
     obs["sensor"] = sensor_of(obs)

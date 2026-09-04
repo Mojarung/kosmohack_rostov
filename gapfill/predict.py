@@ -1,8 +1,10 @@
-"""Итоговое обучение на всех известных точках и предсказание контрольных точек test → submission.csv.
+"""Batch-инференс (техническая точка запуска из ТЗ): private_features.csv → submission.csv.
 
-Запуск: uv run python -m gapfill.predict --n-masks 30 --rounds 6000 --clip -0.1 1.0 --seeds 0 1 2
-Модель обучается на train + известных точках test (n_masks масок), контекст для контрольных точек —
-все известные точки test и train. Несколько seeds LightGBM усредняются.
+Запуск: uv run python -m gapfill.predict --input data/test_dataset.csv --output submission.csv
+        (дополнительно: --n-masks 30 --rounds 5500 --seeds 0 1 2 --clip -0.1 1.0)
+Модель LightGBM обучается на train + известных точках входного файла (n_masks масок), контекст для
+контрольных точек (is_synthetic_gap = True) — все известные точки. Несколько seeds усредняются.
+Предсказания нейросети добавляются отдельно (gapfill.nn_model --final) и смешиваются gapfill.make_submission.
 """
 
 from __future__ import annotations
@@ -14,13 +16,12 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 
-from gapfill.config import ARTIFACTS_DIR, SUBMISSION_PATH, TARGET
+from gapfill.config import ARTIFACTS_DIR, SUBMISSION_PATH, TARGET, TEST_PATH, TRAIN_PATH
 from gapfill.data import load_all
 from gapfill.dataset import train_examples
 from gapfill.features import build_features, sensor_prior_features
 from gapfill.train import LGB_PARAMS
 
-N_GAPS = 3112
 PRED_RANGE = (-0.2, 1.0)
 
 
@@ -40,7 +41,7 @@ def write_submission(gaps: pd.DataFrame, pred: np.ndarray, path=SUBMISSION_PATH)
     sub = pd.DataFrame({"anon_polygon_id": gaps["pid"].to_numpy(),
                         "date": gaps["date"].dt.strftime("%Y-%m-%d").to_numpy(),
                         "primary_ndvi_pred": np.clip(pred, *PRED_RANGE)})
-    assert len(sub) == N_GAPS, f"ожидалось {N_GAPS} строк, получено {len(sub)}"
+    assert len(sub) == len(gaps), "число строк submission не совпадает с числом контрольных точек"
     assert not sub.duplicated(["anon_polygon_id", "date"]).any(), "дубликаты полигон+дата"
     assert sub["primary_ndvi_pred"].notna().all(), "есть NaN в предсказаниях"
     sub.to_csv(path, index=False, encoding="utf-8")
@@ -58,8 +59,11 @@ def main() -> None:
     parser.add_argument("--min-leaf", type=int, default=LGB_PARAMS["min_data_in_leaf"])
     parser.add_argument("--ff", type=float, default=LGB_PARAMS["feature_fraction"])
     parser.add_argument("--out", type=str, default="final_lgb")
+    parser.add_argument("--input", type=str, default=str(TEST_PATH), help="private_features.csv организаторов")
+    parser.add_argument("--train", type=str, default=str(TRAIN_PATH), help="train_dataset.csv")
+    parser.add_argument("--output", type=str, default=str(SUBMISSION_PATH), help="куда записать submission.csv")
     args = parser.parse_args()
-    obs, grid, gaps = load_all()
+    obs, grid, gaps = load_all(args.train, args.input)
     X, meta = train_examples(obs, grid, None, args.n_masks, seed=0)
     X_gap = gap_features(obs, grid, gaps)
     print(f"обучение {X.shape}, контрольных точек {X_gap.shape}", flush=True)
@@ -74,11 +78,11 @@ def main() -> None:
         m.save_model(str(out_dir / f"lgb_seed{s}.txt"))
     gaps[["pid", "date"]].assign(**{f"pred_seed{s}": preds[:, i] for i, s in enumerate(args.seeds)}).to_parquet(
         out_dir / "gap_pred.parquet")
-    sub = write_submission(gaps, preds.mean(1))
+    sub = write_submission(gaps, preds.mean(1), args.output)
     (out_dir / "info.json").write_text(json.dumps({"args": vars(args), "n_train": int(len(X)),
                                                    "pred_mean": float(sub["primary_ndvi_pred"].mean())},
                                                   ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"submission.csv записан: {len(sub)} строк, среднее {sub['primary_ndvi_pred'].mean():.4f}")
+    print(f"{args.output} записан: {len(sub)} строк, среднее {sub['primary_ndvi_pred'].mean():.4f}")
 
 
 if __name__ == "__main__":
