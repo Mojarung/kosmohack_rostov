@@ -499,11 +499,14 @@ def fetch_weather(geom: dict, start: str, end: str) -> pd.DataFrame:
 
 def collect_series(geom: dict, start: str, end: str, polygon_id: str = "AOI-USER",
                    crop_type: str = "не указана", use: tuple[str, ...] = ("s2", "landsat", "modis", "weather"),
-                   use_cache: bool = True) -> CollectResult:
+                   use_cache: bool = True, cache_only: bool = False) -> CollectResult:
     """Собирает ряд по полигону в том же формате, что и датасет соревнования.
 
     ``primary_ndvi`` считается той же склейкой coalesce(S2 -> Landsat -> MODIS), что и в
     обучающих данных: модель и детектор аномалий видят ровно привычную им структуру.
+
+    ``cache_only`` возвращает ряд только если он уже собран: так эталонные поля подтягиваются
+    к запросу мгновенно и не задерживают ответ сетевыми походами.
     """
     key = _cache_key("series", geom, start, end, sorted(use))
     cache_file = CACHE_DIR / "series" / f"{key}.csv"
@@ -525,6 +528,11 @@ def collect_series(geom: dict, start: str, end: str, polygon_id: str = "AOI-USER
             info["cached"] = True
         if not res.sources:
             res.note("кэш", True, len(df))
+        return res
+
+    if cache_only:
+        # вызывающий готов обойтись без этого ряда: в сеть не идём
+        res.note("кэш", False, 0, "ряд ещё не собирался")
         return res
 
     frames = []

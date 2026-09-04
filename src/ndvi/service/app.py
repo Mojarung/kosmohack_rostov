@@ -168,6 +168,33 @@ def remove_polygon(pid: str):
     return {"ok": store.delete_polygon(pid)}
 
 
+#: окрестности Зернограда: показательный кусок ростовской пашни для демонстрации
+DEMO_BBOX = (40.15, 46.75, 40.60, 46.98)
+
+
+@app.post("/api/demo/seed")
+def seed_demo(n_train: int = 6, n_predict: int = 3):
+    """Набирает реальные поля из OpenStreetMap и раскладывает их на обучающие и тестовые.
+
+    Нужен для демонстрации: на карте сразу видно, какие поля работают эталоном нормы,
+    а какие мы восстанавливаем и проверяем на аномалии.
+    """
+    items = collect.fetch_fields(DEMO_BBOX, limit=n_train + n_predict + 6, min_ha=30.0)
+    if not items:
+        raise HTTPException(502, "OpenStreetMap не вернул контуры полей, попробуйте позже")
+    # берём поля вперемешку по размеру, чтобы обучающие и тестовые были сопоставимы
+    picked = items[:n_train + n_predict]
+    saved = []
+    for i, f in enumerate(picked):
+        role = "train" if i % 3 != 2 else "predict"
+        saved.append(store.save_polygon(f["id"], f["name"], f["geometry"],
+                                        crop_type="не указана", source="osm",
+                                        area_ha=f["area_ha"], role=role))
+    return {"ok": True, "items": saved,
+            "n_train": sum(1 for x in saved if x["role"] == "train"),
+            "n_predict": sum(1 for x in saved if x["role"] == "predict")}
+
+
 @app.get("/api/dataset/locations")
 def dataset_locations():
     """Оценённое по погоде положение полигонов датасета с ролью каждого.
@@ -180,6 +207,23 @@ def dataset_locations():
         return {"ok": False, "items": [],
                 "error": "положение не рассчитано, запустите scripts/locate_polygons.py"}
     return {"ok": True, **json.loads(f.read_text())}
+
+
+def reference_frame(start: str, end: str, exclude: str | None = None) -> pd.DataFrame | None:
+    """Собирает ряды полей, помеченных как обучающие, из кэша.
+
+    В сеть не ходим: поле становится эталоном после того, как его один раз проанализировали.
+    Так запрос не начинает тянуть данные по чужим полигонам и не тормозит.
+    """
+    parts = []
+    for p in store.list_polygons():
+        if p["role"] not in ("train", "both") or p["id"] == exclude:
+            continue
+        res = collect.collect_series(p["geometry"], start, end, polygon_id=p["id"],
+                                     crop_type=p["crop_type"], cache_only=True)
+        if not res.series.empty:
+            parts.append(res.series)
+    return pd.concat(parts, ignore_index=True) if parts else None
 
 
 # --------------------------------------------------------------------------- #
@@ -197,7 +241,8 @@ def analyze(req: AnalyzeRequest):
         return {"ok": False, "error": "ни один источник не вернул данные",
                 "sources": result.sources}
     out = analyze_series(result.series, artifacts(), req.start, req.end,
-                         polygon_id=pid, crop_type=req.crop_type)
+                         polygon_id=pid, crop_type=req.crop_type,
+                         reference=reference_frame(req.start, req.end, exclude=pid))
     out["sources"] = result.sources
     out["area_ha"] = round(collect.geom_area_ha(req.geometry), 1)
     out["name"] = req.name or pid

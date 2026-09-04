@@ -39,11 +39,17 @@ def build_daily_frame(series: pd.DataFrame, start: str, end: str,
 
 def analyze_series(series: pd.DataFrame, artifacts: Artifacts, start: str, end: str,
                    polygon_id: str = "AOI-USER", crop_type: str = "не указана",
-                   grid_step: int = GRID_STEP_DAYS, season_only: bool = True) -> dict:
+                   grid_step: int = GRID_STEP_DAYS, season_only: bool = True,
+                   reference: pd.DataFrame | None = None) -> dict:
     """Ряд -> восстановленный ряд, коридор нормы, эпизоды аномалий, погода.
 
     ``season_only`` ограничивает восстановление вегетационным сезоном (апрель–октябрь):
     зимой NDVI по снегу шумит, а сельхозсмысла в нём нет.
+
+    ``reference`` — наблюдения полей, помеченных как обучающие. Они не подменяют собственную
+    норму поля, а работают откатом: у свежего полигона своей истории нет, и коридор нормы
+    строится по эталонным полям той же культуры. Это ровно проблема «холодного старта»
+    из данных соревнования, где часть тестовых полей представлена одним сезоном.
     """
     df = build_daily_frame(series, start, end, polygon_id, crop_type)
     observed = df[df.primary_ndvi.notna()]
@@ -59,7 +65,16 @@ def analyze_series(series: pd.DataFrame, artifacts: Artifacts, start: str, end: 
     gap_dates = [d for d in grid if d not in have]
 
     offsets = estimate_offsets(observed)
-    clim = Climatology().fit(observed)
+    # каскад нормы: своя история полигона -> эталонные поля той же культуры -> все эталонные
+    clim_source = observed
+    n_reference = 0
+    if reference is not None and len(reference):
+        ref = reference[reference.primary_ndvi.notna()]
+        ref = ref[ref.anon_polygon_id != polygon_id]
+        if len(ref):
+            clim_source = pd.concat([observed, ref], ignore_index=True)
+            n_reference = int(ref.anon_polygon_id.nunique())
+    clim = Climatology().fit(clim_source)
 
     filled = pd.DataFrame(columns=["date", "primary_ndvi_pred", "hidden_src"])
     if gap_dates:
@@ -95,6 +110,7 @@ def analyze_series(series: pd.DataFrame, artifacts: Artifacts, start: str, end: 
         "period": {"start": start, "end": end},
         "n_observations": int(len(observed)),
         "n_filled": int(len(filled)),
+        "reference_fields": n_reference,
         "sensor_offsets": {k: round(v, 4) for k, v in offsets.items()},
         "series": [
             {"date": d.strftime("%Y-%m-%d"), "ndvi": _f(v), "ndvi_s2": _f(vs),

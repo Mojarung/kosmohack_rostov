@@ -43,7 +43,6 @@ function initMap() {
     onEachFeature: (f, l) => l.on('click', () => select(f.properties, 'osm', l))
   }).addTo(map);
   state.layers.saved = L.layerGroup().addTo(map);      // мои поля, цвет по роли
-  state.layers.dataset = L.layerGroup();               // зоны полей датасета
 }
 
 /* Перерисовывает сохранённые поля цветом по роли. */
@@ -189,65 +188,32 @@ async function loadSaved() {
   } catch { /* пустой список не критичен */ }
 }
 
-/* Районы, в которых лежат поля датасета. Положение восстановлено по погодному
-   отпечатку с точностью порядка 60 км, поэтому показываем скопления, а не отдельные поля. */
-$('#btn-dataset').addEventListener('click', async () => {
-  const btn = $('#btn-dataset');
-  if (state.map.hasLayer(state.layers.dataset)) {
-    state.map.removeLayer(state.layers.dataset);
-    btn.textContent = 'Показать поля датасета на карте';
-    return;
-  }
-  btn.textContent = 'Загружаю…';
+/* Демо-набор: реальные поля под Зерноградом, разложенные на эталонные и проверяемые. */
+$('#btn-seed').addEventListener('click', async () => {
+  const btn = $('#btn-seed');
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> запрашиваю OpenStreetMap…';
   try {
-    const d = await api('/api/dataset/locations');
-    if (!d.ok || !d.items.length) {
-      btn.textContent = d.error ? 'Положение не рассчитано' : 'Нет данных';
-      return;
-    }
-    const C = ROLE_COLOR();
-    state.layers.dataset.clearLayers();
-    // группируем по узлу сетки: отдельное поле при ошибке 60 км показывать нечестно
-    const nodes = {};
-    d.items.forEach(it => {
-      const key = `${it.lat},${it.lon}`;
-      (nodes[key] ||= { lat: it.lat, lon: it.lon, both: 0, predict: 0, train: 0, ids: [] });
-      nodes[key][it.role] = (nodes[key][it.role] || 0) + 1;
-      nodes[key].ids.push(it.anon_polygon_id);
-    });
-    Object.values(nodes).forEach(n => {
-      const total = n.both + n.predict + n.train;
-      // цвет по преобладающей роли в этом районе
-      const col = n.both >= n.predict ? C.both : C.predict;
-      L.circle([n.lat, n.lon], {
-        radius: d.uncertainty_km * 1000, color: col, weight: 1.5,
-        fillColor: col, fillOpacity: .12, dashArray: '5 4'
-      }).bindTooltip(
-        `<b>${total} ${plural(total, ['поле', 'поля', 'полей'])} датасета</b><br>` +
-        (n.both ? `обучение и предсказание: ${n.both}<br>` : '') +
-        (n.predict ? `только предсказание: ${n.predict}<br>` : '') +
-        `<span style="opacity:.7">оценка по погоде, точность ±${d.uncertainty_km} км</span>`
-      ).addTo(state.layers.dataset);
-      L.marker([n.lat, n.lon], {
-        icon: L.divIcon({
-          className: '', html: `<div class="node-badge" style="border-color:${col};color:${col}">${total}</div>`,
-          iconSize: [26, 26], iconAnchor: [13, 13]
-        })
-      }).addTo(state.layers.dataset);
-    });
-    state.layers.dataset.addTo(state.map);
-    state.map.fitBounds(L.latLngBounds(d.items.map(i => [i.lat, i.lon])).pad(0.35));
-    btn.textContent = `Скрыть поля датасета (${d.items.length})`;
+    const d = await api('/api/demo/seed', { method: 'POST' });
+    await loadSaved();
+    fitSaved();
+    btn.textContent = `Готово: ${d.n_train} эталонных, ${d.n_predict} проверяемых`;
   } catch (e) {
-    btn.textContent = 'Не удалось загрузить';
+    btn.textContent = 'Не удалось: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    setTimeout(() => { btn.textContent = label; }, 6000);
   }
 });
 
-function plural(n, f) {
-  const a = Math.abs(n) % 100, b = a % 10;
-  if (a > 10 && a < 20) return f[2];
-  if (b > 1 && b < 5) return f[1];
-  return b === 1 ? f[0] : f[2];
+/* Показывает на карте все сохранённые поля целиком. */
+function fitSaved() {
+  const layers = state.layers.saved.getLayers();
+  if (!layers.length) return;
+  let b = null;
+  layers.forEach(l => { b = b ? b.extend(l.getBounds()) : L.latLngBounds(l.getBounds()); });
+  state.map.fitBounds(b.pad(0.25));
 }
 
 async function loadDemoList() {
@@ -289,6 +255,7 @@ function render(out, target) {
       <div class="stat"><div class="k">эпизодов угнетения</div><div class="v">${stress.length}</div></div>
       <div class="stat"><div class="k">из них критических</div><div class="v">${crit.length}</div></div>
       ${out.area_ha ? `<div class="stat"><div class="k">площадь</div><div class="v">${out.area_ha} га</div></div>` : ''}
+      ${out.reference_fields ? `<div class="stat"><div class="k">эталонных полей в норме</div><div class="v">${out.reference_fields}</div></div>` : ''}
     </div>
     <div class="card" style="margin-bottom:14px">
       <h2>${out.name || out.polygon_id} · NDVI и климатическая норма</h2>
@@ -424,4 +391,4 @@ const srcHtml = s => `<div class="body"><div class="srcs">${srcBadges(s)}</div><
 
 initMap();
 checkHealth();
-loadSaved();
+loadSaved().then(fitSaved);
