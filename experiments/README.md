@@ -11,3 +11,4 @@ GapScore = round(30·max(0, 1 − RMSE/0.10), 2). Планка коллеги б
 | 003 | 2026-09-05 | v3 dew-признаки, NN v1 по сезонной сетке, смесь LGB+NN | **0.0559** (test-like 0.0629) | 11.1 | [exp-003](exp-003-dew-nn-blend.md) |
 | 004 | 2026-09-05 | CatBoost, NN v2, смесь четырёх | **0.0554** (test-like 0.0623) | 11.3 | [exp-004](exp-004-cb-nn2-blend4.md) |
 | 005 | 2026-09-05 | Optuna (без выигрыша), seeds NN, шум входа (вредит), веса смеси 0.5/0.5 | **0.0552** (test-like 0.0622) | 11.35 | [exp-005](exp-005-tuning-seeds-final.md) |
+| 006 | 2026-09-05 | Вторая маска (LGB 0.0547), Chronos-2 zero-shot 0.0876 (вес 0), TabPFN gated, 5 seeds NN | — | — | [exp-006](exp-006-second-mask-pretrained.md) |

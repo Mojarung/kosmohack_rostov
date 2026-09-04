@@ -131,7 +131,9 @@ def train(args: argparse.Namespace) -> dict:
         val_data = assemble(t, ep, context, gap_q)
     else:
         val_data = assemble(t, ep, context, query_days_from_obs(t, val_mask))
-    model = SeasonNet(hidden=args.hidden, dropout=args.dropout).to(device)
+    model = SeasonNet(hidden=args.hidden, dropout=args.dropout, n_tf=args.n_tf).to(device)
+    ema = torch.optim.swa_utils.AveragedModel(model, multi_avg_fn=torch.optim.swa_utils.get_ema_multi_avg_fn(args.ema)) if args.ema > 0 else None
+    eval_model = ema.module if ema is not None else model
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     steps_per_epoch = int(np.ceil(len(t.pid) / args.batch))
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, args.lr, total_steps=args.epochs * steps_per_epoch + 1, pct_start=0.1)
@@ -157,24 +159,26 @@ def train(args: argparse.Namespace) -> dict:
             opt.step()
             if sched.last_epoch < sched.total_steps - 1:
                 sched.step()
+            if ema is not None:
+                ema.update_parameters(model)
             losses.append(loss.item())
         if args.final:
             if (epoch + 1) % args.eval_every == 0:
                 print(f"эпоха {epoch + 1}: loss {np.mean(losses):.5f} ({time.time() - t0:.1f} с)", flush=True)
             continue
         if (epoch + 1) % args.eval_every == 0 or epoch == args.epochs - 1:
-            metrics, _ = val_metrics(predict(model, val_data, device), t, meta, val_mask)
+            metrics, _ = val_metrics(predict(eval_model, val_data, device), t, meta, val_mask)
             history.append({"epoch": epoch + 1, "train_loss": float(np.mean(losses)), **metrics})
             print(f"эпоха {epoch + 1}: loss {np.mean(losses):.5f} val {metrics['rmse']:.4f} "
                   f"testlike {metrics['rmse_testlike']:.4f} ({time.time() - t0:.1f} с)", flush=True)
             if metrics["rmse_testlike"] < best["rmse_testlike"]:
                 best = metrics | {"epoch": epoch + 1}
-                best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+                best_state = {k: v.detach().cpu().clone() for k, v in eval_model.state_dict().items()}
     out_dir = ARTIFACTS_DIR / args.out
     out_dir.mkdir(parents=True, exist_ok=True)
     if args.final:
-        torch.save(model.state_dict(), out_dir / f"nn_final_seed{args.seed}.pt")
-        pred_days = predict(model, val_data, device)
+        torch.save(eval_model.state_dict(), out_dir / f"nn_final_seed{args.seed}.pt")
+        pred_days = predict(eval_model, val_data, device)
         gaps[["pid", "date"]].assign(pred=pred_days[gap_si, gap_pos]).to_parquet(out_dir / f"gap_pred_seed{args.seed}.parquet")
         (out_dir / f"info_seed{args.seed}.json").write_text(json.dumps({"args": vars(args)}, ensure_ascii=False, indent=2), encoding="utf-8")
         return {"final": True, "epochs": args.epochs}
@@ -200,6 +204,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--clip", type=float, nargs=2, default=(-0.2, 1.1))
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--noise", type=float, default=0.0, help="std гауссова шума на входные индексы")
+    parser.add_argument("--ema", type=float, default=0.0, help="коэффициент EMA весов (0 — выключено)")
+    parser.add_argument("--n-tf", type=int, default=2, help="число слоёв трансформера")
     parser.add_argument("--val-seed", type=int, default=777)
     parser.add_argument("--out", type=str, default="nn_v1")
     parser.add_argument("--final", action="store_true", help="обучение без валидации и предсказание контрольных точек")
