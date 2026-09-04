@@ -147,6 +147,15 @@ def grid_regime(df: pd.DataFrame) -> dict:
     }
 
 
+def era5_sharing(df: pd.DataFrame) -> dict:
+    """Сколько различных рядов ERA5 приходится на полигоны: соседние поля сидят в одной ячейке реанализа."""
+    wide = df.dropna(subset=["era5_temp_c"]).pivot_table(index="date", columns="anon_polygon_id", values="era5_temp_c")
+    signature = wide.round(6).T.apply(lambda r: hash(tuple(r.fillna(-999).to_numpy())), axis=1)
+    groups = [sorted(g.index.to_list()) for _, g in signature.groupby(signature) if len(g) > 1]
+    return {"polygons_with_era5": int(wide.shape[1]), "distinct_era5_series": int(signature.nunique()),
+            "shared_era5_groups": groups}
+
+
 def run(train: pd.DataFrame, test: pd.DataFrame) -> dict:
     """Строит все графики покрытия и возвращает ключевые числа."""
     share = plot_known_share_by_year(train, test)
@@ -157,6 +166,8 @@ def run(train: pd.DataFrame, test: pd.DataFrame) -> dict:
     return {
         "grid_train": grid_regime(train),
         "grid_test": grid_regime(test),
+        "era5_train": era5_sharing(train),
+        "era5_test": era5_sharing(test),
         "known_share_train_by_year": {int(y): round(float(v), 3) for y, v in share["train"].dropna().items()},
         "known_share_test_by_year": {int(y): round(float(v), 3) for y, v in share["test (известные)"].dropna().items()},
         "sensor_availability_overall": {c: round(float(v), 3) for c, v in avail.mean().items()},

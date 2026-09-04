@@ -11,6 +11,7 @@ import seaborn as sns
 from eda.config import CROP_ORDER, STATUS_COLORS, STATUS_ORDER, TARGET, WEATHER, Z_CRITICAL, Z_DEPRESSION
 from eda.load import known_series
 from eda.plotting import save_fig
+from eda.sensors import SOURCES, with_source
 
 # Окно накопления погодных признаков перед наблюдением, дней
 WEATHER_WINDOW = 30
@@ -162,6 +163,8 @@ def plot_episodes(train: pd.DataFrame) -> dict:
     save_fig(fig, "anomalies_episode_examples")
     return {
         "n_episodes": int(len(ep)),
+        "n_flagged_points": int(ep["n_points"].sum()),
+        "isolated_points_share": round(float((ep["n_points"] == 1).sum() / ep["n_points"].sum()), 3),
         "episode_single_point_share": round(float((ep["n_points"] == 1).mean()), 3),
         "episode_ge3_points_share": round(float((ep["n_points"] >= 3).mean()), 3),
         "episode_days_median": float(ep["days"].median()),
@@ -170,6 +173,44 @@ def plot_episodes(train: pd.DataFrame) -> dict:
             {"polygon": r["polygon"], "year": int(r["year"]), "crop": str(r["crop"]), "days": int(r["days"]),
              "n_points": int(r["n_points"]), "min_z": round(float(r["min_z"]), 2)} for _, r in top.iterrows()],
     }
+
+
+def plot_zscore_by_sensor(train: pd.DataFrame) -> dict:
+    """Z-score и доля аномалий в зависимости от сенсора-источника primary_ndvi."""
+    k = with_source(known_series(train)).dropna(subset=["ndvi_zscore"])
+    k = k.assign(source=k["source"].astype(str))
+    stats = k.groupby("source").agg(mean_z=("ndvi_zscore", "mean"), n=("ndvi_zscore", "size"),
+                                    anomalous=("ndvi_zscore", lambda s: float((s < Z_DEPRESSION).mean()))).reindex(SOURCES)
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+    sns.boxplot(data=k, x="source", y="ndvi_zscore", order=SOURCES, showfliers=False, ax=axes[0],
+                palette={"s2": "#2b6cb0", "landsat": "#805ad5", "modis": "#dd6b20"}, hue="source", legend=False)
+    axes[0].axhline(Z_DEPRESSION, ls="--", color=STATUS_COLORS["Угнетение биомассы"], lw=1)
+    axes[0].set(title="Z-score по сенсору-источнику (без выбросов)", xlabel="Сенсор", ylabel="ndvi_zscore")
+    bars = axes[1].bar(stats.index, stats["anomalous"], color=["#2b6cb0", "#805ad5", "#dd6b20"])
+    axes[1].bar_label(bars, fmt="%.1%%")
+    axes[1].set(title="Доля точек с Z < −1 по сенсору", xlabel="Сенсор", ylabel="Доля", ylim=(0, 0.35))
+    save_fig(fig, "anomalies_zscore_by_sensor")
+    return {"zscore_mean_by_sensor": {s: round(float(v), 3) for s, v in stats["mean_z"].items()},
+            "anomalous_share_by_sensor": {s: round(float(v), 3) for s, v in stats["anomalous"].items()}}
+
+
+def plot_yearly_weather(train: pd.DataFrame) -> dict:
+    """Годовые суммы осадков и средняя температура против среднего Z-score (полигоны с ежедневной сеткой)."""
+    full = train.groupby(["anon_polygon_id", "cal_year"])["date"].transform("size") >= FULL_GRID_MIN_ROWS
+    d = train.loc[full]
+    per_poly = d.groupby(["anon_polygon_id", "cal_year"]).agg(precip=("era5_precip_mm", "sum"), temp=("era5_temp_c", "mean"))
+    yearly = per_poly.groupby("cal_year").mean().join(d.loc[d["is_known"]].groupby("cal_year")["ndvi_zscore"].mean())
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+    for ax, col, label in zip(axes, ["precip", "temp"], ["Сумма осадков за сезон, мм", "Средняя температура сезона, °C"]):
+        ax.scatter(yearly[col], yearly["ndvi_zscore"], color="#2b6cb0", s=40)
+        for year, row in yearly.iterrows():
+            ax.annotate(str(year), (row[col], row["ndvi_zscore"]), fontsize=8, xytext=(3, 3), textcoords="offset points")
+        ax.set(title=f"{label}: r = {yearly[col].corr(yearly['ndvi_zscore']):+.2f}", xlabel=label, ylabel="Средний Z-score года")
+    fig.suptitle("Погода сезона и отклонение NDVI от нормы по годам (train)")
+    save_fig(fig, "anomalies_yearly_weather")
+    return {"corr_yearly_precip_zscore": round(float(yearly["precip"].corr(yearly["ndvi_zscore"])), 3),
+            "corr_yearly_temp_zscore": round(float(yearly["temp"].corr(yearly["ndvi_zscore"])), 3),
+            "yearly_precip_mm": {int(y): round(float(v), 0) for y, v in yearly["precip"].items()}}
 
 
 def plot_weather_seasonal(train: pd.DataFrame) -> None:
@@ -192,6 +233,8 @@ def run(train: pd.DataFrame, test: pd.DataFrame) -> dict:
     out = plot_status_shares(train)
     out |= plot_zscore(train)
     out |= plot_weather_vs_zscore(train)
+    out |= plot_yearly_weather(train)
+    out |= plot_zscore_by_sensor(train)
     out |= plot_episodes(train)
     plot_weather_seasonal(train)
     return out

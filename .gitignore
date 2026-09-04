@@ -9,6 +9,7 @@ __pycache__/
 
 # Артефакты и временные файлы
 *.log
+reports/dashboard/dashboard_data.json
 .ipynb_checkpoints/
 submission*.csv
 !data/*.csv

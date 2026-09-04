@@ -22,13 +22,13 @@ PERIODS = {"s2_ndvi": 5, "landsat_ndvi": 8, "modis_ndvi": 16}
 KEYS = ["anon_polygon_id", "cal_year"]
 
 
-def _with_day_num(df: pd.DataFrame) -> pd.DataFrame:
+def with_day_num(df: pd.DataFrame) -> pd.DataFrame:
     """Порядковый номер дня — для остатков по периоду цикла."""
     return df.assign(day_num=(df["date"] - EPOCH).dt.days.astype("int64"))
 
 
 def _observed(train: pd.DataFrame, test: pd.DataFrame) -> pd.DataFrame:
-    return _with_day_num(pd.concat([train, test.loc[~test["is_gap"]]], ignore_index=True))
+    return with_day_num(pd.concat([train, test.loc[~test["is_gap"]]], ignore_index=True))
 
 
 def revisit_diffs(both: pd.DataFrame, col: str) -> pd.Series:
@@ -89,7 +89,7 @@ def predict_source(points: pd.DataFrame, reference: pd.DataFrame, leave_one_out:
 
 def evaluate_rule(train: pd.DataFrame, both: pd.DataFrame) -> dict:
     """Точность правила на известных точках train (leave-one-out по счётчикам)."""
-    known = with_source(_with_day_num(train.loc[train["is_known"]]))
+    known = with_source(with_day_num(train.loc[train["is_known"]]))
     pred = predict_source(known, both, leave_one_out=True)
     truth = known["source"].astype(str).to_numpy()
     matrix = pd.crosstab(pd.Series(truth, name="истинный"), pd.Series(pred, name="предсказанный"))
@@ -109,7 +109,7 @@ def evaluate_rule(train: pd.DataFrame, both: pd.DataFrame) -> dict:
 
 def predict_gaps(test: pd.DataFrame, both: pd.DataFrame) -> dict:
     """Предсказанный источник для контрольных точек test и сравнение с известными точками test."""
-    gaps = _with_day_num(test.loc[test["is_gap"]])
+    gaps = with_day_num(test.loc[test["is_gap"]])
     pred = pd.Series(predict_source(gaps, both, leave_one_out=False), name="source")
     known = with_source(test.loc[test["is_known"]])["source"].astype(str)
     share = pd.concat([pred.value_counts(normalize=True).rename("контрольные (предсказано)"),

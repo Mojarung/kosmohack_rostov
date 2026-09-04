@@ -12,7 +12,8 @@ import pandas as pd
 import seaborn as sns
 from scipy.stats import ks_2samp
 
-from eda.config import CROP_ORDER, GAP_SCORE_MAX, RANDOM_SEED, RMSE_THRESHOLD, TARGET
+from eda.config import CROP_ORDER, GAP_SCORE_MAX, RANDOM_SEED, RMSE_THRESHOLD, SENSOR_ALL, TARGET
+from eda.cycles import predict_source, with_day_num
 from eda.gaps import compute_neighbors, sensor_of
 from eda.plotting import save_fig, setup_style
 
@@ -204,6 +205,47 @@ def climatology_consistency(train: pd.DataFrame) -> dict:
     }
 
 
+def sensor_offsets(known: pd.DataFrame) -> dict[str, float]:
+    """Смещения Landsat и MODIS относительно S2 по совместным наблюдениям в один день."""
+    ls = known.dropna(subset=["s2_ndvi", "landsat_ndvi"])
+    md = known.dropna(subset=["s2_ndvi", "modis_ndvi"])
+    return {"s2": 0.0,
+            "landsat": float((ls["landsat_ndvi"] - ls["s2_ndvi"]).mean()),
+            "modis": float((md["modis_ndvi"] - md["s2_ndvi"]).mean())}
+
+
+def predict_sensor_aware(g: pd.DataFrame, offsets: dict[str, float], source: pd.Series) -> pd.Series:
+    """Соседей приводим к шкале S2, интерполируем по времени, возвращаем в шкалу сенсора скрытой точки."""
+    vp = g["val_prev"] - g["sensor_prev"].map(offsets)
+    vn = g["val_next"] - g["sensor_next"].map(offsets)
+    w = g["days_prev"] / (g["days_prev"] + g["days_next"])
+    interp = (vp + (vn - vp) * w).fillna(pd.concat([vp, vn], axis=1).mean(axis=1))
+    return interp + source.map(offsets).fillna(0.0)
+
+
+def predict_sensor_aware_pair(train: pd.DataFrame, g: pd.DataFrame, gap_index: pd.Index) -> pd.DataFrame:
+    """Два варианта сенсорной коррекции: с сенсором, угаданным по дате, и с истинным (oracle)."""
+    masked = train.copy()
+    masked.loc[gap_index, SENSOR_ALL + [TARGET]] = np.nan
+    reference = with_day_num(masked.loc[masked[TARGET].notna()])
+    offsets = sensor_offsets(reference)
+    guessed = pd.Series(predict_source(with_day_num(g), reference, leave_one_out=False), index=g.index)
+    truth = sensor_of(train.loc[g.index])
+    return pd.DataFrame({
+        "sensor_aware": predict_sensor_aware(g, offsets, guessed),
+        "sensor_aware_oracle": predict_sensor_aware(g, offsets, truth),
+    }), {"sensor_offsets_vs_s2": {k: round(v, 4) for k, v in offsets.items()},
+         "sensor_guess_accuracy": round(float((guessed == truth).mean()), 4)}
+
+
+def error_concentration(y: pd.Series, p: pd.Series, threshold: float = 0.2) -> dict:
+    """Какую долю суммарной квадратичной ошибки дают крупные промахи."""
+    err = (p - y).dropna()
+    big = err.abs() > threshold
+    return {"share_points_abs_err_gt_0_2": round(float(big.mean()), 4),
+            "share_sse_from_abs_err_gt_0_2": round(float((err[big] ** 2).sum() / (err ** 2).sum()), 4)}
+
+
 def sensor_consistency(train: pd.DataFrame, g: pd.DataFrame, preds: pd.DataFrame) -> dict:
     """RMSE nearest_mean в зависимости от того, совпадает ли сенсор соседей с сенсором скрытой точки.
 
@@ -237,7 +279,8 @@ def run(train: pd.DataFrame, test: pd.DataFrame) -> dict:
     gap_index = sample_synthetic_gaps(train)
     g = build_gap_table(train, gap_index)
     known = train.loc[train["is_known"] & ~train.index.isin(gap_index)]
-    preds = predict_all(g, known)
+    aware, aware_info = predict_sensor_aware_pair(train, g, gap_index)
+    preds = pd.concat([predict_all(g, known), aware], axis=1)
     y = g[TARGET]
     metrics = method_metrics(y, preds)
     best = str(metrics.index[0])
@@ -272,4 +315,6 @@ def run(train: pd.DataFrame, test: pd.DataFrame) -> dict:
         "ks_min_dist_pvalue": float(ks.pvalue),
         **climatology_consistency(train),
         **sensor_consistency(train, g, preds),
+        **aware_info,
+        **error_concentration(y, preds["nearest_mean"]),
     }

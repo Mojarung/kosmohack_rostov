@@ -4,7 +4,7 @@
 
 ## Документация
 
-Полное ТЗ, критерии оценки и чек-лист сдачи — в папке [`docs/`](docs/README.md):
+Полное ТЗ, критерии оценки, чек-лист сдачи и отчёты — в папке [`docs/`](docs/README.md). Рабочие заметки для команды и Claude Code — в [`CLAUDE.md`](CLAUDE.md).
 
 - [Постановка задачи](docs/01-task-statement.md)
 - [Теория и глоссарий](docs/02-theory-and-glossary.md)
@@ -13,6 +13,7 @@
 - [Технические требования](docs/05-technical-requirements.md)
 - [Критерии оценки](docs/06-evaluation-criteria.md)
 - [Чек-лист сдачи](docs/07-submission-checklist.md)
+- [Отчёт EDA](docs/08-eda-report.md), [обзор open-source](docs/09-open-source-landscape.md), [сравнение двух EDA](docs/10-branch-comparison.md), [заметки первого EDA](docs/11-eda-v1-notes.md)
 
 ## Разведочный анализ (EDA)
 
@@ -21,7 +22,9 @@ uv sync                         # Python 3.14 + зависимости из pypr
 uv run python -m eda.run_all    # графики в reports/eda/figures/, числа в reports/eda/summary.json
 ```
 
-Выводы и графики — в [docs/08-eda-report.md](docs/08-eda-report.md).
+Выводы и графики — в [docs/08-eda-report.md](docs/08-eda-report.md). Скрипты первого прохода анализа и сборка дашборда — в [`eda/v1/`](eda/v1/README.md).
+
+Интерактивный дашборд «NDVI-атлас полей»: [`reports/dashboard/dashboard.html`](reports/dashboard/dashboard.html) (самодостаточный файл, открывается двойным кликом; пересборка `uv run python eda/v1/build_dashboard_data.py`).
 
 ## Зависимости
 
@@ -44,15 +47,18 @@ uv run python -m eda.run_all    # графики в reports/eda/figures/, чис
 ```
 .
 ├── README.md
+├── CLAUDE.md               # рабочие заметки по проекту, окружению и данным
 ├── data/
 │   ├── train_dataset.csv   # обучающий датасет (99 955 строк)
 │   └── test_dataset.csv    # тестовый датасет = private_features.csv из ТЗ (57 185 строк)
-├── docs/                   # ТЗ, критерии, чек-лист, отчёт EDA, исходные PDF
+├── docs/                   # ТЗ, критерии, чек-лист, отчёты 08–11, исходные PDF в source/
 ├── eda/                    # модули разведочного анализа (uv run python -m eda.run_all)
-├── reports/eda/            # графики и summary.json, генерируются EDA
-├── pyproject.toml          # зависимости (uv)
+│   └── v1/                 # скрипты первого прохода EDA и сборка дашборда
+├── reports/
+│   ├── eda/                # графики и summary.json, генерируются EDA
+│   └── dashboard/          # template.html + собранный dashboard.html
+├── pyproject.toml          # зависимости по группам (uv)
 └── uv.lock
-    └── source/
 ```
 
 Структура и статистика датасетов описаны в [docs/03-data.md](docs/03-data.md).
