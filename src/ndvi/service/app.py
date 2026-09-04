@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from datetime import date
@@ -21,7 +22,7 @@ from pydantic import BaseModel, Field
 
 from ndvi import collect
 from ndvi.data import load_test, load_train
-from ndvi.paths import ROOT
+from ndvi.paths import ARTIFACTS_DIR, ROOT
 from ndvi.pipeline import Artifacts
 from ndvi.service import store
 from ndvi.service.analysis import analyze_series
@@ -74,6 +75,11 @@ class PolygonRequest(BaseModel):
     crop_type: str = "не указана"
     source: str = "draw"
     id: str | None = None
+    role: str = "predict"      # train | predict | both
+
+
+class RoleRequest(BaseModel):
+    role: str
 
 
 # --------------------------------------------------------------------------- #
@@ -142,12 +148,38 @@ def add_polygon(req: PolygonRequest):
     pid = req.id or f"AOI-{uuid.uuid4().hex[:8]}"
     area = collect.geom_area_ha(req.geometry)
     return {"ok": True, "item": store.save_polygon(pid, req.name, req.geometry,
-                                                   req.crop_type, req.source, area)}
+                                                   req.crop_type, req.source, area, req.role)}
+
+
+@app.patch("/api/polygons/{pid}/role")
+def change_role(pid: str, req: RoleRequest):
+    """Переводит полигон между обучающим и предсказываемым набором."""
+    try:
+        item = store.set_role(pid, req.role)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    if item is None:
+        raise HTTPException(404, f"полигон {pid} не найден")
+    return {"ok": True, "item": item}
 
 
 @app.delete("/api/polygons/{pid}")
 def remove_polygon(pid: str):
     return {"ok": store.delete_polygon(pid)}
+
+
+@app.get("/api/dataset/locations")
+def dataset_locations():
+    """Оценённое по погоде положение полигонов датасета с ролью каждого.
+
+    Координат в данных нет; положение восстановлено сопоставлением суточных рядов ERA5
+    с архивом Open-Meteo и имеет точность порядка 40 км — это зона, а не контур поля.
+    """
+    f = ARTIFACTS_DIR / "polygon_locations.json"
+    if not f.exists():
+        return {"ok": False, "items": [],
+                "error": "положение не рассчитано, запустите scripts/locate_polygons.py"}
+    return {"ok": True, **json.loads(f.read_text())}
 
 
 # --------------------------------------------------------------------------- #
@@ -181,13 +213,20 @@ def analyze(req: AnalyzeRequest):
 def demo_polygons():
     """Список полигонов датасета. Координат в данных нет, поэтому карта здесь не работает."""
     d = dataset()
+    train_ids = set(load_train().anon_polygon_id)
+    test_ids = set(load_test().anon_polygon_id)
     g = d[d.primary_ndvi.notna()].groupby("anon_polygon_id")
-    items = [{"id": pid, "crop_type": str(sub.crop_type.iloc[0]),
-              "n_observations": int(len(sub)),
-              "years": [int(sub.year.min()), int(sub.year.max())]}
-             for pid, sub in g]
+    items = []
+    for pid, sub in g:
+        role = ("both" if pid in train_ids and pid in test_ids
+                else "train" if pid in train_ids else "predict")
+        items.append({"id": pid, "crop_type": str(sub.crop_type.iloc[0]),
+                      "n_observations": int(len(sub)),
+                      "years": [int(sub.year.min()), int(sub.year.max())],
+                      "role": role, "role_ru": store.ROLE_RU[role]})
     return {"ok": True, "items": sorted(items, key=lambda x: x["id"]),
-            "note": "координаты полей в датасете анонимизированы, поэтому на карте они не показываются"}
+            "note": ("координат полей в датасете нет; их примерное положение оценено "
+                     "по погодному отпечатку и показано на карте зонами")}
 
 
 @app.get("/api/demo/{pid}")

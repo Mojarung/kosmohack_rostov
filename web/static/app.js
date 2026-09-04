@@ -6,7 +6,11 @@ const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n
 const SENSOR_COLOR = () => ({ s2: css('--s2'), landsat: css('--ls'), modis: css('--mo'), none: css('--ink-3') });
 const SENSOR_NAME = { s2: 'Sentinel-2', landsat: 'Landsat', modis: 'MODIS', none: 'неизвестен' };
 
-const state = { selected: null, map: null, drawn: null, layers: {}, running: false };
+const state = { selected: null, map: null, drawn: null, layers: {}, running: false, saved: [] };
+
+/* цвет контура по роли поля: на чём учимся, что предсказываем */
+const ROLE_COLOR = () => ({ train: css('--accent'), both: css('--warn'), predict: css('--gap') });
+const ROLE_RU = { train: 'обучение', both: 'обучение и предсказание', predict: 'предсказание' };
 
 /* ------------------------------------------------------------- вкладки -- */
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
@@ -33,10 +37,25 @@ function initMap() {
     select({ id: null, name: 'Нарисованное поле', geometry: e.layer.toGeoJSON().geometry }, 'draw');
   });
   state.map = map; state.drawn = drawn;
+  // кандидаты из OSM — нейтральным серым, чтобы не спорить с цветами ролей
   state.layers.fields = L.geoJSON(null, {
-    style: { color: css('--accent'), weight: 1.5, fillOpacity: .12 },
+    style: { color: css('--ink-3'), weight: 1.2, fillOpacity: .08 },
     onEachFeature: (f, l) => l.on('click', () => select(f.properties, 'osm', l))
   }).addTo(map);
+  state.layers.saved = L.layerGroup().addTo(map);      // мои поля, цвет по роли
+  state.layers.dataset = L.layerGroup();               // зоны полей датасета
+}
+
+/* Перерисовывает сохранённые поля цветом по роли. */
+function drawSaved(items) {
+  const C = ROLE_COLOR();
+  state.layers.saved.clearLayers();
+  items.forEach(p => {
+    const col = C[p.role] || C.predict;
+    L.geoJSON(p.geometry, { style: { color: col, weight: 2.5, fillOpacity: .18 } })
+      .bindTooltip(`${p.name} — ${ROLE_RU[p.role] || p.role}`)
+      .addTo(state.layers.saved);
+  });
 }
 
 function select(item, source, layer) {
@@ -52,6 +71,8 @@ function select(item, source, layer) {
   const btn = $('#btn-run');
   btn.disabled = false;
   btn.textContent = `Анализировать: ${item.name || 'поле'}`;
+  const saved = state.saved.find(p => p.id === item.id);
+  if (saved) $('#role').value = saved.role;
 }
 
 /* ------------------------------------------------------------- запросы -- */
@@ -125,9 +146,13 @@ $('#btn-run').addEventListener('click', async () => {
       })
     });
     render(out, target);
-    if (state.selected.id) await api('/api/polygons', {
+    await api('/api/polygons', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: state.selected.id, name: state.selected.name, geometry: state.selected.geometry, crop_type: $('#crop').value, source: state.selected.source })
+      body: JSON.stringify({
+        id: state.selected.id || out.polygon_id, name: state.selected.name,
+        geometry: state.selected.geometry, crop_type: $('#crop').value,
+        source: state.selected.source, role: $('#role').value
+      })
     }).then(loadSaved).catch(() => {});
   } catch (e) {
     target.innerHTML = `<div class="card"><div class="body">Не получилось: ${e.message}</div></div>`;
@@ -140,13 +165,89 @@ $('#btn-run').addEventListener('click', async () => {
 async function loadSaved() {
   try {
     const d = await api('/api/polygons');
+    state.saved = d.items;
+    drawSaved(d.items);
     $('#saved').innerHTML = d.items.map(p =>
-      `<button class="item" data-id="${p.id}"><div>${p.name}</div>
-       <div class="meta">${p.crop_type} · ${(p.area_ha || 0).toFixed(0)} га</div></button>`).join('')
+      `<button class="item" data-id="${p.id}"><div>${p.name}
+         <span class="rolechip ${p.role}">${ROLE_RU[p.role] || p.role}</span></div>
+       <div class="meta">${p.crop_type} · ${(p.area_ha || 0).toFixed(0)} га · нажмите дважды, чтобы сменить роль</div></button>`).join('')
       || '<div class="item meta">пока пусто</div>';
-    $('#saved').querySelectorAll('button').forEach(b => b.addEventListener('click', () =>
-      select(d.items.find(x => x.id === b.dataset.id), 'saved')));
+    $('#saved').querySelectorAll('button').forEach(b => {
+      const item = d.items.find(x => x.id === b.dataset.id);
+      b.addEventListener('click', () => select(item, 'saved'));
+      // двойной клик переключает роль по кругу: предсказание -> обучение -> обе
+      b.addEventListener('dblclick', async () => {
+        const next = { predict: 'train', train: 'both', both: 'predict' }[item.role] || 'train';
+        await api(`/api/polygons/${item.id}/role`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: next })
+        });
+        $('#role').value = next;
+        loadSaved();
+      });
+    });
   } catch { /* пустой список не критичен */ }
+}
+
+/* Районы, в которых лежат поля датасета. Положение восстановлено по погодному
+   отпечатку с точностью порядка 60 км, поэтому показываем скопления, а не отдельные поля. */
+$('#btn-dataset').addEventListener('click', async () => {
+  const btn = $('#btn-dataset');
+  if (state.map.hasLayer(state.layers.dataset)) {
+    state.map.removeLayer(state.layers.dataset);
+    btn.textContent = 'Показать поля датасета на карте';
+    return;
+  }
+  btn.textContent = 'Загружаю…';
+  try {
+    const d = await api('/api/dataset/locations');
+    if (!d.ok || !d.items.length) {
+      btn.textContent = d.error ? 'Положение не рассчитано' : 'Нет данных';
+      return;
+    }
+    const C = ROLE_COLOR();
+    state.layers.dataset.clearLayers();
+    // группируем по узлу сетки: отдельное поле при ошибке 60 км показывать нечестно
+    const nodes = {};
+    d.items.forEach(it => {
+      const key = `${it.lat},${it.lon}`;
+      (nodes[key] ||= { lat: it.lat, lon: it.lon, both: 0, predict: 0, train: 0, ids: [] });
+      nodes[key][it.role] = (nodes[key][it.role] || 0) + 1;
+      nodes[key].ids.push(it.anon_polygon_id);
+    });
+    Object.values(nodes).forEach(n => {
+      const total = n.both + n.predict + n.train;
+      // цвет по преобладающей роли в этом районе
+      const col = n.both >= n.predict ? C.both : C.predict;
+      L.circle([n.lat, n.lon], {
+        radius: d.uncertainty_km * 1000, color: col, weight: 1.5,
+        fillColor: col, fillOpacity: .12, dashArray: '5 4'
+      }).bindTooltip(
+        `<b>${total} ${plural(total, ['поле', 'поля', 'полей'])} датасета</b><br>` +
+        (n.both ? `обучение и предсказание: ${n.both}<br>` : '') +
+        (n.predict ? `только предсказание: ${n.predict}<br>` : '') +
+        `<span style="opacity:.7">оценка по погоде, точность ±${d.uncertainty_km} км</span>`
+      ).addTo(state.layers.dataset);
+      L.marker([n.lat, n.lon], {
+        icon: L.divIcon({
+          className: '', html: `<div class="node-badge" style="border-color:${col};color:${col}">${total}</div>`,
+          iconSize: [26, 26], iconAnchor: [13, 13]
+        })
+      }).addTo(state.layers.dataset);
+    });
+    state.layers.dataset.addTo(state.map);
+    state.map.fitBounds(L.latLngBounds(d.items.map(i => [i.lat, i.lon])).pad(0.35));
+    btn.textContent = `Скрыть поля датасета (${d.items.length})`;
+  } catch (e) {
+    btn.textContent = 'Не удалось загрузить';
+  }
+});
+
+function plural(n, f) {
+  const a = Math.abs(n) % 100, b = a % 10;
+  if (a > 10 && a < 20) return f[2];
+  if (b > 1 && b < 5) return f[1];
+  return b === 1 ? f[0] : f[2];
 }
 
 async function loadDemoList() {
@@ -157,7 +258,8 @@ async function loadDemoList() {
     const d = await api('/api/demo/polygons');
     box.dataset.loaded = '1';
     box.innerHTML = d.items.map(p =>
-      `<button class="item" data-id="${p.id}"><div>${p.id}</div>
+      `<button class="item" data-id="${p.id}"><div>${p.id}
+         <span class="rolechip ${p.role}">${p.role_ru}</span></div>
        <div class="meta">${p.crop_type} · ${p.years[0]}–${p.years[1]} · ${p.n_observations} наблюдений</div></button>`).join('');
     box.querySelectorAll('button').forEach(b => b.addEventListener('click', async () => {
       box.querySelectorAll('.item').forEach(x => x.setAttribute('aria-current', String(x === b)));

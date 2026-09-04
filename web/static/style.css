@@ -61,7 +61,22 @@ input,select{width:100%;padding:7px 9px;border:1px solid var(--line);border-radi
 .btn.sec{background:var(--panel-2);color:var(--ink)}
 .hint{font-size:12px;color:var(--ink-3);margin-top:8px}
 
+.map-wrap{position:relative}
 #map{height:440px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.legend{position:absolute;left:12px;bottom:12px;z-index:500;background:var(--panel);
+        border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;
+        box-shadow:var(--shadow);display:grid;gap:3px;color:var(--ink-2)}
+.legend-title{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);
+              margin-bottom:2px}
+.legend .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}
+.node-badge{width:26px;height:26px;border-radius:50%;border:2px solid;background:var(--panel);
+            display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;
+            font-variant-numeric:tabular-nums;box-shadow:var(--shadow)}
+.item .rolechip{font-size:10px;padding:1px 6px;border-radius:999px;margin-left:6px;
+                background:var(--panel-2);color:var(--ink-2);white-space:nowrap}
+.item .rolechip.train{background:var(--accent-soft);color:var(--accent)}
+.item .rolechip.both{background:rgba(237,161,0,.18);color:var(--warn)}
+.item .rolechip.predict{background:rgba(74,58,167,.14);color:var(--gap)}
 .list{max-height:260px;overflow:auto;border-top:1px solid var(--line-soft)}
 .item{display:block;width:100%;text-align:left;padding:7px 14px;border-bottom:1px solid var(--line-soft)}
 .item:hover{background:var(--panel-2)}
