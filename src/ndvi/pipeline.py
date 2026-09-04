@@ -19,7 +19,7 @@ from ndvi.features import build_features
 from ndvi.models.gbm import GapModel
 from ndvi.paths import ARTIFACTS_DIR
 from ndvi.sensors import DEFAULT_OFFSETS, estimate_offsets
-from ndvi.validation import make_masked
+from ndvi.validation import apply_cold_start, make_masked
 
 MODEL_PATH = ARTIFACTS_DIR / "gap_model.pkl"
 
@@ -50,21 +50,13 @@ def build_training_table(df: pd.DataFrame, seeds=(42, 7, 123), frac: float = 0.1
     parts = []
     for seed in seeds:
         split = make_masked(df, frac=frac, seed=seed)
-        ctx = split.context
+        ctx, targets = split.context, split.targets
         if cold_start_frac > 0:
-            rng = np.random.default_rng(seed + 1)
-            pids = np.array(sorted(ctx.anon_polygon_id.unique()))
-            cold = set(rng.choice(pids, size=max(1, int(cold_start_frac * pids.size)), replace=False))
-            gap_years = split.targets.groupby("anon_polygon_id").year.agg(set)
-            drop = np.zeros(len(ctx), dtype=bool)
-            for pid in cold:
-                yrs = gap_years.get(pid, set())
-                drop |= (ctx.anon_polygon_id == pid).to_numpy() & (~ctx.year.isin(yrs)).to_numpy()
-            ctx = ctx[~drop].copy()
+            ctx, targets, _ = apply_cold_start(ctx, targets, cold_start_frac, seed)
         observed = ctx[ctx.primary_ndvi.notna()]
         offsets = estimate_offsets(observed)
         clim = Climatology().fit(observed)
-        feats = build_features(ctx, split.targets, offsets, clim)
+        feats = build_features(ctx, targets, offsets, clim)
         part = feats.merge(split.truth, on=["anon_polygon_id", "date"], how="left")
         part["y_true"] = part.primary_ndvi
         part["seed"] = seed

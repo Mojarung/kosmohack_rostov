@@ -13,7 +13,7 @@ from ndvi.data import load_train
 from ndvi.features import build_features
 from ndvi.paths import ARTIFACTS_DIR
 from ndvi.sensors import estimate_offsets
-from ndvi.validation import group_folds, make_masked, rmse
+from ndvi.validation import apply_cold_start, group_folds, make_masked, rmse
 
 CACHE = ARTIFACTS_DIR / "val_features.pkl"
 
@@ -34,23 +34,15 @@ def build_validation_table(seed: int = 42, frac: float = 0.15,
     split = make_masked(train, frac=frac, seed=seed)
     ctx = split.context
 
-    cold = np.array([], dtype=object)
+    cold: set = set()
+    targets = split.targets
     if cold_start_frac > 0:
-        rng = np.random.default_rng(seed + 1)
-        pids = np.array(sorted(ctx.anon_polygon_id.unique()))
-        cold = rng.choice(pids, size=max(1, int(cold_start_frac * pids.size)), replace=False)
-        # у «холодных» полигонов оставляем только сезон, в котором стоит гэп
-        gap_years = split.targets.groupby("anon_polygon_id").year.agg(set)
-        drop_mask = np.zeros(len(ctx), dtype=bool)
-        for pid in cold:
-            years = gap_years.get(pid, set())
-            drop_mask |= (ctx.anon_polygon_id == pid).to_numpy() & (~ctx.year.isin(years)).to_numpy()
-        ctx = ctx[~drop_mask].copy()
+        ctx, targets, cold = apply_cold_start(ctx, targets, cold_start_frac, seed)
 
     observed = ctx[ctx.primary_ndvi.notna()]
     offsets = estimate_offsets(observed)
     clim = Climatology().fit(observed)
-    feats = build_features(ctx, split.targets, offsets, clim)
+    feats = build_features(ctx, targets, offsets, clim)
     df = feats.merge(split.truth, on=["anon_polygon_id", "date"], how="left")
     df["y_true"] = df.primary_ndvi
     df["is_cold_start"] = df.anon_polygon_id.isin(cold)

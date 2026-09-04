@@ -108,3 +108,43 @@ def group_folds(groups: pd.Series, n_splits: int = 5, seed: int = DEFAULT_SEED):
     for b in buckets:
         val = np.isin(g, b)
         yield ~val, val
+
+
+def apply_cold_start(context: pd.DataFrame, targets: pd.DataFrame, frac: float,
+                     seed: int = DEFAULT_SEED):
+    """Эмулирует «холодный старт»: у части полигонов остаётся ровно один сезон без истории.
+
+    В test есть полигоны, представленные только сезоном 2025 — у них нет ни собственной
+    климатической нормы, ни прошлых лет. Чтобы измерить качество на этом сегменте, у
+    выбранных полигонов оставляем один случайный сезон, а гэпы вне него выбрасываем.
+
+    Возвращает ``(context, targets, cold_pids)``.
+    """
+    if frac <= 0:
+        return context, targets, set()
+    rng = np.random.default_rng(seed + 1)
+    pids = np.array(sorted(context.anon_polygon_id.unique()))
+    cold = set(rng.choice(pids, size=max(1, int(frac * pids.size)), replace=False))
+
+    gap_years = targets.groupby("anon_polygon_id").year.agg(lambda s: sorted(set(s)))
+    keep_year = {}
+    for pid in list(cold):
+        yrs = gap_years.get(pid)
+        if not yrs:
+            cold.discard(pid)
+            continue
+        keep_year[pid] = int(rng.choice(yrs))
+
+    ctx_pid = context.anon_polygon_id.to_numpy()
+    ctx_year = context.year.to_numpy()
+    drop = np.zeros(len(context), dtype=bool)
+    for pid, yr in keep_year.items():
+        drop |= (ctx_pid == pid) & (ctx_year != yr)
+    ctx = context[~drop].copy()
+
+    t_pid = targets.anon_polygon_id.to_numpy()
+    t_year = targets.year.to_numpy()
+    t_drop = np.zeros(len(targets), dtype=bool)
+    for pid, yr in keep_year.items():
+        t_drop |= (t_pid == pid) & (t_year != yr)
+    return ctx, targets[~t_drop].copy(), cold
