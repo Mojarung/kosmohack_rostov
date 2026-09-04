@@ -39,14 +39,14 @@ uv run python -m gapfill.train --n-masks 20 --clip -0.1 1.0 --out lgb_v3     # �
 uv run python -m gapfill.nn_model --epochs 600 --dropout 0.25 --out nn_v2    # валидация SeasonNet (RMSE 0.060, GPU)
 uv run python -m gapfill.ensemble lgb_v3 nn_v2                               # смесь на валидации (RMSE 0.055)
 uv run python -m gapfill.predict --n-masks 30 --rounds 5500 --seeds 0 1 2 --out final_lgb
-for s in 0 1 2; do uv run python -m gapfill.nn_model --final --epochs 600 --dropout 0.25 --seed $s --out final_nn; done
+for s in 0 1 2 3 4; do uv run python -m gapfill.nn_model --final --epochs 600 --dropout 0.25 --seed $s --out final_nn; done
 uv run python -m gapfill.make_submission final_lgb:0.5 final_nn:0.5          # → submission.csv (3 112 строк)
 uv run pytest tests -q
 ```
 
 Готовый [`submission.csv`](submission.csv) лежит в корне. На валидации, имитирующей контрольные точки
-(15 % известных точек train + test), смесь даёт RMSE 0.055 (взвешенно под состав test 0.062, GapScore ≈ 11)
-против 0.092 у baseline «среднее соседей».
+(15 % известных точек train + test), смесь даёт RMSE 0.053–0.055 на двух масках (GapScore 11–14 в зависимости
+от доли выбросов среди скрытых ответов) против 0.092 у baseline «среднее соседей».
 
 ## Зависимости
 

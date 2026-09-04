@@ -52,7 +52,7 @@ uv run python -m gapfill.train --n-masks 20 --clip -0.1 1.0 --out lgb_v3   # в�
 uv run python -m gapfill.nn_model --epochs 600 --dropout 0.25 --out nn_v2   # валидация нейросети
 uv run python -m gapfill.ensemble lgb_v3 nn_v2                              # веса смеси
 uv run python -m gapfill.predict --n-masks 30 --rounds 5500 --seeds 0 1 2 --out final_lgb
-for s in 0 1 2; do uv run python -m gapfill.nn_model --final --epochs 600 --dropout 0.25 --seed $s --out final_nn; done
+for s in 0 1 2 3 4; do uv run python -m gapfill.nn_model --final --epochs 600 --dropout 0.25 --seed $s --out final_nn; done
 uv run python -m gapfill.make_submission final_lgb:0.5 final_nn:0.5         # → submission.csv
 uv run pytest tests -q
 ```
@@ -68,7 +68,12 @@ uv run pytest tests -q
 | LightGBM v3 | 0.0574 | 0.0644 | 0.0492 |
 | CatBoost v1 | 0.0582 | 0.0653 | 0.0495 |
 | SeasonNet, один seed | 0.0598–0.0601 | 0.0660–0.0670 | 0.0501 |
-| **0.5 · LightGBM + 0.5 · среднее 4 seeds SeasonNet** | **0.0552** | **0.0622** | **0.0463** |
+| **0.5 · LightGBM + 0.5 · среднее seeds SeasonNet** | **0.0552** | **0.0622** | **0.0463** |
+| то же на второй маске (seed 999) | **0.0527** | **0.0531** | **0.0454** |
+
+Разница между масками — состав выбросов target (в первой маске одна точка Landsat = 1.749 даёт 0.002 RMSE).
+Итоговый `submission.csv`: LightGBM 3 seeds + SeasonNet 5 seeds. Проверенные и отвергнутые варианты
+(CatBoost, Optuna, стадия сенсора, остаточное обучение, шум входа, Chronos-2 zero-shot) — в журнале exp-002…006.
 
 Потолок: точки с соседом в одном дне восстанавливаются с усечённым RMSE 0.041 — это шум одного
 наблюдения; 1.2 % точек-выбросов target дают 43 % квадратичной ошибки и не предсказуемы.
