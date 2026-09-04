@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NDVI-мониторинг сельхозполей</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>NDVI-мониторинг сельхозполей</h1>
+    <div class="sub">восстановление пропусков спутникового ряда и поиск аномалий</div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-view="map" aria-selected="true">Карта</button>
+    <button role="tab" data-view="demo" aria-selected="false">Демо на датасете</button>
+    <button role="tab" data-view="about" aria-selected="false">Как это работает</button>
+  </nav>
+  <div class="health" id="health"><span class="dot"></span> проверяю источники…</div>
+</header>
+
+<!-- ---------------------------------------------------------------- Карта -->
+<section class="view active" id="view-map">
+  <div class="layout">
+    <aside class="side">
+      <div class="card">
+        <h2>1. Регион</h2>
+        <div class="body">
+          <label for="q">Найти район или населённый пункт</label>
+          <input id="q" placeholder="например, Зерноградский район" value="Зерноградский район">
+          <button class="btn sec" id="btn-search">Найти на карте</button>
+          <div class="hint">Карту можно и просто подвинуть мышью — сервис не привязан к конкретному региону.</div>
+        </div>
+        <div class="list" id="regions"></div>
+      </div>
+
+      <div class="card">
+        <h2>2. Поле</h2>
+        <div class="body">
+          <button class="btn sec" id="btn-fields">Показать поля из OpenStreetMap</button>
+          <div class="hint">Или нарисуйте контур инструментом на карте — данные соберутся по любому полигону.</div>
+        </div>
+        <div class="list" id="fields"></div>
+      </div>
+
+      <div class="card">
+        <h2>3. Период и запуск</h2>
+        <div class="body">
+          <div class="row">
+            <div><label for="start">с</label><input id="start" type="date" value="2021-01-01"></div>
+            <div><label for="end">по</label><input id="end" type="date" value="2025-11-01"></div>
+          </div>
+          <label for="crop">Культура (необязательно)</label>
+          <select id="crop">
+            <option>не указана</option><option>озимая пшеница</option>
+            <option>зерновые</option><option>подсолнечник</option><option>пастбища/зерновые</option>
+          </select>
+          <button class="btn" id="btn-run" disabled>Сначала выберите поле</button>
+          <div class="hint" id="run-hint">Первый сбор по новому полю занимает 20–60 секунд на сезон,
+            повторные запросы отвечают из кэша мгновенно.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Сохранённые поля</h2>
+        <div class="list" id="saved"></div>
+      </div>
+    </aside>
+
+    <main>
+      <div id="map"></div>
+      <div id="result-map" style="margin-top:16px"></div>
+    </main>
+  </div>
+</section>
+
+<!-- ----------------------------------------------------------------- Демо -->
+<section class="view" id="view-demo">
+  <div class="layout">
+    <aside class="side">
+      <div class="card">
+        <h2>Полигоны датасета</h2>
+        <div class="body">
+          <div class="hint">Координаты полей в данных соревнования анонимизированы, поэтому на карте
+            их показать нельзя. Зато на них видно работу того же пайплайна на 15 годах истории.</div>
+        </div>
+        <div class="list" id="demo-list" style="max-height:60vh"></div>
+      </div>
+    </aside>
+    <main><div id="result-demo"></div></main>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------ Пояснения -->
+<section class="view" id="view-about">
+  <div class="prose">
+    <h2>Что делает сервис</h2>
+    <p>Сервис берёт контур поля — из OpenStreetMap или нарисованный вручную — сам собирает по нему
+      спутниковый ряд NDVI и погоду, заполняет пропуски и находит периоды, когда растительность
+      развивалась хуже обычного, с объяснением причины.</p>
+
+    <h3>Откуда берутся данные</h3>
+    <ul>
+      <li><b>Sentinel-2</b> — каталог STAC Earth Search (AWS Open Data), снимки L2A, облака отсекаются
+        по маске SCL. Разрешение 10 м, съёмка раз в 5 дней.</li>
+      <li><b>Landsat 8/9</b> — каталог Microsoft Planetary Computer, Collection 2 Level-2,
+        маска облаков по QA_PIXEL. 30 м, раз в 8 дней.</li>
+      <li><b>MODIS</b> — REST-сервис ORNL DAAC, продукт MOD13Q1 (готовый NDVI за 16 дней). 250 м.</li>
+      <li><b>Погода</b> — архив ERA5-Land через Open-Meteo: суточная температура и осадки.</li>
+      <li><b>Контуры полей</b> — OpenStreetMap Overpass, <code>landuse=farmland</code>.</li>
+    </ul>
+    <p>Ни один источник не требует ключа. Если какой-то из них недоступен, сервис работает
+      на остальных и честно показывает, что именно не ответило.</p>
+
+    <h3>Почему нельзя просто усреднить соседние точки</h3>
+    <p>Ряд NDVI склеен из трёх спутников, и они систематически расходятся: Landsat читает
+      примерно на 0.037 выше Sentinel-2, MODIS — на 0.078. Поэтому перед любой обработкой
+      всё приводится к общей шкале Sentinel-2, а при восстановлении пропуска учитывается,
+      какой спутник должен был снимать в эту дату (это угадывается по расписанию съёмки).
+      Один этот приём снижает ошибку восстановления с 0.091 до 0.085.</p>
+    <p>Поверх этого работает градиентный бустинг, который предсказывает поправку к такой
+      интерполяции по 60 признакам: соседние наблюдения с обеих сторон, форма сезона,
+      климатическая норма поля, накопленные осадки и жара. Итоговая ошибка — 0.072.</p>
+
+    <h3>Как определяются аномалии</h3>
+    <ul>
+      <li>Норма считается по истории <b>самого поля</b>: среднее NDVI в окне ±8 дней по дню года
+        за прошлые сезоны. Поэтому решение не привязано к региону — для поля в любой точке
+        мира норма построится из его собственной истории.</li>
+      <li>Аномалией считается не отдельная просевшая точка, а устойчивое отклонение: минимум
+        три наблюдения подряд, и просела вся сглаженная кривая сезона. Так отсеивается 43 %
+        срабатываний — это облака и тени.</li>
+      <li>Падение NDVI после пика сезона у зерновых — это уборка, а не угнетение; такие эпизоды
+        помечаются отдельно.</li>
+      <li>Каждый эпизод сопоставляется с погодой: осадки и число жарких дней перед эпизодом
+        сравниваются с нормой того же окна в другие годы.</li>
+    </ul>
+
+    <h3>Что означает уверенность эпизода</h3>
+    <p>Складывается из числа подтверждающих наблюдений, длительности, подтверждения разными
+      спутниками, согласия с погодой и длины истории, по которой построена норма. Эпизод
+      с уверенностью 0.4 стоит проверить глазами, с уверенностью 0.9 — можно доверять.</p>
+  </div>
+</section>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

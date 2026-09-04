@@ -36,6 +36,8 @@ MIN_SIGMA = 0.05
 MIN_POINTS = 3
 #: соседние серии, разделённые не более чем этим числом дней, склеиваются в один эпизод
 MERGE_GAP_DAYS = 10
+#: вегетационный сезон: вне него NDVI отражает снег и голую почву, а не состояние посева
+SEASON_DOY = (90, 305)
 
 MONTHS_RU = ["января", "февраля", "марта", "апреля", "мая", "июня",
              "июля", "августа", "сентября", "октября", "ноября", "декабря"]
@@ -186,7 +188,8 @@ def detect_episodes(series: pd.DataFrame, context: pd.DataFrame | None = None,
                     clim: Climatology | None = None,
                     offsets: dict[str, float] | None = None,
                     min_points: int = MIN_POINTS,
-                    z_threshold: float = Z_DEPRESSED) -> tuple[pd.DataFrame, list[Episode]]:
+                    z_threshold: float = Z_DEPRESSED,
+                    season: tuple[int, int] | None = SEASON_DOY) -> tuple[pd.DataFrame, list[Episode]]:
     """Основная функция: ряд -> (обогащённый ряд, список эпизодов).
 
     ``series`` — наблюдения одного или нескольких полигонов с колонками
@@ -209,6 +212,9 @@ def detect_episodes(series: pd.DataFrame, context: pd.DataFrame | None = None,
     for (pid, year), d in enriched.groupby(["anon_polygon_id", "year"], sort=True):
         d = d.sort_values("date")
         obs = d[d.ndvi_s2.notna()]
+        if season is not None:
+            # зимние значения NDVI — это снег и голая почва, агрономического смысла в них нет
+            obs = obs[(obs.doy >= season[0]) & (obs.doy <= season[1])]
         if len(obs) < min_points + 1:
             continue
         crop = str(obs.crop_type.iloc[0]) if "crop_type" in obs else ""
@@ -282,7 +288,7 @@ def _describe(seg: pd.DataFrame, pid: str, year: int, crop: str, peak_doy: float
             wet = True
 
     hot = False
-    if np.isfinite(hot_30) and np.isfinite(hot_norm):
+    if np.isfinite(hot_30) and np.isfinite(hot_norm) and (hot_30 > 0 or hot_norm > 0):
         parts.append(f"Дней жарче 30 °C за предшествующий месяц: {hot_30:.0f} при норме {hot_norm:.0f}.")
         if hot_30 >= hot_norm + 4:
             drivers.append("аномальная жара")
