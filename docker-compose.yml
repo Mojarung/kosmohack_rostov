@@ -1,0 +1,11 @@
+services:
+  ndvi:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # кэш собранных рядов и сохранённые полигоны переживают пересборку образа
+      - ./cache:/app/cache
+      - ./artifacts:/app/artifacts
+    environment:
+      - TZ=UTC

@@ -30,8 +30,13 @@ from ndvi.smoothing import robust_local_linear
 #: пороги по z-score, совпадают с логикой поля ``status`` в исходных данных
 Z_DEPRESSED = -1.0
 Z_CRITICAL = -2.0
+#: собственный шум измерения NDVI: RMSE между Landsat и Sentinel-2 в один день — 0.068,
+#: то есть различия мельче этого не отличимы от разницы приборов
+MEASUREMENT_NOISE = 0.05
 #: минимальная сигма нормы: на плато сезона она бывает 0.01 и z взрывается
 MIN_SIGMA = 0.05
+#: эпизод длиннее этого и покрывающий большую часть сезона — это не стресс, а пар или смена культуры
+FALLOW_DAYS = 90
 #: эпизодом считается серия минимум из стольких наблюдений
 MIN_POINTS = 3
 #: соседние серии, разделённые не более чем этим числом дней, склеиваются в один эпизод
@@ -111,7 +116,10 @@ def add_zscore(series: pd.DataFrame, clim: Climatology | None = None,
     stats = clim.lookup_frame(out.assign(crop_type=out.get("crop_type", "")),
                               exclude_current_year=exclude_current_year)
     out["norm_mean"] = stats.clim_mean.values
-    out["norm_std"] = np.maximum(stats.clim_std.values, MIN_SIGMA)
+    # наблюдаемый разброс = настоящая изменчивость + шум измерения; складываем их как дисперсии,
+    # иначе на коротких историях сигма выходит 0.01 и z-score улетает за -10
+    out["norm_std"] = np.sqrt(np.maximum(stats.clim_std.values, MIN_SIGMA) ** 2
+                              + MEASUREMENT_NOISE ** 2)
     out["norm_years"] = stats.clim_n.values
     out["norm_level"] = stats.clim_level.values
     out["z"] = (out.ndvi_s2 - out.norm_mean) / out.norm_std
@@ -319,7 +327,14 @@ def _describe(seg: pd.DataFrame, pid: str, year: int, crop: str, peak_doy: float
         parts.append("Эпизод приходится на осень: у озимых это период сева и всходов, "
                      "низкий NDVI здесь говорит о плохом развитии всходов, а не о гибели посева.")
 
-    if harvest:
+    season_share = duration / 215.0  # длина вегетационного сезона в днях
+    fallow = duration >= FALLOW_DAYS and season_share > 0.45
+
+    if fallow:
+        kind = "пар или смена культуры"
+        parts.append("Отклонение держится почти весь сезон: скорее всего поле в этот год "
+                     "не засевалось или под ним другая культура, а не угнетение посева.")
+    elif harvest:
         kind = "уборка"
         parts.append("Эпизод начинается заметно позже пика сезона у зерновой культуры — "
                      "скорее всего это уборка, а не угнетение посева.")

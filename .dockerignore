@@ -1,0 +1,6 @@
+.venv/
+.git/
+cache/
+eda/dashboard_data.json
+artifacts/*.pkl
+**/__pycache__/
