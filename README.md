@@ -4,7 +4,7 @@
 
 ## Документация
 
-Полное ТЗ, критерии оценки и чек-лист сдачи — в папке [`docs/`](docs/README.md):
+Полное ТЗ, критерии оценки и чек-лист сдачи — в папке [`docs/`](docs/README.md). Описание данных и результаты EDA — в [`data/README.md`](data/README.md).
 
 - [Постановка задачи](docs/01-task-statement.md)
 - [Теория и глоссарий](docs/02-theory-and-glossary.md)
@@ -19,9 +19,11 @@
 ```
 .
 ├── README.md
-├── data/
+├── data/                   # датасеты + README с результатами EDA
 │   ├── train_dataset.csv   # обучающий датасет (99 955 строк)
 │   └── test_dataset.csv    # тестовый датасет = private_features.csv из ТЗ (57 185 строк)
+├── eda/                    # скрипты разведочного анализа и графики
+│   └── figures/
 └── docs/                   # ТЗ, критерии, чек-лист, исходные PDF
     └── source/
 ```

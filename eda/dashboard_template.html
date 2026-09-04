@@ -1,0 +1,513 @@
+<meta charset="utf-8">
+<title>NDVI-атлас полей</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  color-scheme:light;
+  --bg:#f5f4ee; --panel:#fdfdfa; --panel-2:#eeede4; --line:#d9d7cb; --line-soft:#e9e8de;
+  --ink:#1d2019; --ink-2:#565a4f; --ink-3:#8a8e80;
+  --accent:#3f7d3a; --accent-ink:#ffffff; --accent-soft:#e2eddf;
+  --s2:#2a78d6; --ls:#eb6834; --mo:#1baf7a; --gap:#4a3aa7;
+  --warn:#eda100; --crit:#e34948; --good:#008300;
+  --norm:#8a8e80; --norm-fill:rgba(138,142,128,.14);
+  --shadow:0 1px 2px rgba(29,32,25,.06), 0 8px 24px rgba(29,32,25,.06);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#191a16; --panel:#22241f; --panel-2:#2b2d27; --line:#3b3e35; --line-soft:#30332c;
+    --ink:#f0efe6; --ink-2:#bfc0b2; --ink-3:#858877;
+    --accent:#7db874; --accent-ink:#14170f; --accent-soft:#2c3d29;
+    --s2:#3987e5; --ls:#d95926; --mo:#199e70; --gap:#9085e9;
+    --warn:#c98500; --crit:#e66767; --good:#3ea23e;
+    --norm:#9a9d8e; --norm-fill:rgba(154,157,142,.18);
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#191a16; --panel:#22241f; --panel-2:#2b2d27; --line:#3b3e35; --line-soft:#30332c;
+  --ink:#f0efe6; --ink-2:#bfc0b2; --ink-3:#858877;
+  --accent:#7db874; --accent-ink:#14170f; --accent-soft:#2c3d29;
+  --s2:#3987e5; --ls:#d95926; --mo:#199e70; --gap:#9085e9;
+  --warn:#c98500; --crit:#e66767; --good:#3ea23e;
+  --norm:#9a9d8e; --norm-fill:rgba(154,157,142,.18);
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;line-height:1.45}
+h1,h2,h3{font-family:Manrope,"IBM Plex Sans",system-ui,sans-serif;text-wrap:balance;margin:0}
+.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{display:flex;align-items:center;gap:24px;padding:14px 24px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:5}
+.top h1{font-size:18px;font-weight:800;letter-spacing:-.01em}
+.top .sub{color:var(--ink-3);font-size:12px}
+.tabs{display:flex;gap:4px;margin-left:auto}
+.tabs button{padding:7px 12px;border-radius:6px;color:var(--ink-2);font-weight:500}
+.tabs button:hover{background:var(--panel-2)}
+.tabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink);font-weight:600}
+
+.view{display:none;padding:20px 24px 48px}
+.view.active{display:block}
+
+/* ---- Поля ---- */
+.fields{display:grid;grid-template-columns:300px minmax(0,1fr);gap:20px;align-items:start}
+.side{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;position:sticky;top:64px;max-height:calc(100vh - 84px);display:flex;flex-direction:column}
+.side .filters{padding:12px;border-bottom:1px solid var(--line);display:grid;gap:8px}
+.side input,.side select{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
+.side .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.side .count{font-size:11px;color:var(--ink-3);letter-spacing:.04em;text-transform:uppercase;padding:8px 12px 4px}
+.list{overflow:auto;flex:1}
+.item{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;width:100%;text-align:left;padding:8px 12px;border-bottom:1px solid var(--line-soft)}
+.item:hover{background:var(--panel-2)}
+.item[aria-current="true"]{background:var(--accent-soft)}
+.item .id{font-weight:500}
+.item .meta{font-size:11px;color:var(--ink-3)}
+.swatch{width:10px;height:10px;border-radius:2px;flex:none}
+.spark{width:64px;height:22px}
+.zpill{font-size:11px;padding:2px 6px;border-radius:999px;background:var(--panel-2);color:var(--ink-2)}
+.zpill.neg{background:color-mix(in srgb,var(--warn) 22%,transparent);color:var(--ink)}
+.zpill.crit{background:color-mix(in srgb,var(--crit) 24%,transparent);color:var(--ink)}
+
+.main{display:grid;gap:16px;min-width:0}
+.head{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 18px}
+.head h2{font-size:26px;font-weight:800;letter-spacing:-.02em}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2)}
+.chip b{color:var(--ink);font-weight:600}
+.years{display:flex;flex-wrap:wrap;gap:4px}
+.years button{padding:4px 9px;border-radius:6px;border:1px solid var(--line);background:var(--panel);font-size:12px;color:var(--ink-2)}
+.years button:hover{background:var(--panel-2)}
+.years button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.years button.has-gaps{border-bottom:2px solid var(--gap)}
+.years button.nodata{opacity:.4}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;color:var(--ink-2);margin-bottom:6px}
+.card .hint{font-size:12px;color:var(--ink-3);margin:0 0 8px}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--ink-2);margin-top:6px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%}
+.legend i.line{width:16px;height:0;border-top:2px dashed var(--norm);border-radius:0}
+.legend i.band{width:16px;height:10px;border-radius:2px;background:var(--norm-fill)}
+.legend i.tick{width:2px;height:12px;border-radius:0;background:var(--gap)}
+svg{display:block;width:100%;height:auto;overflow:visible}
+svg text{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11px;fill:var(--ink-3)}
+.grid line{stroke:var(--line-soft)}
+.axis line{stroke:var(--line)}
+.chartwrap{position:relative}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);padding:8px 10px;border-radius:6px;font-size:12px;line-height:1.4;box-shadow:var(--shadow);white-space:nowrap;display:none;z-index:3}
+.tip b{font-weight:600}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.stat .l{font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em}
+.stat .v{font-family:Manrope,sans-serif;font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+.stat .n{font-size:11px;color:var(--ink-3)}
+.episodes{display:grid;gap:6px}
+.ep{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:8px 10px;border-radius:8px;background:var(--panel-2);font-size:13px}
+.ep .sev{width:8px;height:32px;border-radius:2px}
+.ep .sev.warn{background:var(--warn)} .ep .sev.crit{background:var(--crit)}
+.ep .why{font-size:12px;color:var(--ink-2)}
+.empty{color:var(--ink-3);font-size:13px;padding:8px 0}
+
+/* ---- Годы ---- */
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px}
+.heat{overflow-x:auto}
+.heat table{border-collapse:separate;border-spacing:2px;font-size:11px}
+.heat th{font-weight:500;color:var(--ink-3);text-align:left;padding:0 6px;white-space:nowrap}
+.heat th.y{text-align:center;padding:0 2px}
+.heat td{width:30px;height:20px;border-radius:3px;text-align:center;cursor:pointer;color:var(--ink);font-family:"IBM Plex Mono",monospace;font-size:10px}
+.heat td.na{background:var(--line-soft);cursor:default}
+.heat td:hover{outline:2px solid var(--ink)}
+.heat .rowname{cursor:pointer}
+.heat .rowname:hover{color:var(--ink)}
+.scale{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-2);margin:8px 0}
+.scale .bar{width:180px;height:10px;border-radius:3px;background:linear-gradient(90deg,var(--crit),var(--warn),var(--panel-2),var(--good))}
+
+/* ---- Спутники / Как читать ---- */
+.prose{max-width:68ch;font-size:14.5px}
+.prose p{margin:0 0 10px}
+.prose h3{font-size:15px;font-weight:700;margin:18px 0 6px;text-transform:none;letter-spacing:0;color:var(--ink)}
+.prose ul{padding-left:20px;margin:0 0 10px}
+.prose li{margin-bottom:4px}
+kbd.key{display:inline-block;padding:0 5px;border:1px solid var(--line);border-radius:4px;background:var(--panel-2);font-family:"IBM Plex Mono",monospace;font-size:12px}
+@media (max-width:860px){.fields{grid-template-columns:1fr}.side{position:static;max-height:360px}}
+@media (prefers-reduced-motion:no-preference){.item,.years button,.tabs button{transition:background .12s}}
+</style>
+
+<header class="top">
+  <div>
+    <h1>NDVI-атлас полей</h1>
+    <div class="sub">78 полей Ростовской области, 2010–2025 · данные Космохакатона</div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="fields">Поля</button>
+    <button role="tab" aria-selected="false" data-tab="years">Годы</button>
+    <button role="tab" aria-selected="false" data-tab="sensors">Спутники</button>
+    <button role="tab" aria-selected="false" data-tab="howto">Как читать</button>
+  </nav>
+</header>
+
+<section class="view active" id="view-fields">
+  <div class="fields">
+    <aside class="side">
+      <div class="filters">
+        <input id="q" type="search" placeholder="Поиск по номеру, например 0031" aria-label="Поиск поля">
+        <div class="row">
+          <select id="fSplit" aria-label="Набор">
+            <option value="all">Все поля</option>
+            <option value="both">Есть в train</option>
+            <option value="test">Только в test</option>
+          </select>
+          <select id="fCrop" aria-label="Культура">
+            <option value="all">Все культуры</option>
+          </select>
+        </div>
+        <div class="row">
+          <select id="fHist" aria-label="История">
+            <option value="all">Любая история</option>
+            <option value="long">С историей 15+ лет</option>
+            <option value="short">Только сезон 2025</option>
+          </select>
+          <select id="fSort" aria-label="Сортировка">
+            <option value="id">По номеру</option>
+            <option value="z">Худшие по норме</option>
+            <option value="gaps">Больше контрольных точек</option>
+          </select>
+        </div>
+      </div>
+      <div class="count" id="count"></div>
+      <div class="list" id="list"></div>
+    </aside>
+    <div class="main" id="main"></div>
+  </div>
+</section>
+
+<section class="view" id="view-years">
+  <div class="two" style="margin-bottom:16px">
+    <div class="card">
+      <h3>Доля наблюдений ниже нормы по годам</h3>
+      <p class="hint">Учебные поля, все спутники. Ниже нормы это z &lt; −1: растительность заметно хуже обычного для этой даты.</p>
+      <div class="chartwrap" id="chYearsNeg"></div>
+    </div>
+    <div class="card">
+      <h3>Осадки за сезон, апрель–октябрь</h3>
+      <p class="hint">Сумма осадков ERA5 в мм, среднее по полям с погодой. Сухие годы совпадают с плохими.</p>
+      <div class="chartwrap" id="chYearsPrecip"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Каждое поле по годам: насколько хуже или лучше нормы</h3>
+    <p class="hint">Средний z-score за сезон. Красное это плохой сезон, зелёное хороший. Клик по клетке открывает поле в этом году.</p>
+    <div class="scale"><span>хуже нормы</span><div class="bar"></div><span>лучше нормы</span><span style="margin-left:12px;display:inline-flex;align-items:center;gap:6px"><i style="width:14px;height:10px;background:var(--line-soft);border-radius:2px;display:inline-block"></i>нет данных</span></div>
+    <div class="heat" id="heat"></div>
+  </div>
+</section>
+
+<section class="view" id="view-sensors">
+  <div class="two" style="margin-bottom:16px">
+    <div class="card">
+      <h3>Landsat против Sentinel-2 в один и тот же день</h3>
+      <p class="hint">Каждая точка это одно поле в один день, снятое обоими спутниками. Точки лежат чуть выше диагонали: Landsat систематически показывает больше.</p>
+      <div class="chartwrap" id="chPairLS"></div>
+    </div>
+    <div class="card">
+      <h3>MODIS против Sentinel-2 в один и тот же день</h3>
+      <p class="hint">MODIS отклоняется сильнее и разброс у него больше: пиксель MODIS 250 м и захватывает соседние поля.</p>
+      <div class="chartwrap" id="chPairMO"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Типичный сезон по культурам</h3>
+    <p class="hint">Средний NDVI по всем полям и годам, бины по 8 дней. Все четыре класса пикуют в конце мая, включая «подсолнечник», который в реальности должен пиковать в июле–августе. Метка культуры одна на 15 лет и севооборот не учитывает.</p>
+    <div class="chartwrap" id="chProfile"></div>
+  </div>
+</section>
+
+<section class="view" id="view-howto">
+  <div class="card prose">
+    <h3 style="margin-top:0">Что такое NDVI</h3>
+    <p>Спутник измеряет, сколько красного и ближнего инфракрасного света отражает поле. Живая зелёная растительность поглощает красный и сильно отражает инфракрасный. NDVI это отношение этих двух величин: около 0.1–0.2 у голой почвы, 0.6–0.9 у густых посевов.</p>
+    <h3>Откуда берутся точки</h3>
+    <p>Три спутника снимают одно и то же поле по своим расписаниям: Sentinel-2 раз в 5 дней с 2017 года, Landsat раз в 8 дней с 2010, MODIS раз в 16 дней. В облачные дни точек нет. Итоговый ряд <span class="mono">primary_ndvi</span> берёт Sentinel-2, если он есть, иначе Landsat, иначе MODIS. Спутники видят поле немного по-разному, поэтому цвет точки важен.</p>
+    <h3>Норма и z-score</h3>
+    <p>Норма это среднее NDVI этого же поля в это же время года за все 15 лет, серая пунктирная линия. Серая полоса это обычный разброс. Z-score показывает, на сколько таких разбросов точка отклонилась от нормы. Ниже −1 это «угнетение», ниже −2 «критическая аномалия». Одиночная низкая точка между нормальными почти всегда облако, а не беда на поле.</p>
+    <h3>Контрольные точки</h3>
+    <p>В тестовом наборе организаторы спрятали 3 112 значений и просят их угадать. На графике они отмечены фиолетовыми штрихами внизу. Чем ближе угадаем, тем больше баллов: простое среднее двух соседних дней даёт 0 баллов, идеальное попадание 30.</p>
+    <h3>Управление</h3>
+    <ul>
+      <li>Слева список полей, фильтры сверху. Клик открывает поле.</li>
+      <li>Кнопки годов переключают сезон. Год с фиолетовой чертой снизу содержит контрольные точки. «Все годы» показывает всю историю сразу.</li>
+      <li>Наведите курсор на график: покажется дата, значение, спутник и отклонение от нормы.</li>
+      <li>Вкладка «Годы» показывает, какие сезоны были плохими для всех полей сразу. Клик по клетке ведёт к полю.</li>
+    </ul>
+  </div>
+</section>
+
+<script id="data" type="application/json">__DATA__</script>
+<script>
+(function(){
+const D = JSON.parse(document.getElementById('data').textContent);
+const SENS = [
+  {k:'s2', name:'Sentinel-2', v:'--s2'},
+  {k:'ls', name:'Landsat', v:'--ls'},
+  {k:'mo', name:'MODIS', v:'--mo'},
+  {k:'gap', name:'скрытая точка', v:'--gap'}];
+const CROP_COLORS = {'озимая пшеница':'#2a78d6','зерновые':'#eb6834','подсолнечник':'#1baf7a','пастбища/зерновые':'#eda100'};
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const fmt = (x,d=2) => x==null||isNaN(x) ? '—' : (+x).toFixed(d);
+const el = (tag, attrs={}, ...kids) => { const e = document.createElement(tag); for (const [k,v] of Object.entries(attrs)) { if (k==='class') e.className=v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k,v);} for (const k of kids) e.append(k); return e; };
+const NS='http://www.w3.org/2000/svg';
+const sv = (tag, attrs={}) => { const e=document.createElementNS(NS, tag); for (const [k,v] of Object.entries(attrs)) e.setAttribute(k,v); return e; };
+const polyById = Object.fromEntries(D.polys.map(p=>[p.id,p]));
+const doy = s => { const d=new Date(s+'T00:00:00Z'); return Math.round((d - Date.UTC(d.getUTCFullYear(),0,1))/864e5)+1; };
+const yr = s => +s.slice(0,4);
+const MONTHS = ['апр','май','июн','июл','авг','сен','окт'];
+const MONTH_DOY = [91,121,152,182,213,244,274];
+
+/* ---------- state ---------- */
+const state = { pid: 'AOI-0031', year: null };
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.setAttribute('aria-selected', x===b));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id==='view-'+b.dataset.tab));
+  if (b.dataset.tab==='years' && !document.getElementById('heat').children.length) renderYears();
+  if (b.dataset.tab==='sensors' && !document.getElementById('chProfile').children.length) renderSensors();
+}));
+function goTab(name){ document.querySelector(`.tabs button[data-tab="${name}"]`).click(); }
+
+/* ---------- sidebar ---------- */
+const fCrop = document.getElementById('fCrop');
+[...new Set(D.polys.map(p=>p.crop))].sort().forEach(c => fCrop.append(el('option',{value:c},c)));
+['q','fSplit','fCrop','fHist','fSort'].forEach(id => document.getElementById(id).addEventListener('input', renderList));
+
+function sparkline(p){
+  const s = D.series[p.id]; const svg = sv('svg',{viewBox:'0 0 64 22',class:'spark','aria-hidden':'true'});
+  if (!s) return svg;
+  // последний сезон с данными: точки по doy
+  const lastYear = Math.max(...s.d.filter((d,i)=>s.v[i]!=null).map(yr));
+  const pts=[]; s.d.forEach((d,i)=>{ if (yr(d)===lastYear && s.v[i]!=null) pts.push([ (doy(d)-91)/213*64, 20 - Math.max(0,Math.min(1,s.v[i]))*18 ]); });
+  if (pts.length>1){ svg.append(sv('path',{d:'M'+pts.map(q=>q.map(x=>x.toFixed(1)).join(',')).join('L'),fill:'none',stroke:css('--ink-3'),'stroke-width':'1.2'})); }
+  return svg;
+}
+function renderList(){
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const split = document.getElementById('fSplit').value, crop=fCrop.value, hist=document.getElementById('fHist').value, sort=document.getElementById('fSort').value;
+  let rows = D.polys.filter(p => (!q || p.id.toLowerCase().includes(q)) && (split==='all'||p.split===split) && (crop==='all'||p.crop===crop)
+    && (hist==='all' || (hist==='long' ? p.years.length>=15 : p.years.length===1)));
+  if (sort==='z') rows = rows.slice().sort((a,b)=>(a.meanZ??9)-(b.meanZ??9));
+  if (sort==='gaps') rows = rows.slice().sort((a,b)=>b.nGaps-a.nGaps);
+  const list = document.getElementById('list'); list.replaceChildren();
+  document.getElementById('count').textContent = `${rows.length} из ${D.polys.length} полей`;
+  rows.forEach(p => {
+    const z = p.meanZ; const cls = z==null?'':(z<-0.5?'crit':(z<-0.2?'neg':''));
+    const b = el('button',{class:'item','aria-current':String(p.id===state.pid), onclick:()=>selectPoly(p.id)},
+      el('span',{class:'swatch',style:`background:${CROP_COLORS[p.crop]}`}),
+      el('span',{}, el('div',{class:'id'},p.id), el('div',{class:'meta'},`${p.crop} · ${p.years.length===1?'сезон 2025':p.years.length+' лет'}${p.nGaps?' · '+p.nGaps+' контр.':''}`)),
+      el('span',{style:'display:grid;justify-items:end;gap:2px'}, sparkline(p), el('span',{class:'zpill '+cls, title:'средний z-score за всю историю'}, z==null?'нет нормы':'z '+(z>0?'+':'')+fmt(z,2)))
+    );
+    list.append(b);
+  });
+}
+
+/* ---------- main panel ---------- */
+function selectPoly(pid, year){
+  state.pid = pid; const p = polyById[pid];
+  const s = D.series[pid];
+  const yearsWithData = p.years;
+  const gapYears = new Set(s ? s.d.filter((d,i)=>s.s[i]===3).map(yr) : []);
+  if (year!=null) state.year = year; else if (state.year==null || !yearsWithData.includes(state.year)) state.year = yearsWithData[yearsWithData.length-1];
+  document.querySelectorAll('.item').forEach(b => b.setAttribute('aria-current', b.querySelector('.id').textContent===pid));
+  const main = document.getElementById('main'); main.replaceChildren();
+  const wxNote = p.wx ? `ячейка погоды ${p.wx}` : 'без данных погоды';
+  main.append(el('div',{class:'head'}, el('h2',{},pid), el('div',{class:'chips'},
+    el('span',{class:'chip',style:`border-color:${CROP_COLORS[p.crop]}`}, p.crop),
+    el('span',{class:'chip'}, p.split==='both' ? 'есть в train и test' : 'только в test'),
+    el('span',{class:'chip'}, p.years.length===1 ? 'история: только 2025' : `история: ${p.years[0]}–${p.years[p.years.length-1]}`),
+    el('span',{class:'chip'}, p.dense ? 'ежедневная сетка + погода' : 'только даты съёмки, '+wxNote),
+    el('span',{class:'chip'}, el('b',{},String(p.nObs)), ' наблюдений'),
+    p.nGaps ? el('span',{class:'chip',style:'border-color:var(--gap)'}, el('b',{},String(p.nGaps)), ' контрольных точек') : ''
+  )));
+  const yrs = el('div',{class:'years'});
+  yrs.append(el('button',{'aria-pressed':String(state.year==='all'), onclick:()=>selectPoly(pid,'all')},'Все годы'));
+  for (let y=2010;y<=2025;y++){ const has = yearsWithData.includes(y); yrs.append(el('button',{class:(gapYears.has(y)?'has-gaps ':'')+(has?'':'nodata'),'aria-pressed':String(state.year===y), disabled:has?null:'', onclick:()=>selectPoly(pid,y)}, String(y))); }
+  yrs.querySelectorAll('button[disabled=""]').forEach(b=>b.removeAttribute('disabled')); yrs.querySelectorAll('.nodata').forEach(b=>b.disabled=true);
+  main.append(yrs);
+  if (!s){ main.append(el('div',{class:'empty'},'Для этого поля нет ни одного наблюдения.')); return; }
+  if (state.year==='all') renderAllYears(main, p, s); else renderSeason(main, p, s, state.year);
+}
+
+function seasonRows(s, year){
+  const rows=[]; s.d.forEach((d,i)=>{ if (yr(d)===year) rows.push({d, doy:doy(d), v:s.v[i], s:s.s[i], m:s.m[i], sd:s.sd[i], z:(s.v[i]!=null&&s.m[i]!=null&&s.sd[i])?(s.v[i]-s.m[i])/s.sd[i]:null}); });
+  return rows;
+}
+
+function renderSeason(main, p, s, year){
+  const rows = seasonRows(s, year);
+  const obs = rows.filter(r=>r.v!=null), gaps = rows.filter(r=>r.s===3);
+  const neg = obs.filter(r=>r.z!=null&&r.z<-1), crit = obs.filter(r=>r.z!=null&&r.z<-2);
+  const peak = obs.reduce((a,r)=> (r.v>(a?.v??-9))?r:a, null);
+  const wx = D.wx[p.id]?.[String(year)];
+  const precip = wx ? wx.p.reduce((a,b)=>a+(b||0),0) : null;
+  const yearAvgP = D.years.find(y=>y.yr===year)?.precip;
+  // stats
+  main.append(el('div',{class:'stats'},
+    stat('Наблюдений за сезон', String(obs.length), `${obs.filter(r=>r.s===0).length} S2 · ${obs.filter(r=>r.s===1).length} Landsat · ${obs.filter(r=>r.s===2).length} MODIS`),
+    stat('Пик NDVI', peak?fmt(peak.v):'—', peak? 'на '+dateRu(peak.d) : ''),
+    stat('Ниже нормы', obs.length? Math.round(100*neg.length/obs.length)+'%' : '—', obs.length && obs.some(r=>r.z!=null) ? `${neg.length} набл., из них ${crit.length} критич.` : 'нормы нет'),
+    stat('Осадки апр–окт', precip!=null? Math.round(precip)+' мм' : '—', precip!=null && yearAvgP ? `среднее по региону ${Math.round(yearAvgP)} мм` : (p.dense?'':'нет погоды у этого поля')),
+    stat('Контрольные точки', String(gaps.length), gaps.length? 'значение скрыто, надо угадать':'в этом сезоне нет')
+  ));
+  // NDVI chart
+  const c1 = el('div',{class:'card'}, el('h3',{},`NDVI, сезон ${year}`), el('p',{class:'hint'},'Точки это снимки, цвет спутник. Пунктир норма за 15 лет, полоса её обычный разброс. Штрихи внизу это спрятанные контрольные точки.'));
+  const w1 = el('div',{class:'chartwrap'}); c1.append(w1); main.append(c1);
+  drawSeasonChart(w1, rows);
+  c1.append(el('div',{class:'legend'}, ...SENS.slice(0,3).map(x=>el('span',{},el('i',{style:`background:var(${x.v})`}),x.name)), el('span',{},el('i',{class:'line'}),'норма'), el('span',{},el('i',{class:'band'}),'обычный разброс'), el('span',{},el('i',{class:'tick'}),'контрольная точка'), el('span',{},el('i',{style:'background:var(--crit)'}),'критическая аномалия (z < −2)')));
+  // episodes
+  const eps = episodes(obs);
+  const c2 = el('div',{class:'card'}, el('h3',{},'Периоды угнетения'), el('p',{class:'hint'},'Серии из двух и более подряд наблюдений ниже нормы. Одиночные провалы не показаны: чаще всего это облако.'));
+  if (!eps.length) c2.append(el('div',{class:'empty'}, obs.some(r=>r.z!=null) ? 'Устойчивых провалов ниже нормы в этом сезоне нет.' : 'Для этого поля нет климатической нормы, аномалии не считаются.'));
+  else { const box = el('div',{class:'episodes'}); eps.forEach(e=>{ const rain = wx ? rainAround(wx, e.from, e.to) : null; box.append(el('div',{class:'ep'}, el('div',{class:'sev '+(e.minZ<-2?'crit':'warn')}), el('div',{}, el('div',{}, `${dateRu(e.from)} – ${dateRu(e.to)}`, ' · ', el('b',{}, `${e.n} наблюдений`), `, минимум z ${fmt(e.minZ,1)}`), el('div',{class:'why'}, explain(e, rain))), el('div',{class:'mono',style:'font-size:12px;color:var(--ink-2)'}, e.minZ<-2?'критично':'угнетение'))); }); c2.append(box); }
+  main.append(c2);
+  // weather
+  if (wx){
+    const c3 = el('div',{class:'card'}, el('h3',{},'Погода по неделям'), el('p',{class:'hint'},'Столбцы это осадки за неделю в мм, линия средняя температура. Данные ERA5 для ячейки, где стоит поле.'));
+    const w3 = el('div',{class:'chartwrap'}); c3.append(w3); drawWeather(w3, wx); main.append(c3);
+  }
+}
+function stat(l,v,n){ return el('div',{class:'stat'}, el('div',{class:'l'},l), el('div',{class:'v'},v), el('div',{class:'n'},n)); }
+function dateRu(d){ const [y,m,dd]=d.split('-'); return `${+dd} ${['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'][+m-1]}`; }
+function episodes(obs){
+  const out=[]; let cur=null;
+  obs.forEach(r=>{ const bad = r.z!=null && r.z<-1; if (bad){ if(!cur) cur={from:r.d,to:r.d,n:0,minZ:0,fromDoy:r.doy,toDoy:r.doy}; cur.to=r.d; cur.toDoy=r.doy; cur.n++; cur.minZ=Math.min(cur.minZ,r.z);} else if (cur){ if(cur.n>=2) out.push(cur); cur=null; } });
+  if (cur && cur.n>=2) out.push(cur); return out;
+}
+function rainAround(wx, from, to){ const a=Math.max(0,Math.floor((doy(from)-91)/7)-3), b=Math.min(30,Math.floor((doy(to)-91)/7)); let sum=0,n=0; for(let i=a;i<=b;i++){ if(wx.p[i]!=null){sum+=wx.p[i];n++;} } return n? {sum, weeks:n} : null; }
+function explain(e, rain){
+  const parts=[];
+  if (rain){ const perWeek = rain.sum/rain.weeks; if (perWeek<5) parts.push(`за 3 недели до и во время периода выпало всего ${Math.round(rain.sum)} мм: похоже на засуху`); else parts.push(`осадки в этот период ${Math.round(rain.sum)} мм за ${rain.weeks} нед., влаги хватало: причина скорее не в дожде`); }
+  const m = +e.from.slice(5,7);
+  if (m>=7) parts.push('после уборки низкий NDVI может быть нормой, а не бедой');
+  if (m<=4) parts.push('ранняя весна: возможен поздний старт вегетации или пересев');
+  return parts.join('. ') || 'погоды для этого поля нет, причину по данным не определить';
+}
+
+/* ---------- charts ---------- */
+function frame(wrap, W, H, pad){ const svg = sv('svg',{viewBox:`0 0 ${W} ${H}`}); wrap.replaceChildren(svg); const tip = el('div',{class:'tip'}); wrap.append(tip); return {svg, tip}; }
+function drawSeasonChart(wrap, rows){
+  const W=900,H=300,L=44,R=12,T=14,B=34; const {svg,tip}=frame(wrap,W,H);
+  const x = d => L + (d-91)/213*(W-L-R); const y = v => T + (1-Math.max(-0.1,Math.min(1,v))/1)*(H-T-B) ;
+  const yv = v => T + (0.95-v)/(1.05)*(H-T-B);
+  const g = sv('g',{class:'grid'}); [0,0.2,0.4,0.6,0.8].forEach(v=>{ g.append(sv('line',{x1:L,x2:W-R,y1:yv(v),y2:yv(v)})); const t=sv('text',{x:L-6,y:yv(v)+4,'text-anchor':'end'}); t.textContent=v.toFixed(1); svg.append(t); }); svg.append(g);
+  MONTH_DOY.forEach((d,i)=>{ const t=sv('text',{x:x(d)+3,y:H-B+16}); t.textContent=MONTHS[i]; svg.append(t); const l=sv('line',{x1:x(d),x2:x(d),y1:H-B,y2:H-B+4,stroke:css('--line')}); svg.append(l); });
+  svg.append(sv('line',{x1:L,x2:W-R,y1:H-B,y2:H-B,stroke:css('--line')}));
+  // norm band
+  const norm = rows.filter(r=>r.m!=null);
+  if (norm.length>1){
+    const up = norm.map(r=>`${x(r.doy).toFixed(1)},${yv(r.m+r.sd).toFixed(1)}`), lo = norm.slice().reverse().map(r=>`${x(r.doy).toFixed(1)},${yv(r.m-r.sd).toFixed(1)}`);
+    svg.append(sv('path',{d:'M'+up.join('L')+'L'+lo.join('L')+'Z',fill:css('--norm-fill'),stroke:'none'}));
+    svg.append(sv('path',{d:'M'+norm.map(r=>`${x(r.doy).toFixed(1)},${yv(r.m).toFixed(1)}`).join('L'),fill:'none',stroke:css('--norm'),'stroke-width':'1.5','stroke-dasharray':'5 4'}));
+  }
+  // connecting line through observations (light)
+  const obs = rows.filter(r=>r.v!=null);
+  if (obs.length>1) svg.append(sv('path',{d:'M'+obs.map(r=>`${x(r.doy).toFixed(1)},${yv(r.v).toFixed(1)}`).join('L'),fill:'none',stroke:css('--ink-3'),'stroke-width':'1','opacity':'.35'}));
+  // gaps
+  rows.filter(r=>r.s===3).forEach(r=>{ svg.append(sv('line',{x1:x(r.doy),x2:x(r.doy),y1:H-B-14,y2:H-B-2,stroke:css('--gap'),'stroke-width':'2'})); });
+  // dots
+  obs.forEach(r=>{ const crit = r.z!=null&&r.z<-2; const c = sv('circle',{cx:x(r.doy),cy:yv(r.v),r:crit?5:4,fill:css(SENS[r.s].v),stroke:crit?css('--crit'):css('--panel'),'stroke-width':crit?2.5:1.5}); svg.append(c); });
+  // hover
+  const cross = sv('line',{y1:T,y2:H-B,stroke:css('--ink'),'stroke-width':'1',opacity:'0',style:'pointer-events:none'}); svg.append(cross);
+  const all = rows.slice().sort((a,b)=>a.doy-b.doy);
+  svg.addEventListener('mousemove', ev=>{
+    const pt = svg.createSVGPoint(); pt.x=ev.clientX; pt.y=ev.clientY; const q = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const d = 91 + (q.x-L)/(W-L-R)*213; let best=null; all.forEach(r=>{ if(!best||Math.abs(r.doy-d)<Math.abs(best.doy-d)) best=r; });
+    if (!best || Math.abs(best.doy-d)>6){ tip.style.display='none'; cross.setAttribute('opacity','0'); return; }
+    cross.setAttribute('x1',x(best.doy)); cross.setAttribute('x2',x(best.doy)); cross.setAttribute('opacity','.5');
+    tip.style.display='block'; const rect = wrap.getBoundingClientRect(); const px = (x(best.doy)/W)*rect.width; tip.style.left = Math.min(rect.width-200, px+12)+'px'; tip.style.top = '8px';
+    tip.innerHTML = best.s===3 ? `<b>${dateRu(best.d)} ${yr(best.d)}</b><br>контрольная точка, значение скрыто` :
+      `<b>${dateRu(best.d)} ${yr(best.d)}</b> · ${SENS[best.s].name}<br>NDVI <b>${fmt(best.v,3)}</b>${best.m!=null?`<br>норма ${fmt(best.m,2)} ± ${fmt(best.sd,2)} · z ${best.z>0?'+':''}${fmt(best.z,1)}`:''}`;
+  });
+  svg.addEventListener('mouseleave', ()=>{ tip.style.display='none'; cross.setAttribute('opacity','0'); });
+}
+function drawWeather(wrap, wx){
+  const W=900,H=170,L=44,R=44,T=12,B=30; const {svg,tip}=frame(wrap,W,H);
+  const x = i => L + i/31*(W-L-R); const bw=(W-L-R)/31-2;
+  const pmax = Math.max(20, ...wx.p.filter(v=>v!=null)); const yp = v => T + (1-v/pmax)*(H-T-B);
+  [0,0.5,1].forEach(f=>{ const v=Math.round(pmax*f); svg.append(sv('line',{x1:L,x2:W-R,y1:yp(v),y2:yp(v),stroke:css('--line-soft')})); const t=sv('text',{x:L-6,y:yp(v)+4,'text-anchor':'end'}); t.textContent=v+' мм'; svg.append(t); });
+  MONTH_DOY.forEach((d,i)=>{ const t=sv('text',{x:x((d-91)/7)+3,y:H-B+16}); t.textContent=MONTHS[i]; svg.append(t); });
+  wx.p.forEach((v,i)=>{ if(v==null) return; svg.append(sv('rect',{x:x(i),y:yp(v),width:bw,height:Math.max(0,yp(0)-yp(v)),fill:css('--s2'),opacity:'.75',rx:'2'})); });
+  // temperature as separate strip on top? Keep single-scale rule: draw temperature as small text labels every 4 weeks instead of a second axis.
+  const ts = wx.t.map((v,i)=>({v,i})).filter(o=>o.v!=null && o.i%4===0);
+  ts.forEach(o=>{ const t=sv('text',{x:x(o.i)+bw/2,y:T+2,'text-anchor':'middle',style:'fill:var(--ink-2)'}); t.textContent=Math.round(o.v)+'°'; svg.append(t); });
+  svg.addEventListener('mousemove', ev=>{ const pt=svg.createSVGPoint(); pt.x=ev.clientX; pt.y=ev.clientY; const q=pt.matrixTransform(svg.getScreenCTM().inverse()); const i=Math.floor((q.x-L)/(W-L-R)*31); if(i<0||i>30||wx.p[i]==null){tip.style.display='none';return;} const rect=wrap.getBoundingClientRect(); tip.style.display='block'; tip.style.left=Math.min(rect.width-180,(x(i)/W)*rect.width+10)+'px'; tip.style.top='6px'; const d0=new Date(Date.UTC(2001,3,1+i*7)); tip.innerHTML=`<b>неделя с ${d0.getUTCDate()} ${MONTHS[Math.max(0,d0.getUTCMonth()-3)]}</b><br>осадки ${fmt(wx.p[i],1)} мм · темп. ${fmt(wx.t[i],1)}°C`; });
+  svg.addEventListener('mouseleave', ()=>tip.style.display='none');
+}
+function renderAllYears(main, p, s){
+  const c = el('div',{class:'card'}, el('h3',{},'Вся история наблюдений'), el('p',{class:'hint'},'Каждая строка это сезон, по горизонтали апрель–октябрь. Цвет точки спутник, красная обводка критическая аномалия, фиолетовый штрих контрольная точка. Клик по строке открывает сезон.'));
+  const wrap = el('div',{class:'chartwrap'}); c.append(wrap); main.append(c);
+  const years = p.years; const rowH=44, W=900, L=54, R=12, T=8, B=26, H=T+B+years.length*rowH;
+  const {svg,tip}=frame(wrap,W,H);
+  const x = d => L + (d-91)/213*(W-L-R);
+  MONTH_DOY.forEach((d,i)=>{ svg.append(sv('line',{x1:x(d),x2:x(d),y1:T,y2:H-B,stroke:css('--line-soft')})); const t=sv('text',{x:x(d)+3,y:H-B+16}); t.textContent=MONTHS[i]; svg.append(t); });
+  years.forEach((y,k)=>{
+    const y0 = T + k*rowH; const rows = seasonRows(s,y); const yv = v => y0 + rowH-4 - Math.max(0,Math.min(1,v))*(rowH-10);
+    const lab = sv('text',{x:L-8,y:y0+rowH/2+4,'text-anchor':'end',style:'fill:var(--ink-2);cursor:pointer'}); lab.textContent=y; lab.addEventListener('click',()=>selectPoly(p.id,y)); svg.append(lab);
+    svg.append(sv('line',{x1:L,x2:W-R,y1:y0+rowH-4,y2:y0+rowH-4,stroke:css('--line-soft')}));
+    const norm = rows.filter(r=>r.m!=null); if (norm.length>1) svg.append(sv('path',{d:'M'+norm.map(r=>`${x(r.doy).toFixed(1)},${yv(r.m).toFixed(1)}`).join('L'),fill:'none',stroke:css('--norm'),'stroke-width':'1','stroke-dasharray':'3 3'}));
+    rows.forEach(r=>{ if (r.s===3) svg.append(sv('line',{x1:x(r.doy),x2:x(r.doy),y1:y0+rowH-10,y2:y0+rowH-4,stroke:css('--gap'),'stroke-width':'2'})); else if (r.v!=null){ const crit=r.z!=null&&r.z<-2; svg.append(sv('circle',{cx:x(r.doy),cy:yv(r.v),r:crit?3.2:2.6,fill:css(SENS[r.s].v),stroke:crit?css('--crit'):'none','stroke-width':'1.5'})); } });
+    const hit = sv('rect',{x:L,y:y0,width:W-L-R,height:rowH,fill:'transparent',style:'cursor:pointer'}); hit.addEventListener('click',()=>selectPoly(p.id,y)); svg.append(hit);
+  });
+}
+
+/* ---------- years view ---------- */
+function barChart(wrap, data, key, fmtY, color, fmtTip){
+  const W=520,H=220,L=44,R=8,T=12,B=28; const {svg,tip}=frame(wrap,W,H);
+  const max = Math.max(...data.map(d=>d[key]||0))*1.1; const n=data.length; const bw=(W-L-R)/n; const y=v=>T+(1-v/max)*(H-T-B);
+  [0,.25,.5,.75,1].forEach(f=>{ const v=max*f; svg.append(sv('line',{x1:L,x2:W-R,y1:y(v),y2:y(v),stroke:css('--line-soft')})); const t=sv('text',{x:L-6,y:y(v)+4,'text-anchor':'end'}); t.textContent=fmtY(v); svg.append(t); });
+  data.forEach((d,i)=>{ const v=d[key]||0; const r=sv('rect',{x:L+i*bw+2,y:y(v),width:bw-4,height:Math.max(0,y(0)-y(v)),fill:color(d),rx:'3'}); svg.append(r); r.addEventListener('mousemove',ev=>{ const rect=wrap.getBoundingClientRect(); tip.style.display='block'; tip.style.left=Math.min(rect.width-170,((L+i*bw)/W)*rect.width)+'px'; tip.style.top='4px'; tip.innerHTML=fmtTip(d); }); r.addEventListener('mouseleave',()=>tip.style.display='none'); const t=sv('text',{x:L+i*bw+bw/2,y:H-B+16,'text-anchor':'middle'}); t.textContent=String(d.yr).slice(2); svg.append(t); });
+}
+function renderYears(){
+  const Y = D.years;
+  barChart(document.getElementById('chYearsNeg'), Y, 'shareNeg', v=>Math.round(v*100)+'%', d=> d.shareNeg>0.2?css('--crit'):(d.shareNeg>0.14?css('--warn'):css('--ink-3')), d=>`<b>${d.yr}</b><br>ниже нормы ${Math.round(d.shareNeg*100)}% наблюдений<br>из них критических ${Math.round(d.shareCrit*100)}%<br>средний z ${d.meanZ>0?'+':''}${fmt(d.meanZ,2)}`);
+  barChart(document.getElementById('chYearsPrecip'), Y, 'precip', v=>Math.round(v)+'', d=> d.precip<220?css('--warn'):css('--s2'), d=>`<b>${d.yr}</b><br>осадки ${Math.round(d.precip)} мм<br>средняя темп. ${fmt(d.temp,1)}°C`);
+  // heatmap
+  const years=[]; for(let y=2010;y<=2025;y++) years.push(y);
+  const tbl = el('table'); const thead = el('tr', {}, el('th',{},'поле')); years.forEach(y=>thead.append(el('th',{class:'y'},String(y).slice(2)))); tbl.append(thead);
+  const polys = D.polys.filter(p=>D.heat[p.id]).sort((a,b)=>(a.meanZ??0)-(b.meanZ??0));
+  polys.forEach(p=>{ const tr = el('tr'); const name = el('th',{class:'rowname',onclick:()=>{selectPoly(p.id); goTab('fields');}}, p.id+' · '+p.crop.split('/')[0]); tr.append(name);
+    years.forEach(y=>{ const z=D.heat[p.id][String(y)]; if(z==null){ tr.append(el('td',{class:'na'})); return;} const td=el('td',{style:`background:${zColor(z)}`,title:`${p.id}, ${y}: средний z ${z>0?'+':''}${z}`,onclick:()=>{selectPoly(p.id,y); goTab('fields');}}, z<=-0.5||z>=0.5? (z>0?'+':'')+z.toFixed(1):''); tr.append(td); }); tbl.append(tr); });
+  document.getElementById('heat').replaceChildren(tbl);
+}
+function zColor(z){ const t=Math.max(-1,Math.min(1,z/1.2)); if (t<0){ const a=Math.min(1,-t); return t<-0.5?`color-mix(in srgb, var(--crit) ${Math.round(a*85)}%, var(--panel-2))`:`color-mix(in srgb, var(--warn) ${Math.round(a*90)}%, var(--panel-2))`; } return `color-mix(in srgb, var(--good) ${Math.round(t*70)}%, var(--panel-2))`; }
+
+/* ---------- sensors view ---------- */
+function scatter(wrap, pts, color, labelY, bias){
+  const W=440,H=400,L=40,R=10,T=10,B=30; const {svg}=frame(wrap,W,H); const x=v=>L+(v+0.1)/1.1*(W-L-R), y=v=>T+(1-(v+0.1)/1.1)*(H-T-B);
+  [0,.2,.4,.6,.8,1].forEach(v=>{ svg.append(sv('line',{x1:L,x2:W-R,y1:y(v),y2:y(v),stroke:css('--line-soft')})); svg.append(sv('line',{y1:T,y2:H-B,x1:x(v),x2:x(v),stroke:css('--line-soft')})); let t=sv('text',{x:L-5,y:y(v)+4,'text-anchor':'end'}); t.textContent=v.toFixed(1); svg.append(t); t=sv('text',{x:x(v),y:H-B+16,'text-anchor':'middle'}); t.textContent=v.toFixed(1); svg.append(t); });
+  svg.append(sv('line',{x1:x(0),y1:y(0),x2:x(1),y2:y(1),stroke:css('--ink-2'),'stroke-dasharray':'4 4'}));
+  pts.forEach(([a,b])=>svg.append(sv('circle',{cx:x(a),cy:y(b),r:2.2,fill:color,opacity:'.45'})));
+  let t=sv('text',{x:W-R,y:H-B-6,'text-anchor':'end',style:'fill:var(--ink-2)'}); t.textContent='Sentinel-2 →'; svg.append(t);
+  t=sv('text',{x:L+6,y:T+12,style:'fill:var(--ink-2)'}); t.textContent=labelY+' ↑'; svg.append(t);
+  t=sv('text',{x:L+6,y:T+28,style:'fill:var(--ink);font-weight:600'}); t.textContent=`в среднем на ${bias} выше S2`; svg.append(t);
+}
+function renderSensors(){
+  const mean = pts => pts.reduce((a,[p,q])=>a+(q-p),0)/pts.length;
+  scatter(document.getElementById('chPairLS'), D.pairs.ls, css('--ls'), 'Landsat', '+'+mean(D.pairs.ls).toFixed(3));
+  scatter(document.getElementById('chPairMO'), D.pairs.mo, css('--mo'), 'MODIS', '+'+mean(D.pairs.mo).toFixed(3));
+  const wrap=document.getElementById('chProfile'); const W=900,H=280,L=44,R=12,T=12,B=30; const {svg,tip}=frame(wrap,W,H);
+  const x=d=>L+(d-91)/213*(W-L-R), y=v=>T+(1-v/0.9)*(H-T-B);
+  [0,.2,.4,.6,.8].forEach(v=>{ svg.append(sv('line',{x1:L,x2:W-R,y1:y(v),y2:y(v),stroke:css('--line-soft')})); const t=sv('text',{x:L-6,y:y(v)+4,'text-anchor':'end'}); t.textContent=v.toFixed(1); svg.append(t); });
+  MONTH_DOY.forEach((d,i)=>{ const t=sv('text',{x:x(d)+3,y:H-B+16}); t.textContent=MONTHS[i]; svg.append(t); });
+  const crops = Object.keys(D.prof);
+  crops.forEach(c=>{ const pts=D.prof[c].filter(q=>q[0]>=88); svg.append(sv('path',{d:'M'+pts.map(q=>`${x(q[0]+4).toFixed(1)},${y(q[1]).toFixed(1)}`).join('L'),fill:'none',stroke:CROP_COLORS[c],'stroke-width':'2.2'})); const last=pts[pts.length-1]; const t=sv('text',{x:x(last[0]+4)+6,y:y(last[1])+4,style:`fill:${CROP_COLORS[c]};font-weight:600`}); t.textContent=c; svg.append(t); });
+  const leg = el('div',{class:'legend'}); crops.forEach(c=>leg.append(el('span',{},el('i',{style:`background:${CROP_COLORS[c]}`}),c))); wrap.after(leg);
+}
+
+/* ---------- init ---------- */
+renderList();
+selectPoly(state.pid, 2024);
+})();
+</script>
