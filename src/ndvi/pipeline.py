@@ -16,7 +16,7 @@ import pandas as pd
 
 from ndvi.climatology import Climatology
 from ndvi.features import build_features
-from ndvi.models.gbm import GapModel
+from ndvi.models.gbm import GapEnsemble, GapModel
 from ndvi.paths import ARTIFACTS_DIR
 from ndvi.sensors import DEFAULT_OFFSETS, estimate_offsets
 from ndvi.validation import apply_cold_start, make_masked
@@ -28,7 +28,7 @@ MODEL_PATH = ARTIFACTS_DIR / "gap_model.pkl"
 class Artifacts:
     """Всё, что нужно для инференса: модель, смещения сенсоров, параметры сборки."""
 
-    model: GapModel
+    model: "GapModel | GapEnsemble"
     offsets: dict[str, float] = field(default_factory=lambda: dict(DEFAULT_OFFSETS))
     meta: dict = field(default_factory=dict)
 
@@ -65,9 +65,10 @@ def build_training_table(df: pd.DataFrame, seeds=(42, 7, 123), frac: float = 0.1
 
 
 def fit(train_table: pd.DataFrame, params: dict | None = None,
-        offsets: dict[str, float] | None = None, meta: dict | None = None) -> Artifacts:
-    """Обучает модель на готовой таблице признаков."""
-    model = GapModel(params)
+        offsets: dict[str, float] | None = None, meta: dict | None = None,
+        ensemble: bool = True) -> Artifacts:
+    """Обучает модель на готовой таблице признаков (по умолчанию — ансамбль из трёх)."""
+    model = GapEnsemble() if ensemble else GapModel(params)
     model.fit(train_table, train_table.y_true.to_numpy())
     return Artifacts(model=model, offsets=offsets or dict(DEFAULT_OFFSETS), meta=meta or {})
 

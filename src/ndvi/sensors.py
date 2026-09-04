@@ -76,6 +76,93 @@ def infer_hidden_sensor(season: pd.DataFrame, date: pd.Timestamp) -> str:
     return "landsat"
 
 
+class SensorHarmonizer:
+    """Линейный пересчёт между шкалами сенсоров: y_sensor = a·x_s2 + b.
+
+    Константное смещение — грубое приближение: разница MODIS − S2 на низком NDVI +0.125,
+    а на высоком −0.033; у Landsat +0.056 против +0.002. Линейная связь снимает большую часть
+    этого (остаток пар одного дня: MODIS 0.108 → 0.091, Landsat 0.059 → 0.055).
+
+    Сверху два уточнения с усадкой к общему: по году (смещение Landsat − S2 выросло с 0.015
+    в 2017 до 0.05 в 2024) и по полигону (разброс между полями ±0.015).
+    """
+
+    MIN_PAIRS = 30
+    YEAR_SHRINK = 100.0     # n / (n + k): сколько пар нужно, чтобы поверить годовому отклонению
+    POLY_SHRINK = 40.0
+
+    def __init__(self):
+        self.global_: dict[str, tuple[float, float]] = {"s2": (1.0, 0.0), "none": (1.0, 0.0)}
+        self.by_year: dict[tuple[str, int], tuple[float, float]] = {}
+        self.by_poly: dict[tuple[str, str], float] = {}
+
+    @staticmethod
+    def _fit(x: np.ndarray, y: np.ndarray, prior: tuple[float, float] | None = None, k: float = 0.0):
+        if x.size < 3:
+            return prior
+        a, b = np.polyfit(x, y, 1)
+        if prior is None or k <= 0:
+            return float(a), float(b)
+        w = x.size / (x.size + k)
+        return float(w * a + (1 - w) * prior[0]), float(w * b + (1 - w) * prior[1])
+
+    def fit(self, obs: pd.DataFrame) -> "SensorHarmonizer":
+        for sensor in ("landsat", "modis"):
+            col = f"{sensor}_ndvi"
+            pair = obs[obs.s2_ndvi.notna() & obs[col].notna()]
+            if len(pair) < self.MIN_PAIRS:
+                off = DEFAULT_OFFSETS[sensor]
+                self.global_[sensor] = (1.0, off)
+                continue
+            x, y = pair.s2_ndvi.to_numpy(float), pair[col].to_numpy(float)
+            g = self._fit(x, y)
+            self.global_[sensor] = g
+            for yr, d in pair.groupby("year"):
+                self.by_year[(sensor, int(yr))] = self._fit(
+                    d.s2_ndvi.to_numpy(float), d[col].to_numpy(float), prior=g, k=self.YEAR_SHRINK)
+            # по полигону корректируем только сдвиг: наклон на 20 парах не оценить
+            resid = y - (g[0] * x + g[1])
+            for pid, r in pd.Series(resid, index=pair.anon_polygon_id.values).groupby(level=0):
+                w = r.size / (r.size + self.POLY_SHRINK)
+                self.by_poly[(sensor, pid)] = float(w * r.mean())
+        return self
+
+    def coef(self, sensor: str, year=None, pid=None) -> tuple[float, float]:
+        a, b = self.by_year.get((sensor, int(year)), self.global_.get(sensor, (1.0, 0.0))) \
+            if year is not None else self.global_.get(sensor, (1.0, 0.0))
+        if pid is not None:
+            b = b + self.by_poly.get((sensor, pid), 0.0)
+        return a, b
+
+    def to_s2(self, values, sensor, year=None, pid=None):
+        """Из шкалы сенсора в шкалу Sentinel-2 (векторно по массивам одинаковой длины)."""
+        values = np.asarray(values, float)
+        sensor = np.asarray(sensor, dtype=object)
+        year = np.asarray(year) if year is not None else np.full(values.shape, None, dtype=object)
+        pid = np.asarray(pid, dtype=object) if pid is not None else np.full(values.shape, None, dtype=object)
+        out = np.empty_like(values)
+        for i in range(values.size):
+            a, b = self.coef(str(sensor[i]), year[i], pid[i])
+            out[i] = (values[i] - b) / a
+        return out
+
+    def from_s2(self, values, sensor, year=None, pid=None):
+        """Из шкалы Sentinel-2 в шкалу конкретного сенсора."""
+        values = np.asarray(values, float)
+        sensor = np.asarray(sensor, dtype=object)
+        year = np.asarray(year) if year is not None else np.full(values.shape, None, dtype=object)
+        pid = np.asarray(pid, dtype=object) if pid is not None else np.full(values.shape, None, dtype=object)
+        out = np.empty_like(values)
+        for i in range(values.size):
+            a, b = self.coef(str(sensor[i]), year[i], pid[i])
+            out[i] = a * values[i] + b
+        return out
+
+    def offsets(self, level: float = 0.4) -> dict[str, float]:
+        """Совместимость: константные смещения на типичном уровне NDVI."""
+        return {s: float(a * level + b - level) for s, (a, b) in self.global_.items()}
+
+
 #: порог схожести дат, выше которого считаем, что поля снимаются одним витком
 SAME_ORBIT_JACCARD = 0.5
 
@@ -193,7 +280,7 @@ def from_s2_scale(values, sensor, offsets: dict[str, float]):
 
 
 __all__ = [
-    "SENSORS", "DEFAULT_OFFSETS", "AcquisitionCalendar", "estimate_offsets",
+    "SENSORS", "DEFAULT_OFFSETS", "AcquisitionCalendar", "SensorHarmonizer", "estimate_offsets",
     "estimate_offsets_by_polygon", "infer_hidden_sensor", "infer_hidden_sensors",
     "to_s2_scale", "from_s2_scale",
 ]

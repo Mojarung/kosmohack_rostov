@@ -17,10 +17,17 @@ def _tricube(u: np.ndarray) -> np.ndarray:
 
 
 def _fit_at(x: np.ndarray, y: np.ndarray, targets: np.ndarray,
-            robust_w: np.ndarray, bandwidth: float, min_points: int) -> np.ndarray:
-    """Локальная линейная регрессия во всех точках ``targets`` сразу (матрица весов)."""
+            robust_w: np.ndarray, bandwidth: float, min_points: int,
+            leave_one_out: bool = False) -> np.ndarray:
+    """Локальная линейная регрессия во всех точках ``targets`` сразу (матрица весов).
+
+    ``leave_one_out`` — когда ``targets`` это сами ``x``: точка не участвует в собственной
+    оценке. Так остаток «наблюдение минус кривая» честно показывает, насколько день выбивается.
+    """
     d = np.abs(targets[:, None] - x[None, :])                 # (n_targets, n_x)
     w = _tricube(d / bandwidth) * robust_w[None, :]
+    if leave_one_out and targets.shape[0] == x.shape[0]:
+        np.fill_diagonal(w, 0.0)
     empty = w.sum(axis=1) <= 1e-9
     if empty.any():
         # окно пустое — берём min_points ближайших наблюдений с единичным весом
@@ -40,11 +47,12 @@ def _fit_at(x: np.ndarray, y: np.ndarray, targets: np.ndarray,
 
 
 def robust_local_linear(x, y, x0, bandwidth: float = 20.0, iters: int = 2,
-                        min_points: int = 3) -> np.ndarray:
+                        min_points: int = 3, leave_one_out: bool = False) -> np.ndarray:
     """Оценивает значение ряда в точках ``x0`` локальной линейной регрессией.
 
     ``x`` — дни (число), ``y`` — значения в ОДНОЙ шкале, ``bandwidth`` — полуширина окна в днях,
-    ``iters`` — число робастных итераций (после каждой большие остатки получают меньший вес).
+    ``iters`` — число робастных итераций (после каждой большие остатки получают меньший вес),
+    ``leave_one_out`` — при ``x0 is x`` исключать точку из собственной оценки.
     """
     x = np.asarray(x, float)
     y = np.asarray(y, float)
@@ -62,4 +70,4 @@ def robust_local_linear(x, y, x0, bandwidth: float = 20.0, iters: int = 2,
         s = max(s, 1e-6)
         u = np.clip(resid / (6.0 * s), -1, 1)
         robust_w = (1.0 - u ** 2) ** 2
-    return _fit_at(x, y, x0, robust_w, bandwidth, min_points)
+    return _fit_at(x, y, x0, robust_w, bandwidth, min_points, leave_one_out=leave_one_out)

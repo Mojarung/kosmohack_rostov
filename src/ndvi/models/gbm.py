@@ -90,3 +90,32 @@ class GapModel:
                 x[c] = pd.Categorical(x[c], categories=cats)
         pred = self._base(feats) + self.model.predict(x)
         return np.clip(pred, -0.2, 1.0)
+
+
+class GapEnsemble:
+    """Среднее нескольких бустингов с разными опорами и функциями потерь.
+
+    Модели ошибаются по-разному: опора «интерполяция» и опора «интерполяция + региональный
+    остаток» дают разные ошибки на облачных днях, MAE и MSE — на выбросах. Усреднение
+    снимает часть этих ошибок: на валидации 0.0640 → 0.0632.
+    """
+
+    DEFAULT_MEMBERS = (
+        ({"loss": "absolute_error"}, "base_interp", 0.4),
+        ({"loss": "absolute_error"}, "base_interp_reg", 0.4),
+        ({"loss": "squared_error"}, "base_interp", 0.2),
+    )
+
+    def __init__(self, members=None):
+        self.members = [GapModel(p, base_col=b) for p, b, _ in (members or self.DEFAULT_MEMBERS)]
+        self.weights = np.array([w for _, _, w in (members or self.DEFAULT_MEMBERS)], float)
+        self.weights /= self.weights.sum()
+
+    def fit(self, feats: pd.DataFrame, y: np.ndarray) -> "GapEnsemble":
+        for m in self.members:
+            m.fit(feats, y)
+        return self
+
+    def predict(self, feats: pd.DataFrame) -> np.ndarray:
+        preds = np.stack([m.predict(feats) for m in self.members], axis=0)
+        return np.clip((self.weights[:, None] * preds).sum(axis=0), -0.2, 1.0)

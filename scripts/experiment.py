@@ -9,7 +9,7 @@ import pandas as pd
 
 from ndvi.experiment import build_validation_table, cv_predict, holdout_year_predict
 from ndvi.models.baselines import BASELINES
-from ndvi.models.gbm import GapModel
+from ndvi.models.gbm import GapEnsemble, GapModel
 from ndvi.validation import gap_score, rmse, segment_report
 
 pd.set_option("display.width", 240)
@@ -34,6 +34,7 @@ variants = {
     "gbm_huber": lambda: GapModel({"loss": "absolute_error"}),
     "gbm_deep": lambda: GapModel({"max_leaf_nodes": 63, "min_samples_leaf": 20, "max_iter": 700}),
     "gbm_on_smooth": lambda: GapModel(base_col="base_smooth"),
+    "ensemble": lambda: GapEnsemble(),
 }
 for name, make in variants.items():
     t = time.time()

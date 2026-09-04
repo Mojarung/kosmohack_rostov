@@ -11,6 +11,8 @@
 * робастно сглаженная кривая сезона в шкале S2 (устойчива к облачным провалам);
 * собственная климатическая норма полигона (без текущего года) и отклонение соседей от неё;
 * погода ERA5 около даты и накопленные осадки/жара за 30 и 60 дней;
+* региональный контекст дня: насколько просели относительно своих кривых другие поля,
+  снятые в тот же день (облачный фронт накрывает всех сразу);
 * контекст: культура, doy, длина истории полигона, плотность ряда, длина цепочки гэпов.
 """
 
@@ -21,7 +23,8 @@ import pandas as pd
 
 from ndvi.climatology import Climatology
 from ndvi.data import NDVI_MAX, NDVI_MIN
-from ndvi.sensors import DEFAULT_OFFSETS, AcquisitionCalendar, infer_hidden_sensors
+from ndvi.regional import RegionalContext
+from ndvi.sensors import DEFAULT_OFFSETS, AcquisitionCalendar, SensorHarmonizer, infer_hidden_sensors
 from ndvi.smoothing import robust_local_linear
 
 K_NEIGHBORS = 3
@@ -97,21 +100,26 @@ def build_features(context: pd.DataFrame, targets: pd.DataFrame,
     """
     offsets = offsets or DEFAULT_OFFSETS
     observed = context[context.primary_ndvi.notna()]
-    if clim is None:
-        clim = Climatology().fit(observed)
     if calendar is None:
         calendar = AcquisitionCalendar().fit(observed)
+    # линейная гармонизация сенсоров с поправками по году и полигону
+    harm = SensorHarmonizer().fit(observed)
+
+    obs = observed.copy()
+    obs["_days"] = (obs.date - pd.Timestamp("2010-01-01")).dt.days.astype(int)
+    # значение соседа клиппим: выброс -0.47 в июле не должен утаскивать интерполяцию
+    obs["_val_s2"] = harm.to_s2(obs.primary_ndvi.clip(NDVI_MIN, NDVI_MAX).to_numpy(),
+                                obs.src.to_numpy(), obs.year.to_numpy(), obs.anon_polygon_id.to_numpy())
+    obs["_off"] = obs.primary_ndvi.clip(NDVI_MIN, NDVI_MAX) - obs["_val_s2"]
+
+    # норму считаем в единой шкале S2 — иначе она склеена из сенсоров с разными смещениями
+    clim = Climatology().fit(obs.assign(primary_ndvi=obs["_val_s2"]))
 
     tg = targets.copy()
     tg["_days"] = (tg.date - pd.Timestamp("2010-01-01")).dt.days.astype(int)
     tg["hidden_src"] = infer_hidden_sensors(observed, tg, calendar)
-    tg["hidden_off"] = tg.hidden_src.map(offsets).fillna(0.0)
-
-    obs = observed.copy()
-    obs["_days"] = (obs.date - pd.Timestamp("2010-01-01")).dt.days.astype(int)
-    obs["_off"] = obs.src.map(offsets).fillna(0.0)
-    # значение соседа клиппим: выброс -0.47 в июле не должен утаскивать интерполяцию
-    obs["_val_s2"] = obs.primary_ndvi.clip(NDVI_MIN, NDVI_MAX) - obs["_off"]
+    # смещение угаданного сенсора на типичном уровне — как признак; точный пересчёт ниже
+    tg["hidden_off"] = tg.hidden_src.map(harm.offsets()).fillna(0.0)
 
     weather = context[context.era5_temp_c.notna()].copy()
     weather["_days"] = (weather.date - pd.Timestamp("2010-01-01")).dt.days.astype(int)
@@ -197,12 +205,24 @@ def build_features(context: pd.DataFrame, targets: pd.DataFrame,
 
     feats = pd.concat(parts).reindex(tg.index)
 
-    # климатическая норма и отклонения от неё
+    # климатическая норма (уже в шкале S2) и отклонения от неё
     cl = clim.lookup_frame(tg, exclude_current_year=exclude_current_year_in_clim)
     feats = feats.join(cl)
-    feats["clim_mean_s2"] = feats.clim_mean - tg.hidden_off  # норма склеена из сенсоров, грубая поправка
+    feats["clim_mean_s2"] = feats.clim_mean
     feats["interp_minus_clim"] = feats.interp_s2 - feats.clim_mean_s2
     feats["smooth_minus_clim"] = feats.smooth_s2 - feats.clim_mean_s2
+
+    # региональный контекст дня: остатки других полей относительно их собственных кривых
+    regional = RegionalContext(calendar).fit(observed, harm, context=context)
+    reg = pd.DataFrame([regional.features(pid, dt, hs)
+                        for pid, dt, hs in zip(tg.anon_polygon_id.values, tg.date, tg.hidden_src.values)],
+                       index=tg.index)
+    feats = feats.join(reg)
+    # то же в шкале нашего поля: региональный остаток, приложенный к нашей опоре
+    # каскад: ячейка ERA5 → близнецы → один виток → все; первый доступный уровень
+    feats["interp_plus_reg"] = feats.interp_s2 + (feats.reg_resid_cell.fillna(feats.reg_resid_twin)
+                                                  .fillna(feats.reg_resid_close)
+                                                  .fillna(feats.reg_resid_wmean).fillna(0.0))
 
     # календарь съёмки: сколько соседних полей снимал каждый сенсор в этот день.
     # Модель видит не только вывод «какой сенсор», но и насколько он уверенный.
@@ -223,10 +243,11 @@ def build_features(context: pd.DataFrame, targets: pd.DataFrame,
         feats[f"hidden_is_{s}"] = (tg.hidden_src == s).astype(float).values
     feats["crop_type"] = tg.crop_type.values
 
-    # базовые прогнозы, от которых модель учит поправку
-    feats["base_interp"] = feats.interp_s2 + tg.hidden_off.values
-    feats["base_smooth"] = feats.smooth_s2 + tg.hidden_off.values
-    feats["base_mean2"] = feats.mean2_s2 + tg.hidden_off.values
+    # базовые прогнозы, от которых модель учит поправку: из шкалы S2 в шкалу угаданного сенсора
+    src, yrs, pids = tg.hidden_src.to_numpy(), tg.year.to_numpy(), tg.anon_polygon_id.to_numpy()
+    for name, col in (("base_interp", "interp_s2"), ("base_smooth", "smooth_s2"),
+                      ("base_mean2", "mean2_s2"), ("base_interp_reg", "interp_plus_reg")):
+        feats[name] = harm.from_s2(feats[col].to_numpy(), src, yrs, pids)
 
     meta = tg[["anon_polygon_id", "date", "hidden_src"]]
     return meta.join(feats)
