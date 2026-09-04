@@ -14,6 +14,15 @@
 - [Критерии оценки](docs/06-evaluation-criteria.md)
 - [Чек-лист сдачи](docs/07-submission-checklist.md)
 
+## Разведочный анализ (EDA)
+
+```bash
+uv sync                         # Python 3.14 + зависимости из pyproject.toml / uv.lock
+uv run python -m eda.run_all    # графики в reports/eda/figures/, числа в reports/eda/summary.json
+```
+
+Выводы и графики — в [docs/08-eda-report.md](docs/08-eda-report.md).
+
 ## Структура репозитория
 
 ```
@@ -22,7 +31,11 @@
 ├── data/
 │   ├── train_dataset.csv   # обучающий датасет (99 955 строк)
 │   └── test_dataset.csv    # тестовый датасет = private_features.csv из ТЗ (57 185 строк)
-└── docs/                   # ТЗ, критерии, чек-лист, исходные PDF
+├── docs/                   # ТЗ, критерии, чек-лист, отчёт EDA, исходные PDF
+├── eda/                    # модули разведочного анализа (uv run python -m eda.run_all)
+├── reports/eda/            # графики и summary.json, генерируются EDA
+├── pyproject.toml          # зависимости (uv)
+└── uv.lock
     └── source/
 ```
 

@@ -1,0 +1,20 @@
+# Python / uv
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Артефакты и временные файлы
+*.log
+.ipynb_checkpoints/
+submission*.csv
+!data/*.csv
+
+# ОС / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
