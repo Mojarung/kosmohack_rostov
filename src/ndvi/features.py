@@ -6,7 +6,8 @@
 
 Состав признаков:
 * соседи слева/справа (до 3 с каждой стороны): значение в шкале S2, лаг в днях, сенсор;
-* угаданный сенсор скрытой точки и его смещение (главный рычаг по метрике);
+* угаданный сенсор скрытой точки и его смещение (главный рычаг по метрике), плюс сырые
+  меры календаря съёмки — сколько соседних полей снимал каждый сенсор в этот день;
 * робастно сглаженная кривая сезона в шкале S2 (устойчива к облачным провалам);
 * собственная климатическая норма полигона (без текущего года) и отклонение соседей от неё;
 * погода ERA5 около даты и накопленные осадки/жара за 30 и 60 дней;
@@ -20,7 +21,7 @@ import pandas as pd
 
 from ndvi.climatology import Climatology
 from ndvi.data import NDVI_MAX, NDVI_MIN
-from ndvi.sensors import DEFAULT_OFFSETS, infer_hidden_sensors
+from ndvi.sensors import DEFAULT_OFFSETS, AcquisitionCalendar, infer_hidden_sensors
 from ndvi.smoothing import robust_local_linear
 
 K_NEIGHBORS = 3
@@ -88,7 +89,8 @@ def _weather_block(w_days, w_temp, w_precip, t_days):
 def build_features(context: pd.DataFrame, targets: pd.DataFrame,
                    offsets: dict[str, float] | None = None,
                    clim: Climatology | None = None,
-                   exclude_current_year_in_clim: bool = True) -> pd.DataFrame:
+                   exclude_current_year_in_clim: bool = True,
+                   calendar: AcquisitionCalendar | None = None) -> pd.DataFrame:
     """Собирает таблицу признаков для строк ``targets``.
 
     ``context`` — все строки, доступные модели (в строках-гэпах динамические колонки уже NaN).
@@ -97,10 +99,12 @@ def build_features(context: pd.DataFrame, targets: pd.DataFrame,
     observed = context[context.primary_ndvi.notna()]
     if clim is None:
         clim = Climatology().fit(observed)
+    if calendar is None:
+        calendar = AcquisitionCalendar().fit(observed)
 
     tg = targets.copy()
     tg["_days"] = (tg.date - pd.Timestamp("2010-01-01")).dt.days.astype(int)
-    tg["hidden_src"] = infer_hidden_sensors(observed, tg)
+    tg["hidden_src"] = infer_hidden_sensors(observed, tg, calendar)
     tg["hidden_off"] = tg.hidden_src.map(offsets).fillna(0.0)
 
     obs = observed.copy()
@@ -199,6 +203,17 @@ def build_features(context: pd.DataFrame, targets: pd.DataFrame,
     feats["clim_mean_s2"] = feats.clim_mean - tg.hidden_off  # норма склеена из сенсоров, грубая поправка
     feats["interp_minus_clim"] = feats.interp_s2 - feats.clim_mean_s2
     feats["smooth_minus_clim"] = feats.smooth_s2 - feats.clim_mean_s2
+
+    # календарь съёмки: сколько соседних полей снимал каждый сенсор в этот день.
+    # Модель видит не только вывод «какой сенсор», но и насколько он уверенный.
+    cal_rows = [calendar.scores(pid, dt) for pid, dt in zip(tg.anon_polygon_id.values, tg.date)]
+    cal = pd.DataFrame(cal_rows, index=tg.index)
+    feats = feats.join(cal)
+    close_total = cal[[f"close_{s}" for s in ("s2", "landsat", "modis")]].sum(axis=1)
+    feats["cal_confidence"] = np.where(
+        close_total > 0,
+        cal[[f"close_{s}" for s in ("s2", "landsat", "modis")]].max(axis=1) / close_total.replace(0, np.nan),
+        np.nan)
 
     # контекст точки
     feats["doy"] = tg.doy.astype(float).values

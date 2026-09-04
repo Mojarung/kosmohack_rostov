@@ -4,9 +4,16 @@
 склеен из трёх сенсоров, поэтому скрытая точка принадлежит конкретному сенсору, и
 «среднее соседей» систематически промахивается, когда сенсоры соседей и гэпа разные.
 
-Сенсор скрытой точки угадывается по расписанию съёмки: MODIS всегда на doy = 1 (mod 16),
-Landsat с шагом 8 дней от других Landsat-дат, Sentinel-2 с шагом 5 дней. Простое правило
-даёт около 81 % попаданий (MODIS и Landsat почти безошибочно).
+Сенсор скрытой точки угадывается двумя способами.
+
+1. **По расписанию самого полигона** (запасной вариант): MODIS всегда на doy = 1 (mod 16),
+   Landsat с шагом 8 дней от других Landsat-дат, Sentinel-2 с шагом 5 дней. Около 81 % попаданий.
+2. **По календарю съёмки всей области** (основной): спутник снимает полосу земли целиком,
+   поэтому если в тот же день Landsat снял соседнее поле, значит он прошёл и над нашим.
+   Поля на одном витке съёмки распознаются по совпадению дат наблюдений. Это даёт **97.6 %**.
+
+Второй способ работает только на данных задачи и ничего не требует извне: календарь
+восстанавливается из тех же таблиц, просто по другим полигонам.
 """
 
 from __future__ import annotations
@@ -69,17 +76,107 @@ def infer_hidden_sensor(season: pd.DataFrame, date: pd.Timestamp) -> str:
     return "landsat"
 
 
-def infer_hidden_sensors(visible: pd.DataFrame, targets: pd.DataFrame) -> pd.Series:
-    """Векторная обёртка: угадывает сенсор для каждой строки ``targets``.
+#: порог схожести дат, выше которого считаем, что поля снимаются одним витком
+SAME_ORBIT_JACCARD = 0.5
 
-    Обе таблицы должны содержать ``anon_polygon_id``, ``date``, ``year`` и сенсорные колонки.
+
+class AcquisitionCalendar:
+    """Расписание съёмки области, восстановленное из наблюдений по всем полигонам.
+
+    Спутник снимает полосу шириной в сотни километров, поэтому в один день он «накрывает»
+    сразу много полей. Если в дату гэпа Landsat снял поля, которые обычно снимаются вместе
+    с нашим, значит и наш снимал Landsat.
+
+    «Снимаются вместе» определяется по совпадению множеств дат: у полей на одном витке
+    съёмки они почти одинаковы (мера Жаккара выше 0.5).
     """
+
+    def __init__(self, jaccard_threshold: float = SAME_ORBIT_JACCARD):
+        self.threshold = jaccard_threshold
+        self.pids: list[str] = []
+        self._index: dict[str, int] = {}
+        self._by_day: dict[tuple, np.ndarray] = {}
+        self._sim: dict[str, np.ndarray] = {}
+
+    def fit(self, visible: pd.DataFrame) -> "AcquisitionCalendar":
+        obs = visible[visible.src != "none"]
+        self.pids = sorted(obs.anon_polygon_id.unique())
+        self._index = {p: i for i, p in enumerate(self.pids)}
+        n = len(self.pids)
+
+        for (day, src), grp in obs.groupby(["date", "src"]):
+            idx = [self._index[p] for p in grp.anon_polygon_id.unique()]
+            self._by_day[(day, src)] = np.asarray(sorted(idx), dtype=np.int32)
+
+        # схожесть считаем отдельно для Landsat и S2: витки у них разные
+        for sensor in ("landsat", "s2"):
+            sets = {p: set(d.date) for p, d in obs[obs.src == sensor].groupby("anon_polygon_id")}
+            m = np.zeros((n, n), dtype=np.float32)
+            for i, a in enumerate(self.pids):
+                sa = sets.get(a)
+                if not sa:
+                    continue
+                for j in range(i + 1, n):
+                    sb = sets.get(self.pids[j])
+                    if not sb:
+                        continue
+                    inter = len(sa & sb)
+                    if inter:
+                        v = inter / (len(sa) + len(sb) - inter)
+                        m[i, j] = m[j, i] = v
+            self._sim[sensor] = m
+        return self
+
+    def scores(self, pid: str, date) -> dict[str, float]:
+        """Три меры на каждый сенсор: близкие поля, взвешенный счёт, просто счёт."""
+        own = self._index.get(pid, -1)
+        out = {}
+        for sensor in SENSORS:
+            idx = self._by_day.get((date, sensor))
+            if idx is None or idx.size == 0:
+                out[f"close_{sensor}"] = 0.0
+                out[f"weighted_{sensor}"] = 0.0
+                out[f"count_{sensor}"] = 0.0
+                continue
+            if own >= 0:
+                idx = idx[idx != own]
+            # для MODIS витков нет, он снимает всё подряд — берём схожесть по S2 как «соседство»
+            key = "landsat" if sensor == "landsat" else "s2"
+            sim = self._sim[key][own, idx] if own >= 0 and idx.size else np.zeros(idx.size)
+            out[f"close_{sensor}"] = float((sim > self.threshold).sum())
+            out[f"weighted_{sensor}"] = float(sim.sum())
+            out[f"count_{sensor}"] = float(idx.size)
+        return out
+
+    def infer(self, pid: str, date) -> tuple[str, float]:
+        """Сенсор и уверенность (доля лидера в сумме мер). ('none', 0) если календарь молчит."""
+        sc = self.scores(pid, date)
+        for prefix in ("close", "weighted", "count"):
+            vals = {s: sc[f"{prefix}_{s}"] for s in SENSORS}
+            total = sum(vals.values())
+            if total > 0:
+                best = max(vals, key=vals.get)
+                return best, float(vals[best] / total)
+        return "none", 0.0
+
+
+def infer_hidden_sensors(visible: pd.DataFrame, targets: pd.DataFrame,
+                         calendar: "AcquisitionCalendar | None" = None) -> pd.Series:
+    """Угадывает сенсор для каждой строки ``targets``.
+
+    Сначала спрашиваем календарь области (97.6 % попаданий), и только если он молчит —
+    откатываемся на расписание самого полигона (81 %).
+    """
+    if calendar is None:
+        calendar = AcquisitionCalendar().fit(visible)
     vis_by_key = {k: v for k, v in visible.groupby(["anon_polygon_id", "year"])}
     empty = visible.iloc[:0]
-    out = [
-        infer_hidden_sensor(vis_by_key.get((pid, yr), empty), dt)
-        for pid, yr, dt in zip(targets.anon_polygon_id.values, targets.year.values, targets.date)
-    ]
+    out = []
+    for pid, yr, dt in zip(targets.anon_polygon_id.values, targets.year.values, targets.date):
+        src, _ = calendar.infer(pid, dt)
+        if src == "none":
+            src = infer_hidden_sensor(vis_by_key.get((pid, yr), empty), dt)
+        out.append(src)
     return pd.Series(out, index=targets.index, name="hidden_src")
 
 
@@ -96,6 +193,7 @@ def from_s2_scale(values, sensor, offsets: dict[str, float]):
 
 
 __all__ = [
-    "SENSORS", "DEFAULT_OFFSETS", "estimate_offsets", "estimate_offsets_by_polygon",
-    "infer_hidden_sensor", "infer_hidden_sensors", "to_s2_scale", "from_s2_scale",
+    "SENSORS", "DEFAULT_OFFSETS", "AcquisitionCalendar", "estimate_offsets",
+    "estimate_offsets_by_polygon", "infer_hidden_sensor", "infer_hidden_sensors",
+    "to_s2_scale", "from_s2_scale",
 ]
