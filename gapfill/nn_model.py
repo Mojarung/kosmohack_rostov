@@ -20,6 +20,7 @@ from gapfill.data import gap_score, load_all, make_mask, polygon_kinds, rmse, te
 from gapfill.nn_data import N_CHANNELS, EpochInputs, SeasonTensors, assemble, build_tensors, loo_residual_array
 
 DILATIONS = (1, 2, 4, 8, 16, 32, 1, 2, 4, 8)
+N_INDEX = 8          # первые 8 каналов — индексы сенсоров, следующие 8 — их маски наличия
 KERNEL = 5
 
 
@@ -65,6 +66,17 @@ def query_days_from_obs(t: SeasonTensors, query_obs: np.ndarray) -> np.ndarray:
     return q
 
 
+def gap_query_days(t: SeasonTensors, gaps: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Дни-запросы для контрольных точек test: матрица (n, 213) и индексы (образец, день) в порядке gaps."""
+    from gapfill.nn_data import _season_index
+    key_to_i = {(p, y): i for i, (p, y) in enumerate(zip(t.pid, t.year))}
+    pos, _ = _season_index(gaps)
+    si = np.array([key_to_i[(p, y)] for p, y in zip(gaps["pid"], gaps["year"])])
+    q = np.zeros(t.known.shape, bool)
+    q[si, pos] = True
+    return q, si, pos
+
+
 def to_batches(data: dict, device: torch.device, batch: int, shuffle: bool, rng: np.random.Generator):
     """Итератор мини-батчей по образцам, у которых есть хотя бы один запрос."""
     keep = np.flatnonzero(data["query"].any(1))
@@ -108,16 +120,21 @@ def train(args: argparse.Namespace) -> dict:
     torch.manual_seed(RANDOM_SEED + args.seed)
     rng = np.random.default_rng(RANDOM_SEED + args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    obs, grid, _ = load_all()
+    obs, grid, gaps = load_all()
     meta = obs.assign(poly_kind=obs["pid"].map(polygon_kinds(obs)).astype(str), is_2025=obs["year"].eq(2025))
     t = build_tensors(obs, grid)
-    val_mask = make_mask(obs, seed=args.val_seed)
+    val_mask = np.zeros(len(obs), bool) if args.final else make_mask(obs, seed=args.val_seed)
     context = ~val_mask
     ep = EpochInputs(t, obs, loo_residual_array(obs, context))
-    val_data = assemble(t, ep, context, query_days_from_obs(t, val_mask))
+    if args.final:
+        gap_q, gap_si, gap_pos = gap_query_days(t, gaps)
+        val_data = assemble(t, ep, context, gap_q)
+    else:
+        val_data = assemble(t, ep, context, query_days_from_obs(t, val_mask))
     model = SeasonNet(hidden=args.hidden, dropout=args.dropout).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
-    sched = torch.optim.lr_scheduler.OneCycleLR(opt, args.lr, total_steps=args.epochs * 25, pct_start=0.1)
+    steps_per_epoch = int(np.ceil(len(t.pid) / args.batch))
+    sched = torch.optim.lr_scheduler.OneCycleLR(opt, args.lr, total_steps=args.epochs * steps_per_epoch + 1, pct_start=0.1)
     best, best_state, history = {"rmse_testlike": np.inf}, None, []
     ctx_idx = np.flatnonzero(context)
     for epoch in range(args.epochs):
@@ -128,6 +145,9 @@ def train(args: argparse.Namespace) -> dict:
         model.train()
         losses = []
         for x, y, q, _ in to_batches(data, device, args.batch, True, rng):
+            if args.noise > 0:   # аугментация: гауссов шум на индексы сенсоров там, где они есть
+                x = x.clone()
+                x[:, :, :N_INDEX] += torch.randn_like(x[:, :, :N_INDEX]) * args.noise * x[:, :, N_INDEX:2 * N_INDEX]
             pred = model(x)
             err = (pred - y.clamp(args.clip[0], args.clip[1]))[q]
             loss = (err ** 2).mean() if args.loss == "mse" else nn.functional.huber_loss(pred[q], y[q], delta=0.1)
@@ -138,6 +158,10 @@ def train(args: argparse.Namespace) -> dict:
             if sched.last_epoch < sched.total_steps - 1:
                 sched.step()
             losses.append(loss.item())
+        if args.final:
+            if (epoch + 1) % args.eval_every == 0:
+                print(f"эпоха {epoch + 1}: loss {np.mean(losses):.5f} ({time.time() - t0:.1f} с)", flush=True)
+            continue
         if (epoch + 1) % args.eval_every == 0 or epoch == args.epochs - 1:
             metrics, _ = val_metrics(predict(model, val_data, device), t, meta, val_mask)
             history.append({"epoch": epoch + 1, "train_loss": float(np.mean(losses)), **metrics})
@@ -146,11 +170,17 @@ def train(args: argparse.Namespace) -> dict:
             if metrics["rmse_testlike"] < best["rmse_testlike"]:
                 best = metrics | {"epoch": epoch + 1}
                 best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
-    model.load_state_dict(best_state)
-    _, pred = val_metrics(predict(model, val_data, device), t, meta, val_mask)
     out_dir = ARTIFACTS_DIR / args.out
     out_dir.mkdir(parents=True, exist_ok=True)
-    torch.save(best_state, out_dir / "nn_val.pt")
+    if args.final:
+        torch.save(model.state_dict(), out_dir / f"nn_final_seed{args.seed}.pt")
+        pred_days = predict(model, val_data, device)
+        gaps[["pid", "date"]].assign(pred=pred_days[gap_si, gap_pos]).to_parquet(out_dir / f"gap_pred_seed{args.seed}.parquet")
+        (out_dir / f"info_seed{args.seed}.json").write_text(json.dumps({"args": vars(args)}, ensure_ascii=False, indent=2), encoding="utf-8")
+        return {"final": True, "epochs": args.epochs}
+    model.load_state_dict(best_state)
+    _, pred = val_metrics(predict(model, val_data, device), t, meta, val_mask)
+    torch.save(best_state, out_dir / f"nn_val_seed{args.seed}.pt")
     meta.loc[val_mask, ["pid", "date", "year", "sensor", TARGET, "poly_kind", "is_2025"]].assign(
         pred=pred[val_mask]).reset_index(drop=True).to_parquet(out_dir / "val_pred.parquet")
     (out_dir / "result.json").write_text(json.dumps({"best": best, "history": history, "args": vars(args)},
@@ -169,8 +199,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--loss", choices=["mse", "huber"], default="mse")
     parser.add_argument("--clip", type=float, nargs=2, default=(-0.2, 1.1))
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--noise", type=float, default=0.0, help="std гауссова шума на входные индексы")
     parser.add_argument("--val-seed", type=int, default=777)
     parser.add_argument("--out", type=str, default="nn_v1")
+    parser.add_argument("--final", action="store_true", help="обучение без валидации и предсказание контрольных точек")
     return parser.parse_args(argv)
 
 
