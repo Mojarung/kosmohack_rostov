@@ -48,4 +48,9 @@ export interface ImageManifest {
   area_ha: number;
   scenes: ImageScene[];
 }
-export type ImageryResponse = { available: false; year: number } | { available: true; manifest: ImageManifest };
+export interface ImageryProgress {
+  stage: "queued" | "catalog" | "download" | "render" | "done" | "error";
+  started: string; updated: string; processed: number; total: number; suitable: number;
+  period_start?: string; period_end?: string; message?: string | null;
+}
+export type ImageryResponse = { available: false; year: number; progress?: ImageryProgress | null } | { available: true; manifest: ImageManifest };

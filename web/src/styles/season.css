@@ -52,20 +52,28 @@ button.season-metric:hover { border-color: var(--ink-soft); background: var(--su
 .metric-chart-target { min-width: 0; max-width: 100%; scroll-margin-top: 12px; }
 .metric-chart-target:focus-visible { outline: 2px solid var(--ink-soft); outline-offset: 3px; }
 .metric-legend { display: flex; flex-wrap: wrap; gap: 5px 14px; margin-top: 10px; color: var(--muted); font-size: 11px; }
+.season-weather .metric-legend { align-items: center; min-height: 24px; }
+.kolobok-toggle { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; min-height: 24px; padding: 2px 7px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
+.kolobok-toggle:hover, .kolobok-toggle[aria-pressed=true] { color: var(--ink); background: var(--surface-sunk); }
+.kolobok-toggle:focus-visible { outline: 2px solid var(--ink-soft); outline-offset: 2px; }
 .chart-instruction { font-size: 11px; margin: 0 0 12px; }
 .insight-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.field-insight { min-width: 0; align-self: start; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-sunk); }
-.field-insight > summary { list-style: none; display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; cursor: pointer; }
-.field-insight > summary::-webkit-details-marker { display: none; }
-.field-insight > summary::before { content: none; }
-.field-insight > summary::after { content: "Подробнее ↗"; color: var(--muted); font-size: 10px; margin-top: 3px; }
-.field-insight[open] > summary::after { content: "Свернуть ↑"; }
+.field-insight { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-sunk); }
+.insight-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.insight-head > .meta { padding-top: 5px; }
+.info-button { display: inline-grid; place-items: center; flex: none; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font: inherit; font-size: 20px; cursor: pointer; }
+.info-button:hover { background: var(--surface-sunk); color: var(--ink); }
+.insight-map-link { align-self: flex-start; margin-top: auto; padding: 6px 0 0; border: 0; background: none; color: var(--ink-soft); font: inherit; font-size: 12px; cursor: pointer; }
+.insight-map-link:hover { text-decoration: underline; }
+.field-popover.MuiPopover-paper { box-sizing: border-box; width: 360px; max-width: calc(100vw - 32px); padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink); font: 13px/1.5 var(--font-sans); box-shadow: 0 8px 32px #211d1726; }
+.popover-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.popover-heading strong { font-size: 14px; }
+.popover-copy p + p { margin-top: 10px; }
+.field-popover button:focus-visible { outline: 2px solid var(--ink-soft); outline-offset: 2px; }
 .field-insight strong { font-size: 17px; font-weight: 600; line-height: 1.4; }
 .field-insight .meta { font-size: 11px; }
 .field-insight[data-status=worsening] strong { color: var(--crit-ink); }
 .field-insight[data-status=easing] strong, .field-insight[data-status=recovered] strong { color: var(--ok-ink); }
-.insight-evidence { border-top: 1px solid var(--line); padding: 10px 14px; font-size: 12px; color: var(--ink-soft); }
-.insight-evidence p { margin: 0 0 8px; }
 .season-weather { border-top: 1px solid var(--line); margin-top: 16px; padding: 16px 0 12px; }
 .metric-tabs { display: flex; flex-wrap: wrap; gap: 2px; background: var(--surface-sunk); border: 1px solid var(--line); padding: 3px; border-radius: 999px; }
 .metric-tabs button { font: inherit; font-size: 12px; border: 0; background: transparent; color: var(--muted); cursor: pointer; border-radius: 999px; padding: 5px 12px; }
@@ -73,10 +81,6 @@ button.season-metric:hover { border-color: var(--ink-soft); background: var(--su
 .metric-tabs button:disabled { opacity: .45; cursor: default; }
 .weather-description { font-size: 11px; margin: 8px 0 2px; }
 .weather-readout { font-size: 12px; min-height: 20px; margin: 0; color: var(--ink-soft); }
-.metric-help { font-size: 12px; color: var(--muted); }
-.metric-help > summary { cursor: pointer; padding: 5px 0; }
-.metric-help .stack { gap: 8px; padding: 8px 0; max-width: 85ch; }
-.metric-help p { margin: 0; }
 .season-calculation { border-top: 1px solid var(--line); }
 .season-calculation > summary { padding: 14px 0; cursor: pointer; color: var(--muted); font-size: 13px; }
 .season-calculation > .stack { padding-bottom: 16px; }
@@ -86,8 +90,43 @@ button.season-metric:hover { border-color: var(--ink-soft); background: var(--su
 .imagery-heading { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 10px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; font-weight: 600; padding: 14px 0; cursor: pointer; text-align: left; }
 .imagery-heading .meta { font-weight: 400; font-size: 11px; }
 .imagery-controls { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-.imagery-controls .input { width: auto; max-width: 100%; font-size: 12px; padding: 6px 10px; }
+.image-date-picker { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; }
+.image-date-step, .image-date-trigger { min-height: 40px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
+.image-date-step { width: 36px; flex: none; padding: 0; font-size: 22px; }
+.image-date-trigger { display: flex; align-items: center; justify-content: space-between; flex: 1; gap: 16px; padding: 6px 12px; font-size: 13px; white-space: nowrap; }
+.image-date-step:disabled { opacity: .3; cursor: default; }
+.image-date-trigger:hover, .image-date-step:not(:disabled):hover { background: var(--surface-sunk); }
+.image-calendar.MuiPopover-paper { width: 324px; padding: 12px; }
+.calendar-month { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin: 4px 0 12px; }
+.calendar-month > span { text-transform: capitalize; }
+.calendar-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.calendar-weekday { text-align: center; font-size: 11px; color: var(--muted); padding-bottom: 5px; }
+.calendar-days button { min-width: 0; height: 36px; padding: 0; border: 0; border-radius: 8px; background: var(--surface-sunk); color: var(--ink); font: inherit; cursor: pointer; }
+.calendar-days button:disabled { background: transparent; color: var(--muted); opacity: .4; cursor: default; }
+.calendar-days button:not(:disabled):hover { box-shadow: inset 0 0 0 1px var(--ink-soft); }
+.calendar-days button[aria-pressed=true] { color: white; background: var(--ink); }
+.calendar-hint { margin-top: 12px; color: var(--muted); font-size: 11px; }
 .imagery-body > .meta { margin: 8px 0; font-size: 12px; }
+.imagery-progress { display: grid; gap: 12px; margin: 8px 0 12px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-sunk); }
+.imagery-progress-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 16px; flex-wrap: wrap; }
+.imagery-progress-heading > strong { font-size: 14px; }
+.imagery-progress-heading > .meta { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.imagery-progress .meta { font-size: 12px; }
+.imagery-progress-steps { display: flex; flex-wrap: wrap; gap: 8px 20px; list-style: none; padding: 0; margin: 0; }
+.imagery-progress-steps li { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.imagery-progress-steps li > span { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); font-size: 11px; }
+.imagery-progress-steps li[data-state=current] { color: var(--ink); font-weight: 600; }
+.imagery-progress-steps li[data-state=current] > span { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.imagery-progress-steps li[data-state=done] { color: var(--ok-ink); }
+.imagery-progress-steps li[data-state=done] > span { border-color: transparent; background: var(--ok-bg); }
+.imagery-progress-detail { display: grid; gap: 8px; font-size: 13px; }
+.imagery-progress-count { color: var(--ink-soft); }
+.imagery-progress-count strong { color: var(--ink); font-weight: 600; }
+.imagery-progress-track { height: 4px; overflow: hidden; border-radius: 4px; background: var(--line); }
+.imagery-progress-track > span { display: block; height: 100%; background: var(--ok-ink); }
+.imagery-progress-notice { font-size: 12px; color: var(--warn-ink); }
+.imagery-outline-preview .imagery-map { height: 220px; }
+.imagery-outline-preview > .meta { margin: 6px 0 12px; font-size: 11px; }
 .imagery-map { height: 330px; }
 .imagery-map-status { position: absolute; top: 55px; left: 12px; right: 12px; background: var(--surface); border-radius: 8px; padding: 8px; z-index: 5; font-size: 12px; }
 .imagery-legend { max-width: 380px; margin: 10px auto; }
@@ -100,6 +139,9 @@ button.season-metric:hover { border-color: var(--ink-soft); background: var(--su
 }
 @container season-content (max-width: 460px) {
   .season-metrics { grid-template-columns: minmax(0, 1fr); }
+  .insight-grid { grid-template-columns: minmax(0, 1fr); }
+  .imagery-progress { padding: 12px; }
+  .imagery-progress-steps { display: grid; gap: 6px; }
   .season-content .season-toolbar { align-items: stretch; }
   .season-toolbar > h3, .season-toolbar > .range-toolbar { width: 100%; }
   .range-toolbar button { min-width: 44px; min-height: 44px; }
@@ -110,7 +152,7 @@ button.season-metric:hover { border-color: var(--ink-soft); background: var(--su
   .season-heading { padding: 14px 12px; }
   .season-metrics, .insight-grid { gap: 6px; }
   .season-metric { padding: 9px; }
-  .field-insight > summary { padding: 9px; }
+  .field-insight { padding: 9px; }
   .field-insight strong { font-size: 14px; }
   .metric-tabs button { padding: 5px 9px; font-size: 11px; }
   .imagery-controls { align-items: stretch; flex-direction: column; }

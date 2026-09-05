@@ -230,9 +230,10 @@ def refresh_weather(pid: str) -> dict:
 def imagery(pid: str, year: int) -> dict:
     """Сохранённая карта пиксельных индексов Sentinel-2, если она уже собрана."""
     from service.imagery import ndmi_context, read
+    from service.imagery_progress import read as read_imagery_progress
     manifest = read(pid, year)
     if manifest is None:
-        return {"available": False, "year": year}
+        return {"available": False, "year": year, "progress": read_imagery_progress(pid, year)}
     return {"available": True, "manifest": manifest, "ndmi": ndmi_context(pid, year)}
 
 
@@ -256,13 +257,16 @@ def collect_imagery(pid: str, year: int) -> dict:
         raise HTTPException(400, "У этого примера нет координат поля")
     if str(year) not in {str(y) for y in report["years"]}:
         raise HTTPException(400, "Выберите сезон из отчёта поля")
-    from service.imagery import collect, read
+    from service.imagery import read
+    from service.imagery_progress import submit
     if (cached := read(pid, year)) is not None:
         return {"available": True, "manifest": cached}
     if _pool is None:
         _pool = ProcessPoolExecutor(max_workers=1)
     try:
-        manifest = _pool.submit(collect, pid, report["geometry"], year).result(timeout=1200)
+        manifest = submit(_pool, pid, report["geometry"], year).result(timeout=1200)
+    except TimeoutError as exc:
+        raise HTTPException(504, "Сбор занимает больше 20 минут. Проверяем его состояние через прогресс загрузки.") from exc
     except Exception as exc:
         raise HTTPException(502, f"Не удалось собрать карту: {type(exc).__name__}: {exc}") from exc
     return {"available": True, "manifest": manifest}
