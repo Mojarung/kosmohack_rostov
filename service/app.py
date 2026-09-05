@@ -36,16 +36,6 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 WEB_DIST = Path(__file__).resolve().parents[1] / "web" / "dist"
 WEB_INDEX = WEB_DIST / "index.html"
 
-app = FastAPI(title="NDVI-мониторинг полей", version="1.0")
-
-# Режим разработки: интерфейс поднимается отдельно на 5173 и ходит в этот API.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 _store: Store | None = None
 _pool: ProcessPoolExecutor | None = None
 
@@ -63,7 +53,13 @@ async def lifespan(app: FastAPI):
             _pool = None
 
 
-app = FastAPI(title="NDVI-мониторинг полей", version="0.1", lifespan=lifespan)
+app = FastAPI(title="NDVI-мониторинг полей", version="1.0", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/api/health")
@@ -90,8 +86,8 @@ class AnalyzeRequest(BaseModel):
     def valid_area(self):
         """Отсекает неверную геометрию и период до дорогих внешних запросов."""
         from shapely.geometry import shape
-        if self.start_year > self.end_year or self.end_year - self.start_year > 20:
-            raise ValueError("Выберите от 1 до 21 сезона в правильном порядке")
+        if not 3 <= self.end_year - self.start_year <= 20:
+            raise ValueError("Для исторической нормы нужны от 4 до 21 сезона в правильном порядке")
         try:
             geom = shape(self.geometry)
             west, south, east, north = geom.bounds
@@ -129,7 +125,8 @@ class AgroRequest(BaseModel):
 @app.get("/")
 def index() -> FileResponse:
     """Главная страница: собранное приложение, иначе резервный интерфейс."""
-    return FileResponse(WEB_INDEX if WEB_INDEX.exists() else STATIC_DIR / "index.html")
+    return FileResponse(WEB_INDEX if WEB_INDEX.exists() else STATIC_DIR / "index.html",
+                        headers={"Cache-Control": "no-store"})
 
 
 @app.get("/legacy")
@@ -154,7 +151,7 @@ def polygons() -> list[dict]:
 @app.get("/api/polygon/{pid}")
 def polygon(pid: str) -> dict:
     """Ряды, кривые, нормы, Z, эпизоды и погода одного полигона."""
-    saved = field_store.read_report(pid)
+    saved = field_store.read_report(pid) or user_polygons.find_report(pid)
     if saved is not None:
         return field_store.public_report(saved)
     if pid not in set(store().obs["pid"]):
@@ -175,7 +172,7 @@ def agro_profiles() -> dict:
 
 
 def _agro_context(pid: str, year: int) -> dict:
-    report = field_store.read_report(pid) or polygon(pid)
+    report = field_store.read_report(pid) or user_polygons.find_report(pid) or polygon(pid)
     if str(year) not in {str(y) for y in report["years"]}:
         raise HTTPException(404, "Сезон отсутствует в этом отчёте")
     records = report.get("_weather", legacy_weather_records(report))
@@ -331,7 +328,7 @@ def analyze(req: AnalyzeRequest) -> JSONResponse:
         raise HTTPException(502, f"не удалось собрать данные: {type(exc).__name__}: {exc}") from exc
     field_store.save_report(result)                  # отчёт доступен по GET /api/polygon/{pid}
     entry = user_polygons.save(result, req.name)     # поле попадает в набор пользователя
-    return JSONResponse(result | {"uid": entry["uid"], "name": entry["name"]})
+    return JSONResponse(field_store.public_report(result) | {"uid": entry["uid"], "name": entry["name"]})
 
 
 @app.get("/api/user-polygons")
@@ -346,7 +343,7 @@ def get_user_polygon(uid: str) -> dict:
     result = user_polygons.load(uid)
     if result is None:
         raise HTTPException(404, "полигон не найден")
-    return result
+    return field_store.public_report(result)
 
 
 @app.delete("/api/user-polygons/{uid}")
@@ -371,4 +368,4 @@ if WEB_INDEX.exists():
         candidate = (WEB_DIST / path).resolve()
         if path and candidate.is_file() and candidate.is_relative_to(WEB_DIST.resolve()):
             return FileResponse(candidate)
-        return FileResponse(WEB_INDEX)
+        return FileResponse(WEB_INDEX, headers={"Cache-Control": "no-store"})

@@ -1,7 +1,7 @@
 // Run with MCP Playwright browser_run_code_unsafe({filename: absolutePath}).
-async (page) => {
+async (page, base="http://127.0.0.1:8000") => {
   await page.unrouteAll({behavior:"ignoreErrors"});
-  let checks=0;const errors=[],base="http://127.0.0.1:8000";
+  let checks=0;const errors=[];
   const check=(ok,message)=>{checks++;if(!ok)throw new Error(message);};
   const onError=e=>errors.push(e.message);page.on("pageerror",onError);
   const api=async path=>{const r=await page.request.get(base+path);check(r.ok(),path);return r.json();};
@@ -12,7 +12,7 @@ async (page) => {
     await page.waitForFunction(()=>document.getElementById("weather-plot").data?.at(-1)?.name===String(S.year));
   };
   const loaded=async()=>page.waitForFunction(()=>{const img=document.querySelector("#imagery-map .leaflet-image-layer");return img?.complete&&img.naturalWidth>0;});
-  await page.setViewportSize({width:1440,height:1050});await page.goto(base);
+  await page.setViewportSize({width:1440,height:1050});await page.goto(base+"/legacy");
   await page.waitForFunction(()=>document.getElementById("trend-note").textContent.length>0);
   await field("AOI-0030");
   const data=await api("/api/polygon/AOI-0030");

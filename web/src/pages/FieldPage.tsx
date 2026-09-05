@@ -33,7 +33,7 @@ export default function FieldPage() {
         <Link to="/fields" className="back-link">
           ← поля кейса
         </Link>
-        <span className="screen-title">{data.pid}</span>
+        <span className="screen-title">{data.name || data.pid}</span>
         <span className="tag">{data.crop}</span>
         <span className="meta">{data.kind}</span>
         <span className="head-facts">
@@ -46,7 +46,7 @@ export default function FieldPage() {
         </span>
       </div>
 
-      <SeasonPanel detail={data} />
+      <SeasonPanel key={data.pid} detail={data} />
     </div>
   );
 }

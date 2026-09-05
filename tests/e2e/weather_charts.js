@@ -1,13 +1,13 @@
 // MCP Playwright browser_run_code_unsafe({filename: ...}); реальный сервис и данные кейса.
-async (page) => {
+async (page, base="http://127.0.0.1:8000") => {
   let checks=0; const errors=[];
   const check=(ok,message)=>{checks++;if(!ok)throw new Error(message);};
   const close=(a,b)=>typeof a==="number"&&Math.abs(a-b)<.002;
-  const api=async path=>{const r=await page.request.get("http://127.0.0.1:8000"+path);check(r.ok(),path);return r.json();};
+  const api=async path=>{const r=await page.request.get(base+path);check(r.ok(),path);return r.json();};
   page.on("pageerror",e=>errors.push(e.message));
   await api("/api/health");
   await page.setViewportSize({width:1440,height:1050});
-  await page.goto("http://127.0.0.1:8000/");
+  await page.goto(base+"/legacy");
   await page.waitForFunction(()=>document.getElementById("weather-plot").data?.length>0);
   async function field(pid,withWeather=true) {
     await page.locator("#search").fill(pid);
@@ -72,6 +72,7 @@ async (page) => {
   check(close((await values()).value,expectedRain),"Кэш вернул другой сезон");
 
   await field("AOI-0005");
+  await page.locator('#years button[data-y="2010"]').click();await ready();
   check((await values()).traces===1,"Выдумана историческая норма для одного сезона");
   check((await page.locator("#weather-readout").innerText()).includes("истории для сравнения мало"),"Нет пояснения к отсутствию нормы");
   const noWeatherResponse=page.waitForResponse(r=>r.url().includes("/api/polygon/AOI-0006/agro?"));

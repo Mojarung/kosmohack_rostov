@@ -9,6 +9,7 @@ import "./styles/fonts.css";
 import "./styles/global.css";
 import "./styles/shell.css";
 import "./styles/landing.css";
+import "./styles/season.css";
 
 // Данные кейса статичны в пределах сессии: держим их в кэше и не перезапрашиваем при фокусе окна.
 const queryClient = new QueryClient({

@@ -1,4 +1,5 @@
 /** Типы ответов API сервиса (service/app.py). */
+import type { DeviationTrend } from "./analytics";
 
 export type Severity = "критическая" | "умеренная";
 
@@ -86,6 +87,8 @@ export interface PolygonDetail {
   collected?: string;
   geometry?: GeoJSON.Polygon;
   created_at?: string;
+  saved_at?: string;
+  insights?: Record<string, DeviationTrend>;
 }
 
 export interface UserPolygon {

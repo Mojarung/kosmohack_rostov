@@ -1,6 +1,15 @@
-# E2E погодных графиков
+# E2E интерфейса и погодных графиков
 
 Сервис: `uv run --locked --group service python -m service`.
+
+Перед проверкой React-интерфейса: `npm --prefix web ci`, `npm --prefix web run typecheck`,
+`npm --prefix web run build`. Сценарий `main_integration.js` проверяет основной интерфейс `/`:
+дизайн с двумя панелями, все вкладки, реальные значения метрик, синхронное наведение и масштаб,
+смену сезонов, отсутствие погоды/истории, сохранённое поле старого формата, слои Sentinel-2,
+повтор после ошибок API и PNG, запоздалые ответы и мобильный экран. Для карты нужен кэш
+«Поля у Ростова» (`FIELD-073acd129c201f502d38`), 2025 год; отсутствие фикстуры завершает тест ошибкой.
+Функции сценариев принимают `page` и необязательный `base` (по умолчанию `http://127.0.0.1:8000`).
+`weather_charts.js` и `field_insights.js` проверяют резервный интерфейс `/legacy`.
 
 Сценарий [weather_charts.js](weather_charts.js) запускается в MCP Playwright:
 `browser_run_code_unsafe({"filename":"<абсолютный путь>/tests/e2e/weather_charts.js"})`.

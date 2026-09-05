@@ -12,6 +12,7 @@ import { useDrawingArea, useXScale } from "@mui/x-charts/hooks";
 import type { Episode, SeasonYear } from "../../api/types";
 import { ms } from "../../lib/format";
 import { BrushLayer } from "./BrushLayer";
+import { PlotClip } from "./PlotClip";
 import type { RangeControl } from "./range";
 
 const X_AXIS = "z-x";
@@ -81,7 +82,7 @@ export function ZChart({ season, episodes, height = 150, control, hover, onHover
         {
           id: X_AXIS,
           data: data.dates,
-          scaleType: "time",
+          scaleType: "utc",
           min: new Date(control.view.from),
           max: new Date(control.view.to),
           tickNumber: 6,
@@ -93,10 +94,10 @@ export function ZChart({ season, episodes, height = 150, control, hover, onHover
       ]}
       yAxis={[{ id: Y_AXIS, min: -4, max: 3, width: 42, tickNumber: 4 }]}
     >
-      <Bands episodes={episodes} />
+      <PlotClip><Bands episodes={episodes} />
       <ChartsReferenceLine y={-1} lineStyle={{ stroke: "#e8a33d", strokeDasharray: "4 4" }} />
       <ChartsReferenceLine y={-2} lineStyle={{ stroke: "#c8423f", strokeDasharray: "4 4" }} />
-      <LinePlot />
+      <LinePlot /></PlotClip>
       <ChartsXAxis axisId={X_AXIS} />
       <ChartsYAxis axisId={Y_AXIS} label="σ" />
       <ChartsTooltip />

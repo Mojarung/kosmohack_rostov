@@ -30,9 +30,11 @@ def test_user_polygon_endpoints(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
     import service.polygons as store
+    from service import field_store
     from service.app import app
 
     monkeypatch.setattr(store, "POLYGONS_DIR", tmp_path)
+    monkeypatch.setattr(field_store, "ROOT", tmp_path / "fields")
     client = TestClient(app)
     assert client.get("/api/user-polygons").json() == []
     entry = store.save(RESULT, "поле у дороги")
@@ -43,3 +45,28 @@ def test_user_polygon_endpoints(tmp_path, monkeypatch):
     assert client.get("/api/user-polygons/000000000000").status_code == 404
     assert client.delete(f"/api/user-polygons/{entry['uid']}").json() == {"deleted": entry["uid"]}
     assert client.delete(f"/api/user-polygons/{entry['uid']}").status_code == 404
+
+
+def test_legacy_fields_visible_with_weather_and_no_duplicates(tmp_path, monkeypatch):
+    """Старое поле открывается в React со снимками по прежнему pid, без повторного сбора."""
+    from fastapi.testclient import TestClient
+    from service import field_store, polygons
+    from service.app import app
+    monkeypatch.setattr(polygons, "POLYGONS_DIR", tmp_path / "polygons")
+    monkeypatch.setattr(field_store, "ROOT", tmp_path / "fields")
+    pid = field_store.field_id(RESULT["geometry"])
+    report = RESULT | {"pid": pid, "name": "Поле из прежнего интерфейса", "_weather": []}
+    field_store.save_report(report)
+    client = TestClient(app)
+    listed = client.get("/api/user-polygons").json()
+    assert len(listed) == 1 and listed[0]["uid"] == pid
+    opened = client.get(f"/api/user-polygons/{pid}").json()
+    assert opened["pid"] == pid and "insights" in opened and "_weather" not in opened
+    assert client.get(f"/api/polygon/{pid}/agro?year=2024").status_code == 200
+    entry = polygons.save(report, "То же поле")
+    assert len(client.get("/api/user-polygons").json()) == 1
+    assert client.delete(f"/api/user-polygons/{entry['uid']}").status_code == 200
+    assert client.get("/api/user-polygons").json() == []
+    field_store.save_report(report)
+    assert client.delete(f"/api/user-polygons/{pid}").status_code == 200
+    assert client.get("/api/user-polygons").json() == []
