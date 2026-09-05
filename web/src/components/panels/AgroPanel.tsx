@@ -44,7 +44,7 @@ export function AgroPanel({ context, loading, error, retry, year, control, hover
     <div className="metric-legend"><span style={{ color: spec.color }}>● {year}</span>
       {history && <span>━ Среднее{historySpan(metric) || " прошлых лет"} · полоса 10–90%</span>}</div>
     <AgroChart metric={metric} color={spec.color} units={spec.units} year={year}
-      control={control} hover={hover} onHover={onHover} />
+      control={control} hover={hover} onHover={onHover} showKolobok={mode === "rain"} />
     <RangeToolbar control={control} />
     <details className="metric-help"><summary>Как читать погодный график</summary><div className="stack">
       <p>Сравниваем одинаковые календарные даты прошлых лет, без текущего года. Для ориентира нужны минимум 3 года. Пропуски остаются разрывами.</p>
