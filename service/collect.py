@@ -52,8 +52,9 @@ def utm_crs(geom) -> str:
 
 def _load_parallel(items, bands: list[str], geom, resolution: int, dtype=None):
     """Загрузка всех сцен по рамке полигона одним вызовом: dask читает COG параллельно, результат — в памяти."""
+    # fail_on_error=False: одна битая сцена (недоступный файл в каталоге) не должна ронять весь год
     lazy = stac_load(items, bands=bands, geopolygon=geom.__geo_interface__, resolution=resolution,
-                     chunks={"time": 4}, groupby="solar_day", crs=utm_crs(geom), dtype=dtype)
+                     chunks={"time": 4}, groupby="solar_day", crs=utm_crs(geom), dtype=dtype, fail_on_error=False)
     return lazy.compute()
 
 

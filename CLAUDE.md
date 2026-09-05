@@ -31,7 +31,8 @@
   `service/collect.py`: Earth Search S2, Planetary Computer Landsat/MODIS, Open-Meteo ERA5, OSM Overpass; анализ `service/analyze_new.py`).
   Запуск `uv run uvicorn service.app:app --port 8000`. Готовые веса в `models/` (инференс без обучения — `gapfill.predict_saved`),
   `Dockerfile`, сводный отчёт `docs/14-research-report.md`.
-- Не сделано: презентация; LLM-объяснения не проверены (нет ключа); сбор данных для нового поля занимает 1–3 мин.
+- Не сделано: презентация; LLM-объяснения не проверены (нет ключа); сборка Docker не проверена (демон не запущен).
+  Сбор данных для нового поля проверен: 7 сезонов за ~3 мин (exp-104).
 
 ## Неочевидное про данные
 
