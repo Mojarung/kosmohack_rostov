@@ -1,6 +1,6 @@
 """Замер скорости сбора одного сезона: где тратится время и как влияет число потоков.
 
-Запуск: uv run --no-sync python scripts/bench_collect.py [--source MODIS|Landsat|S2] [--year 2024]
+Запуск: PYTHONPATH=. uv run --no-sync python scripts/bench_collect.py [--source MODIS|Landsat|S2|S2ES] [--year 2024]
         [--workers 10] [--multiplex YES|NO]
 Печатает время поиска в каталоге, время загрузки и число обрывов чтения (по логам odc/rasterio).
 Полигон — квадрат 1×1 км под Ростовом, как у типичного поля пользователя.
@@ -37,7 +37,7 @@ class _Counter(logging.Handler):
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--source", default="MODIS", choices=["MODIS", "Landsat", "S2"])
+    parser.add_argument("--source", default="MODIS", choices=["MODIS", "Landsat", "S2", "S2ES"])
     parser.add_argument("--year", type=int, default=2024)
     parser.add_argument("--workers", type=int, default=10, help="потоков dask на один вызов stac_load")
     parser.add_argument("--multiplex", default="YES", choices=["YES", "NO"])
@@ -67,7 +67,9 @@ def main() -> None:
     collect._load_parallel = timed_load
 
     geom = box(39.70, 47.20, 39.713, 47.209)    # ~1 км × 1 км
-    fn = {"MODIS": collect._modis_year, "Landsat": collect._landsat_year, "S2": collect._s2_year}[args.source]
+    # S2 — как в сервисе (Planetary Computer, при отказе Earth Search); S2ES — принудительно Earth Search для сравнения
+    fn = {"MODIS": collect._modis_year, "Landsat": collect._landsat_year, "S2": collect._s2_year,
+          "S2ES": lambda g, y: collect._s2_year_from(collect.EARTH_SEARCH, g, y)}[args.source]
     t0 = time.time()
     frame = fn(geom, args.year)
     total = time.time() - t0

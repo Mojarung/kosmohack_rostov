@@ -201,8 +201,8 @@ API: `GET /api/places?q=...`, от 2 до 200 символов. Ответ — �
    OpenStreetMap (Overpass API), клик по контуру выбирает поле.
 2. **Произвольный полигон**: контур рисуется на карте (`@antv/l7-draw`).
 
-После выбора «Собрать данные и проанализировать» сервис сам получает Sentinel-2 L2A (Earth Search STAC,
-маска облаков по SCL), Landsat 8/9 C2 L2 и MODIS MOD13Q1 (Planetary Computer STAC), ERA5 (Open-Meteo,
+После выбора «Собрать данные и проанализировать» сервис сам получает Sentinel-2 L2A, Landsat 8/9 C2 L2 и MODIS MOD13Q1
+(Planetary Computer STAC; для Sentinel-2 маска облаков по SCL, запасной каталог — Earth Search), ERA5 (Open-Meteo,
 по центроиду поля), строит ряд `primary_ndvi` по приоритету S2 → Landsat → MODIS, восстановленную кривую,
 норму по собственной истории поля, находит эпизоды угнетения и объясняет их. Четыре источника грузятся
 одновременно, внутри каждого — по восемь сезонов параллельно; из каталогов берутся сцены с облачностью
@@ -302,7 +302,7 @@ Docker torch ставится из индекса CPU отдельной стр�
 Системные зависимости: только `uv` (сам ставит Python 3.14 по `.python-version`); GDAL/PROJ приходят внутри wheels
 `rasterio`/`pyproj`, отдельная установка не нужна. GPU не обязателен: инференс `gapfill.predict_saved`, сервис и
 детекция аномалий работают на CPU; обучение SeasonNet на GPU (CUDA 13.0) занимает ~8 минут на seed, на CPU — дольше.
-Внешние сервисы (Earth Search, Planetary Computer, Open-Meteo, Overpass) — без ключей; единственная необязательная
+Внешние сервисы (Planetary Computer, Earth Search, Open-Meteo, Overpass) — без ключей; единственная необязательная
 переменная окружения — `ANTHROPIC_API_KEY`.
 
 ## Структура репозитория

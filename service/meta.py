@@ -17,7 +17,7 @@ from gapfill.config import EXTRA_PATHS, ROOT, TEST_PATH, TRAIN_PATH
 VALIDATION_PATH = ROOT / "reports" / "gapfill" / "validation.json"
 
 SOURCES = [
-    {"name": "Sentinel-2 L2A", "detail": "Earth Search STAC, маска облаков по SCL, 20 м"},
+    {"name": "Sentinel-2 L2A", "detail": "Microsoft Planetary Computer (запасной — Earth Search), маска облаков по SCL, 20 м"},
     {"name": "Landsat 8/9 Collection 2 L2", "detail": "Microsoft Planetary Computer, маска qa_pixel, 30 м"},
     {"name": "MODIS MOD13Q1 v061", "detail": "Planetary Computer, 16-дневный композит NDVI, 250 м"},
     {"name": "ERA5 (Open-Meteo)", "detail": "суточная температура и осадки по центроиду поля"},

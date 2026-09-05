@@ -40,7 +40,7 @@ Train: 39 полигонов, 2010–2024, 30 520 известных точек;
 ряды привязать к анонимным полигонам нельзя.
 Проверенные готовые модели (Chronos-2 zero-shot, TabPFN, Presto/Galileo) пользы не дали или неприменимы
 ([exp-006](../experiments/exp-006-second-mask-pretrained.md)). Для сервиса внешние источники используются
-напрямую: Sentinel-2 L2A (Earth Search STAC), Landsat C2 L2 и MODIS MOD13Q1 (Planetary Computer), ERA5 (Open-Meteo), OSM (Overpass).
+напрямую: Sentinel-2 L2A, Landsat C2 L2 и MODIS MOD13Q1 (Planetary Computer; для Sentinel-2 запасной каталог Earth Search), ERA5 (Open-Meteo), OSM (Overpass).
 
 ## 4. Baseline и его ограничения
 
