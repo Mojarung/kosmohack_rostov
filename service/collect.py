@@ -20,11 +20,13 @@ import numpy as np
 import pandas as pd
 import planetary_computer
 import pystac_client
+from odc.stac import configure_rio
 from odc.stac import load as stac_load
 from rasterio.features import geometry_mask
 from shapely.geometry import shape
 
 from service.field_store import field_id
+from service.progress import Progress
 from service.weather_source import SOURCE, collect_weather, weather_records
 
 log = logging.getLogger("service.collect")
@@ -32,6 +34,8 @@ EARTH_SEARCH = "https://earth-search.aws.element84.com/v1"
 PLANETARY = "https://planetarycomputer.microsoft.com/api/stac/v1"
 OPEN_METEO = "https://archive-api.open-meteo.com/v1/archive"
 SEASON = ("04-01", "10-30")
+MAX_CLOUD_COVER = 60           # % облачности сцены по каталогу; более облачные всё равно не проходят MIN_VALID_SHARE
+WORKERS = 8                    # сезонов одного источника, загружаемых одновременно (ограничивает сеть, не CPU)
 MIN_VALID_SHARE = 0.6          # доля чистых пикселей в полигоне, ниже — сцена отбрасывается
 MIN_PIXELS = 6
 S2_CLEAR_SCL = (4, 5, 6)       # растительность, открытая почва, вода
@@ -83,6 +87,14 @@ def _season_range(year: int) -> str:
     return f"{year}-{SEASON[0]}/{year}-{SEASON[1]}"
 
 
+def configure_gdal() -> None:
+    """Настройки GDAL для чтения COG из облака: без листинга каталога при открытии файла и с объединением
+    соседних диапазонов; иначе на каждую из сотен сцен уходят лишние HTTP-запросы. Действует на процесс сборщика."""
+    configure_rio(cloud_defaults=True, GDAL_HTTP_MERGE_CONSECUTIVE_RANGES="YES", GDAL_HTTP_MULTIPLEX="YES",
+                  GDAL_HTTP_VERSION="2", VSI_CACHE="TRUE", GDAL_HTTP_TIMEOUT=60,
+                  GDAL_HTTP_MAX_RETRY=3, GDAL_HTTP_RETRY_DELAY=1)
+
+
 def utm_crs(geom) -> str:
     """Зона UTM по центроиду полигона (Ростовская область — 37N, но сервис не привязан к региону)."""
     c = geom.centroid
@@ -103,8 +115,12 @@ def _load_parallel(items, bands: list[str], geom, resolution: int, dtype=None):
     return lazy.compute()
 
 
-def _by_years(fn, years: range, max_workers: int = 4, label: str = "") -> pd.DataFrame:
+def _by_years(fn, years: range, label: str = "", progress: Progress | None = None,
+              max_workers: int = WORKERS) -> pd.DataFrame:
     """Сезоны собираются параллельно (каждый год — отдельный запрос к каталогу и своя загрузка)."""
+    progress = progress or Progress(None)
+    progress.start(label, len(years))
+
     def timed(year):
         t0 = time.time()
         try:
@@ -114,6 +130,7 @@ def _by_years(fn, years: range, max_workers: int = 4, label: str = "") -> pd.Dat
             frame = pd.DataFrame()
             frame.attrs["failure"] = f"{label} {year}: {type(exc).__name__}"
         log.info("%s %s: %d сцен за %.0f с", label, year, len(frame), time.time() - t0)
+        progress.year_done(label, year, len(frame), time.time() - t0, ok="failure" not in frame.attrs)
         return frame
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         frames = list(pool.map(timed, years))
@@ -147,7 +164,7 @@ def _mean_index(num, den, clear, inside) -> tuple[float, float, float]:
 def _s2_year(geom, year: int) -> pd.DataFrame:
     client = pystac_client.Client.open(EARTH_SEARCH)
     items = list(client.search(collections=["sentinel-2-l2a"], intersects=geom.__geo_interface__,
-                               datetime=_season_range(year), query={"eo:cloud_cover": {"lt": 80}}).items())
+                               datetime=_season_range(year), query={"eo:cloud_cover": {"lt": MAX_CLOUD_COVER}}).items())
     if not items:
         return pd.DataFrame()
     items = public_s2_items(items)
@@ -179,15 +196,15 @@ def public_s2_items(items):
     return result
 
 
-def collect_s2(geom, years: range) -> pd.DataFrame:
+def collect_s2(geom, years: range, progress: Progress | None = None) -> pd.DataFrame:
     """Sentinel-2 L2A: NDVI по чистым пикселям (SCL) на каждую сцену."""
-    return _by_years(lambda y: _s2_year(geom, y), years, label="S2")
+    return _by_years(lambda y: _s2_year(geom, y), years, label="S2", progress=progress)
 
 
 def _landsat_year(geom, year: int) -> pd.DataFrame:
     client = pystac_client.Client.open(PLANETARY, modifier=planetary_computer.sign_inplace)
     items = list(client.search(collections=["landsat-c2-l2"], intersects=geom.__geo_interface__,
-                               datetime=_season_range(year), query={"eo:cloud_cover": {"lt": 80},
+                               datetime=_season_range(year), query={"eo:cloud_cover": {"lt": MAX_CLOUD_COVER},
                                                                     "platform": {"in": ["landsat-8", "landsat-9"]}}).items())
     if not items:
         return pd.DataFrame()
@@ -208,9 +225,9 @@ def _landsat_year(geom, year: int) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def collect_landsat(geom, years: range) -> pd.DataFrame:
+def collect_landsat(geom, years: range, progress: Progress | None = None) -> pd.DataFrame:
     """Landsat 8/9 C2 L2 (Planetary Computer): NDVI по пикселям без облаков/теней по qa_pixel."""
-    return _by_years(lambda y: _landsat_year(geom, y), years, label="Landsat")
+    return _by_years(lambda y: _landsat_year(geom, y), years, label="Landsat", progress=progress)
 
 
 def _modis_year(geom, year: int) -> pd.DataFrame:
@@ -232,9 +249,9 @@ def _modis_year(geom, year: int) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def collect_modis(geom, years: range) -> pd.DataFrame:
+def collect_modis(geom, years: range, progress: Progress | None = None) -> pd.DataFrame:
     """MODIS MOD13Q1 (Planetary Computer): готовый NDVI композита с фильтром надёжности."""
-    return _by_years(lambda y: _modis_year(geom, y), years, label="MODIS")
+    return _by_years(lambda y: _modis_year(geom, y), years, label="MODIS", progress=progress)
 
 
 def assemble_observations(pid: str, s2: pd.DataFrame, ls: pd.DataFrame, md: pd.DataFrame) -> pd.DataFrame:
@@ -262,62 +279,63 @@ def weather_note(weather: pd.DataFrame) -> str:
     return f"ERA5 с {weather['date'].min().year} г."
 
 
-def collect_sources(geom, years: range, pid: str) -> tuple[dict, pd.DataFrame, list[str], list[str]]:
-    """Все источники разом: три спутника и погода запускаются одновременно.
-
-    Каждый упирается в сетевую задержку каталога, поэтому раньше общее время было суммой:
-    замер на поле 150 га за пять сезонов — 173 с последовательно против 91 с параллельно
-    при том же наборе сцен. Источники независимы: если один недоступен, ряд строится
-    по остальным, а пользователь видит пометку.
-    """
-    centroid = geom.centroid
-    sources = {
-        "S2": lambda: collect_s2(geom, years),
-        "Landsat": lambda: collect_landsat(geom, years),
-        "MODIS": lambda: collect_modis(geom, years),
-        "ERA5": lambda: collect_weather(centroid.y, centroid.x, years).assign(pid=pid),
-    }
-    with ThreadPoolExecutor(max_workers=len(sources)) as pool:
-        tasks = {label: pool.submit(fn) for label, fn in sources.items()}
-
-    frames: dict[str, pd.DataFrame] = {}
-    notes: list[str] = []
-    warnings: list[str] = []
-    # порядок пометок фиксированный, чтобы подпись поля не зависела от того, кто ответил первым
-    for label in ("S2", "Landsat", "MODIS"):
-        try:
-            frames[label] = tasks[label].result()
-            warnings.extend(frames[label].attrs.get("warnings", []))
-            notes.append(f"{label} {len(frames[label])} сцен")
-        except Exception as exc:    # сетевые ошибки, недоступный каталог, пустой ответ
-            log.exception("Источник %s недоступен", label)
-            frames[label] = pd.DataFrame()
-            notes.append(f"{label} недоступен ({type(exc).__name__})")
-            warnings.append(f"{label} недоступен: {type(exc).__name__}")
+def _collect_source(label: str, fn, geom, years: range, progress: Progress) -> tuple[pd.DataFrame, str, list[str]]:
+    """Один спутниковый источник: кадр, подпись для шапки поля и предупреждения. Отказ не роняет сбор."""
     try:
-        weather = tasks["ERA5"].result()
-        warnings.extend(weather.attrs.get("warnings", []))
-        notes.append(weather_note(weather))
+        frame = fn(geom, years, progress)
+        warnings = list(frame.attrs.get("warnings", []))
+        progress.finish_source(label, f"{len(frame)} сцен", ok=True)
+        return frame, f"{label} {len(frame)} сцен", warnings
+    except Exception as exc:    # сетевые ошибки, недоступный каталог, пустой ответ
+        log.exception("Источник %s недоступен", label)
+        progress.finish_source(label, f"недоступен ({type(exc).__name__})", ok=False)
+        return pd.DataFrame(), f"{label} недоступен ({type(exc).__name__})", [f"{label} недоступен: {type(exc).__name__}"]
+
+
+def _collect_era5(geom, years: range, pid: str, progress: Progress) -> tuple[pd.DataFrame, str, list[str]]:
+    """Погода по центроиду поля; при отказе — пустая таблица с пометкой для пользователя."""
+    progress.start("ERA5", 1)
+    centroid = geom.centroid
+    try:
+        weather = collect_weather(centroid.y, centroid.x, years).assign(pid=pid)
+        progress.finish_source("ERA5", weather_note(weather), ok=True)
+        return weather, weather_note(weather), list(weather.attrs.get("warnings", []))
     except Exception as exc:
         log.exception("Метеоданные недоступны")
-        weather = pd.DataFrame(columns=["date", "era5_temp_c", "era5_precip_mm", "pid"])
-        notes.append(f"ERA5 недоступен ({type(exc).__name__})")
-        warnings.append("Погода ERA5 не загрузилась")
-    return frames, weather, notes, warnings
+        progress.finish_source("ERA5", f"недоступен ({type(exc).__name__})", ok=False)
+        empty = pd.DataFrame(columns=["date", "era5_temp_c", "era5_precip_mm", "pid"])
+        return empty, f"ERA5 недоступен ({type(exc).__name__})", ["Погода ERA5 не загрузилась"]
 
 
-def analyze_geometry(geometry: dict, name: str, start_year: int, end_year: int) -> dict:
+def collect_all(geom, years: range, pid: str, progress: Progress) -> tuple[dict, list[str], list[str]]:
+    """Все четыре источника одновременно: они независимы, и ждать Sentinel-2 перед Landsat незачем."""
+    tasks = {"S2": (collect_s2,), "Landsat": (collect_landsat,), "MODIS": (collect_modis,)}
+    with ThreadPoolExecutor(max_workers=len(tasks) + 1) as pool:
+        futures = {label: pool.submit(_collect_source, label, fn, geom, years, progress) for label, (fn,) in tasks.items()}
+        futures["ERA5"] = pool.submit(_collect_era5, geom, years, pid, progress)
+        results = {label: future.result() for label, future in futures.items()}
+    frames = {label: frame for label, (frame, _, _) in results.items()}
+    notes = [note for _, note, _ in results.values()]
+    warnings = [w for _, _, ws in results.values() for w in ws]
+    return frames, notes, warnings
+
+
+def analyze_geometry(geometry: dict, name: str, start_year: int, end_year: int, job: str | None = None) -> dict:
     """Полный цикл для нового полигона: сбор → наблюдения → погода → детекция → JSON для интерфейса."""
     from service.analyze_new import analyze_new_polygon
+    configure_gdal()
+    progress = Progress(job)
     geom = shape(geometry)
     years = range(start_year, end_year + 1)
     pid = field_id(geometry)
-
-    started = time.time()
-    frames, weather, notes, warnings = collect_sources(geom, years, pid)
-    log.info("Сбор по %s за %s-%s: %.0f с", pid, start_year, end_year, time.time() - started)
-
-    obs = assemble_observations(pid, frames["S2"], frames["Landsat"], frames["MODIS"])
+    frames, notes, warnings = collect_all(geom, years, pid, progress)
+    weather = frames.pop("ERA5")
+    try:
+        obs = assemble_observations(pid, frames["S2"], frames["Landsat"], frames["MODIS"])
+    except Exception:
+        progress.stage("error", "ни один спутниковый источник не вернул чистых наблюдений")
+        raise
+    progress.stage("analysis", "Спутники и погода собраны, разбираем сезоны")
     recent_weather = weather.loc[weather["date"].dt.year >= start_year] if len(weather) else weather
     result = analyze_new_polygon(pid, obs, recent_weather, display_name=name)   # имя поля — в тексты объяснений
     result["_weather"] = weather_records(weather)
@@ -326,4 +344,5 @@ def analyze_geometry(geometry: dict, name: str, start_year: int, end_year: int) 
     result["warnings"] = warnings
     result["collected"] = ", ".join(notes)
     result["geometry"] = geometry
+    progress.stage("done", "Готово")
     return result

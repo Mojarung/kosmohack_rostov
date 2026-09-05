@@ -150,3 +150,22 @@ export interface Meta {
   };
   sources: { name: string; detail: string }[];
 }
+
+/** Ход сбора данных для новой территории (GET /api/analyze/progress/{job}). */
+export interface CollectSource {
+  title: string;
+  total: number;
+  done: number;
+  scenes: number;
+  status: "running" | "done" | "failed";
+  note: string;
+}
+
+export interface CollectProgressState {
+  job: string;
+  started: string;
+  updated?: string;
+  stage: "collect" | "analysis" | "done" | "error";
+  sources: Record<string, CollectSource>;
+  log: string[];
+}

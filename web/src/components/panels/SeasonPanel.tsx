@@ -9,13 +9,14 @@ import { WeatherChart } from "../charts/WeatherChart";
 import { ZChart } from "../charts/ZChart";
 import { useDateRange } from "../charts/range";
 import { EpisodeCard } from "./EpisodeCard";
+import { FieldVerdict } from "./FieldVerdict";
 import { SeasonMetrics } from "./SeasonMetrics";
 import { AgroPanel } from "./AgroPanel";
 import { FieldInsights } from "./FieldInsights";
 
 function Legend() {
   return <div className="metric-legend">
-    <span style={{ color: "var(--ink)" }}>━ Кривая NDVI</span><span>━ Ориентир ±1σ</span>
+    <span style={{ color: "var(--ink)" }}>━ Зелень поля в этом году</span><span>━ Как обычно (коридор нормы)</span>
     {Object.entries(SENSOR_COLOR).map(([label, color]) => <span key={label} style={{ color }}>● {label}</span>)}
   </div>;
 }
@@ -34,21 +35,22 @@ function SeasonContent({ detail, year, onYear }: { detail: PolygonDetail; year: 
     <section className="pane season-main">
     <SeasonHeader detail={detail} year={year} onYear={onYear} />
     <div className="pane-body season-content">
+      <FieldVerdict season={season} episodes={episodes} trend={detail.insights?.[year]} weather={agro.data} />
       <SeasonMetrics season={season} weather={agro.data} hover={hover} />
       <div className="season-toolbar">
-        <h3>Развитие растительности</h3>
+        <h3>Как росло поле по снимкам</h3>
         <button type="button" className="btn btn--sm btn--ghost" onClick={control.reset} disabled={!control.zoomed}>Весь сезон</button>
       </div>
       <Legend />
       <div data-testid="ndvi-chart" data-from={control.view.from} data-to={control.view.to}>
         <SeasonChart season={season} episodes={episodes} control={control} hover={hover} onHover={setHover} />
       </div>
-      <p className="meta chart-instruction">Точки в шкале Sentinel-2. Выделите период мышью для приближения; двойной клик — весь сезон.</p>
+      <p className="meta chart-instruction">Линия — зелень поля, серая полоса — как бывает обычно. Выделите период мышью, чтобы приблизить; двойной клик — весь сезон.</p>
       <FieldInsights detail={detail} year={year} />
       <AgroPanel context={agro.data} loading={agro.isPending} error={agro.isError} retry={() => void agro.refetch()}
         year={year} control={control} hover={hover} onHover={setHover} />
       <details className="season-calculation" onToggle={e => setShowDetails(e.currentTarget.open)}>
-        <summary>Данные и расчёт</summary>
+        <summary>Подробности для агронома: данные и расчёт</summary>
         {showDetails && <div className="stack" style={{ gap: 12 }}>
           <p className="meta">Z = (NDVI − среднее истории) / разброс. Жёлтый порог −1, красный −2; детектор также учитывает длительность и реальные наблюдения.</p>
           <div data-testid="z-chart"><ZChart season={season} episodes={episodes} control={control} hover={hover} onHover={setHover} /></div>
@@ -64,19 +66,19 @@ function SeasonContent({ detail, year, onYear }: { detail: PolygonDetail; year: 
     </section>
     <section className="pane season-episodes">
       <div className="pane-head" style={{ gap: 8, flexWrap: "wrap" }}>
-        <h2 className="pane-title">Эпизоды угнетения</h2><span className="meta">{episodes.length
-          ? `${episodes.length} ${plural(episodes.length, "эпизод", "эпизода", "эпизодов")} в ${year} году` : `в ${year} году не найдено`}</span>
+        <h2 className="pane-title">Когда поле отставало</h2><span className="meta">{episodes.length
+          ? `${episodes.length} ${plural(episodes.length, "период", "периода", "периодов")} в ${year} году` : `в ${year} году не найдено`}</span>
       </div>
       <div className="pane-body pane-body--pad stack" style={{ gap: 10 }}>
       {!episodes.length && <p className="meta">{season.z.some(p => Number.isFinite(p.value))
-        ? "Устойчивых или сильных отклонений по правилам детектора не обнаружено." : "Недостаточно данных для оценки отклонений."}</p>}
+        ? "Поле весь сезон держалось в пределах обычного." : "Недостаточно снимков, чтобы судить о поле."}</p>}
       {[...episodes].sort((a, b) => a.min_z - b.min_z).map(e =>
         <EpisodeCard compact key={`${e.start}-${e.end}`} episode={e} onZoom={() => {
           control.select(ms(e.start) - 30 * 86400000, ms(e.end) + 10 * 86400000);
           document.querySelector('[data-testid="ndvi-chart"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
         }} />)}
       {shape.map(item => <div key={`${item.year}-${item.shape_direction}`} className="card card--sunk">
-        <div className="eyebrow">Нетипичная форма сезона · {item.shape_direction}</div>
+        <div className="eyebrow">Сезон прошёл необычно · {item.shape_direction}</div>
         <p className="meta">{item.shape_reasons}</p>
       </div>)}
       </div>

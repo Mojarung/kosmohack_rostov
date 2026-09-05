@@ -28,6 +28,7 @@ from service import polygons as user_polygons
 from service.data import Store
 from service.meta import build_meta
 from service.osm import osm_fields, parse_bbox
+from service.progress import JOB_RE, read_progress
 from service.reporting import legacy_weather_records
 from service.runtime import check_runtime, plotly_bundle
 from service.weather_metrics import PROFILES, weather_context
@@ -81,6 +82,8 @@ class AnalyzeRequest(BaseModel):
     name: str = Field(default="новое поле", min_length=1, max_length=120)
     start_year: int = Field(default=2019, ge=1980)
     end_year: int = Field(default=2025, le=dt.datetime.now(dt.UTC).year)
+    job: str | None = Field(default=None, pattern=JOB_RE.pattern,
+                            description="идентификатор задания для опроса GET /api/analyze/progress/{job}")
 
     @model_validator(mode="after")
     def valid_area(self):
@@ -303,10 +306,19 @@ def fields(bbox: str) -> list[dict]:
         raise HTTPException(502, f"Overpass API недоступен: {exc}") from exc
 
 
-def _run_collect(geometry: dict, name: str, start_year: int, end_year: int) -> dict:
+def _run_collect(geometry: dict, name: str, start_year: int, end_year: int, job: str | None = None) -> dict:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     from service.collect import analyze_geometry
-    return analyze_geometry(geometry, name, start_year, end_year)
+    return analyze_geometry(geometry, name, start_year, end_year, job)
+
+
+@app.get("/api/analyze/progress/{job}")
+def analyze_progress(job: str) -> dict:
+    """Ход сбора по заданию: сезоны и сцены по каждому источнику, этап, последние строки журнала."""
+    state = read_progress(job)
+    if state is None:
+        raise HTTPException(404, "задание не найдено или ещё не начато")
+    return state
 
 
 @app.post("/api/analyze")
@@ -323,7 +335,8 @@ def analyze(req: AnalyzeRequest) -> JSONResponse:
     if _pool is None:
         _pool = ProcessPoolExecutor(max_workers=1)
     try:
-        result = _pool.submit(_run_collect, req.geometry, req.name, req.start_year, req.end_year).result(timeout=1200)
+        future = _pool.submit(_run_collect, req.geometry, req.name, req.start_year, req.end_year, req.job)
+        result = future.result(timeout=1200)
     except Exception as exc:        # ошибки внешних API отдаём пользователю понятным текстом
         raise HTTPException(502, f"не удалось собрать данные: {type(exc).__name__}: {exc}") from exc
     field_store.save_report(result)                  # отчёт доступен по GET /api/polygon/{pid}

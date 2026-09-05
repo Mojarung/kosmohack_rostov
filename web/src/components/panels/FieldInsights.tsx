@@ -75,7 +75,7 @@ export function FieldInsights({ detail, year }: { detail: PolygonDetail; year: n
   return <div className="field-insights">
     <div className="insight-grid">
       <details className="field-insight" data-testid="trend-card" data-status={trend?.status}>
-        <summary><span className="meta">Динамика отклонения NDVI</span><strong>{trend?.label || "Мало наблюдений"}</strong>
+        <summary><span className="meta">Куда идёт поле последние две недели</span><strong>{trend?.label || "Мало наблюдений"}</strong>
           <span className="meta">{trend?.start && trend.end ? `${shortDate(trend.start)} — ${shortDate(trend.end)}` : "Нужны наблюдения и история"}</span></summary>
         <div className="insight-evidence">
           <p>{trend?.available ? `Медиана Z: ${number(trend.before_z, 2)} → ${number(trend.after_z, 2)}.` : "Недостаточно наблюдений с историческим ориентиром."}
@@ -84,7 +84,7 @@ export function FieldInsights({ detail, year }: { detail: PolygonDetail; year: n
         </div>
       </details>
       {detail.geometry && <details className="field-insight" data-testid="area-card">
-        <summary><span className="meta">Площадь снижения NDVI</span>
+        <summary><span className="meta">Сколько поля потеряло зелень</span>
           <strong>{change ? `${number(change.drop_area_ha)} га · ${number((change.drop_share ?? 0) * 100)}%` : scene ? "Нужны два снимка" : "Откройте карту поля"}</strong>
           <span className="meta">{period}</span></summary>
         <div className="insight-evidence"><AreaEvidence scene={scene} />

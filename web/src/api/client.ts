@@ -1,6 +1,7 @@
 /** Тонкая обёртка над fetch: единый разбор ошибок FastAPI (поле detail). */
 
 import type {
+  CollectProgressState,
   Episode,
   Meta,
   OsmField,
@@ -62,6 +63,7 @@ export const api = {
   userPolygons: () => request<UserPolygon[]>("/api/user-polygons"),
   userPolygon: (uid: string) => request<PolygonDetail>(`/api/user-polygons/${uid}`),
   deleteUserPolygon: (uid: string) => request<{ deleted: string }>(`/api/user-polygons/${uid}`, { method: "DELETE" }),
-  analyze: (body: { geometry: GeoJSON.Polygon; name: string; start_year?: number; end_year?: number }) =>
+  analyze: (body: { geometry: GeoJSON.Polygon; name: string; start_year?: number; end_year?: number; job?: string }) =>
     request<PolygonDetail>("/api/analyze", { method: "POST", body: JSON.stringify(body) }),
+  analyzeProgress: (job: string) => request<CollectProgressState>(`/api/analyze/progress/${job}`),
 };
