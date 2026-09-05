@@ -11,8 +11,19 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from gapfill.config import (CROP_CODES, EPOCH, EXTRA_PATHS, GAP_SHARE, INDEX_COLS, SENSOR_CODE, SENSOR_NDVI,
-                            TARGET, TEST_PATH, TRAIN_PATH, WEATHER_COLS)
+from gapfill.config import (
+    CROP_CODES,
+    EPOCH,
+    EXTRA_PATHS,
+    GAP_SHARE,
+    INDEX_COLS,
+    SENSOR_CODE,
+    SENSOR_NDVI,
+    TARGET,
+    TEST_PATH,
+    TRAIN_PATH,
+    WEATHER_COLS,
+)
 
 KEEP = ["pid", "date", "day_num", "year", "doy", "crop", "split", "is_gap", TARGET, *INDEX_COLS, *WEATHER_COLS]
 

@@ -1,5 +1,6 @@
 """Небольшие отчёты для изолированного прогона UI; не записываются в данные пользователя."""
 from copy import deepcopy
+
 from service import field_store, polygons
 
 

@@ -2,7 +2,9 @@
 import json
 import math
 from typing import Literal
+
 from fastapi import APIRouter, Query
+
 from service import polygons
 
 EPISODE_KEYS = ("pid", "year", "start", "end", "days", "n_obs", "min_z", "severity", "cause",

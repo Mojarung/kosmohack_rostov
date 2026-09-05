@@ -12,15 +12,13 @@ import argparse
 import json
 
 import numpy as np
-import pandas as pd
 import torch
 
 from gapfill.config import ARTIFACTS_DIR, SENSOR_CODE, SENSOR_OFFSET, TARGET
 from gapfill.data import load_all, make_mask, polygon_kinds
 from gapfill.dataset import val_examples
-from gapfill.nn_data import SEASON_LEN, build_tensors
+from gapfill.nn_data import build_tensors
 from gapfill.nn_model import query_days_from_obs, val_metrics
-from gapfill.features_series import harmonize
 
 MIN_CONTEXT = 3       # минимум известных точек в контексте, иначе сторона не используется
 BATCH = 256

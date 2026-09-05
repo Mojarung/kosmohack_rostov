@@ -6,7 +6,7 @@ service.llm.chat, ветка правил — снятой переменной 
 
 import pytest
 
-from service import agent, llm
+from service import llm
 from service.agent import (
     MAX_TOOL_STEPS,
     ask,

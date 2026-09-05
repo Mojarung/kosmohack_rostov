@@ -1,8 +1,10 @@
 """Контракт объединённого списка: источники, сезоны, дубли и отсутствие оценки."""
 from types import SimpleNamespace
+
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
+
 from service import anomaly_feed, field_store, polygons
 from service.app import app
 from tests.e2e.anomalies_fixtures import seed_saved

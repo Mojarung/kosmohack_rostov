@@ -9,15 +9,14 @@ from pathlib import Path
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
-from scipy.linalg import lstsq
 from scipy.optimize import least_squares
-from scipy.special import ive, ndtri, logsumexp
+from scipy.special import ive, logsumexp, ndtri
 from scipy.stats import qmc
 
 from gapfill.config import ARTIFACTS_DIR, TARGET
 from gapfill.data import gap_score, load_all, make_mask, rmse
-from gapfill.research_constraints import linear_projection, published_norms, system
-from gapfill.research_data import features, hidden_grid
+from gapfill.research.constraints import linear_projection, published_norms, system
+from gapfill.research.data import features, hidden_grid
 
 
 def get_predictions(obs, grid, held, model_path, directory):

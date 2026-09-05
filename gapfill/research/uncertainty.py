@@ -2,7 +2,6 @@
 
 import argparse
 import json
-from pathlib import Path
 
 import lightgbm as lgb
 import numpy as np
@@ -11,7 +10,7 @@ from sklearn.mixture import GaussianMixture
 from gapfill.config import ARTIFACTS_DIR, TARGET
 from gapfill.data import load_all
 from gapfill.dataset import groups_of
-from gapfill.research_data import examples
+from gapfill.research.data import examples
 from gapfill.train import holdout_groups
 
 

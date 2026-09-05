@@ -13,10 +13,11 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from service import llm
-from service.facts import _by_year, episode_facts, field_brief, field_facts, method_facts, season_facts
+from service.facts import _by_year, episode_facts, field_facts, method_facts, season_facts
 
 MAX_TOOL_STEPS = 4          # больше четырёх дозапросов на один вопрос не нужно и дорого
 MAX_TOKENS = 1500

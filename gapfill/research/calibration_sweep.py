@@ -7,9 +7,9 @@ import pandas as pd
 
 from gapfill.config import ARTIFACTS_DIR
 from gapfill.data import load_all, make_mask
-from gapfill.research_blend import metric
-from gapfill.research_calibrate import calibrate
-from gapfill.research_constraints import published_norms
+from gapfill.research.blend import metric
+from gapfill.research.calibrate import calibrate
+from gapfill.research.constraints import published_norms
 
 
 def main():

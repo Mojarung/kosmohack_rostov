@@ -3,7 +3,7 @@
 import numpy as np
 from threadpoolctl import threadpool_limits
 
-from gapfill.research_constraints import linear_projection
+from gapfill.research.constraints import linear_projection
 
 
 def log_density(error, sigma):

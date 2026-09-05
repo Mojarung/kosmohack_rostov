@@ -2,7 +2,6 @@
 
 import argparse
 import json
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -12,10 +11,10 @@ from gapfill.config import ARTIFACTS_DIR, TARGET
 from gapfill.data import gap_score, load_all, make_mask, rmse
 from gapfill.nn_data import EpochInputs, build_tensors, loo_residual_array
 from gapfill.nn_model import SeasonNet, gap_query_days
-from gapfill.research_calibrate import calibrate, get_predictions, with_uncertainty
-from gapfill.research_constraints import published_norms
-from gapfill.research_data import hidden_grid
-from gapfill.research_nn import ResidualSeasonNet, inference, inputs
+from gapfill.research.calibrate import calibrate, get_predictions, with_uncertainty
+from gapfill.research.constraints import published_norms
+from gapfill.research.data import hidden_grid
+from gapfill.research.nn import ResidualSeasonNet, inference, inputs
 
 
 def neural_prior(directory, obs, grid, held, targets, device):

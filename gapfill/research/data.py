@@ -1,6 +1,5 @@
 """Изолированный кэш экспериментов с честным маскированием погоды и сенсорных колонок."""
 
-import hashlib
 import time
 
 import numpy as np
@@ -10,7 +9,7 @@ from gapfill.config import ARTIFACTS_DIR, INDEX_COLS, TARGET, WEATHER_COLS
 from gapfill.data import data_tag, make_mask, polygon_kinds
 from gapfill.dataset import META
 from gapfill.features import build_features, sensor_prior_features
-from gapfill.research_features import full_sensor_features, spatial_features
+from gapfill.research.features import full_sensor_features, spatial_features
 
 CACHE = ARTIFACTS_DIR / "research" / "features"
 VERSION = 1
@@ -34,10 +33,10 @@ def features(targets, context, grid, version="all"):
     spatial = spatial_features(targets, context)
     parts = [base, raw, spatial]
     if version in ("analog", "kriging"):
-        from gapfill.research_analog import analog_features
+        from gapfill.research.analog import analog_features
         parts.append(analog_features(targets, context))
     if version == "kriging":
-        from gapfill.research_kriging import kriging_features
+        from gapfill.research.kriging import kriging_features
         parts.append(kriging_features(targets, context))
     return pd.concat(parts, axis=1).reset_index(drop=True).astype("float32")
 
@@ -54,7 +53,7 @@ def _cached(targets, context, grid, key, analog=False, kriging=False):
         x.to_parquet(path)
         print(f"Признаки {key}: {x.shape}, {time.monotonic() - start:.1f} с", flush=True)
     if analog:
-        from gapfill.research_analog import analog_features
+        from gapfill.research.analog import analog_features
         extra_path = CACHE / f"analog1_{key}.parquet"
         if extra_path.exists():
             extra = pd.read_parquet(extra_path)
@@ -64,7 +63,7 @@ def _cached(targets, context, grid, key, analog=False, kriging=False):
             print(f"Аналоги {key}: {extra.shape}", flush=True)
         x = pd.concat([x, extra], axis=1)
     if kriging:
-        from gapfill.research_kriging import kriging_features
+        from gapfill.research.kriging import kriging_features
         kg_path = CACHE / f"kriging1_{key}.parquet"
         if kg_path.exists():
             kg = pd.read_parquet(kg_path)

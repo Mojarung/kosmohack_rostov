@@ -8,8 +8,15 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from anomaly.config import (ARTIFACT_ABS, ARTIFACT_CONFIRM_DAYS, ARTIFACT_CONFIRM_DIFF, ARTIFACT_MAD_K, CURVE_BW,
-                            CURVE_EDGE_TOLERANCE_DAYS, SEASON_DOY)
+from anomaly.config import (
+    ARTIFACT_ABS,
+    ARTIFACT_CONFIRM_DAYS,
+    ARTIFACT_CONFIRM_DIFF,
+    ARTIFACT_MAD_K,
+    CURVE_BW,
+    CURVE_EDGE_TOLERANCE_DAYS,
+    SEASON_DOY,
+)
 from gapfill.config import SENSOR_CODE, SENSOR_OFFSET
 from gapfill.smooth import local_linear
 

@@ -10,8 +10,8 @@ from threadpoolctl import threadpool_limits
 from gapfill import research_calibrate as calibration
 from gapfill.config import ARTIFACTS_DIR
 from gapfill.data import load_all, make_mask
-from gapfill.research_blend import metric
-from gapfill.research_constraints import linear_projection, published_norms
+from gapfill.research.blend import metric
+from gapfill.research.constraints import linear_projection, published_norms
 
 
 def reflection_moves(x, center, null, prior, sigma, rng, repeats):

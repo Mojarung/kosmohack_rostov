@@ -116,7 +116,7 @@ def longest_dry_spell(frame: pd.DataFrame, year: int) -> dict:
 def basic_weather_metrics(frame, dates, year, historical_years) -> dict:
     """Доступные в исходном датасете показатели: осадки и тепло, без подстановки ET₀/Tmin/Tmax."""
     rain_sum = frame["era5_precip_mm"].rolling(30, min_periods=30).sum()
-    rain = _comparison(rain_sum, dates, {y: rain_sum for y in historical_years})
+    rain = _comparison(rain_sum, dates, dict.fromkeys(historical_years, rain_sum))
     thermal = _comparison(mean_temperature_heat(frame, year), dates,
                           {y: mean_temperature_heat(frame, y) for y in historical_years})
     for metric in (rain, thermal):
@@ -131,7 +131,7 @@ def weather_context(records: list[dict], year: int, settings: dict | None = None
     dates = pd.date_range(f"{year}-03-01", f"{year}-10-30")
     historical_years = range(max(1940, year - 30), year)
     balance = water_balance(frame)
-    water = _comparison(balance, dates, {y: balance for y in historical_years})
+    water = _comparison(balance, dates, dict.fromkeys(historical_years, balance))
     water["available"] = any(v is not None for v in water["value"])
     water["reason"] = "Нужны осадки и ET₀ за 30 полных дней. В этом отчёте их недостаточно."
     settings = settings or {}

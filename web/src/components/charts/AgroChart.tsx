@@ -12,6 +12,7 @@ import { ms } from "../../lib/format";
 import { finite, number } from "../../lib/metrics";
 import { BrushLayer } from "./BrushLayer";
 import { PlotClip } from "./PlotClip";
+import { RollingKolobok } from "./RollingKolobok";
 import type { RangeControl } from "./range";
 
 function HistoryBand({ metric }: { metric: WeatherMetric }) {
@@ -33,8 +34,9 @@ function HistoryBand({ metric }: { metric: WeatherMetric }) {
   </g>;
 }
 
-export function AgroChart({ metric, color, units, year, control, hover, onHover }: {
+export function AgroChart({ metric, color, units, year, control, hover, onHover, showKolobok = false }: {
   metric: WeatherMetric; color: string; units: string; year: number;
+  showKolobok?: boolean;
   control: RangeControl; hover: number | null; onHover: (time: number | null) => void;
 }) {
   const history = metric.mean.some(finite);
@@ -57,6 +59,7 @@ export function AgroChart({ metric, color, units, year, control, hover, onHover 
       <ChartsGrid horizontal /><PlotClip><HistoryBand metric={metric} /><LinePlot /></PlotClip>
       <ChartsXAxis axisId="agro-x" /><ChartsYAxis axisId="agro-y" /><ChartsTooltip />
       <BrushLayer axisId="agro-x" control={control} hover={hover} onHover={onHover} />
+      {showKolobok && <RollingKolobok metric={metric} />}
     </ChartsContainer>
   </div>;
 }
