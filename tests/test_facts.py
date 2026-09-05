@@ -210,3 +210,21 @@ def test_method_facts_reads_metrics_and_sources():
 
     пустой = method_facts({})
     assert пустой["источники"] == [] and пустой["восстановление_пропусков"]["rmse"] is None
+
+
+def test_cause_dictionaries_cover_the_same_codes():
+    """Классы причин описаны в пяти местах (детектор, факты, три файла интерфейса).
+
+    Общего словаря у Python и TypeScript быть не может, поэтому расхождение ловится здесь:
+    новый класс причины, забытый в интерфейсе, показывался бы пользователю как сырой код.
+    """
+    from pathlib import Path
+
+    from anomaly.report import CAUSE_TEXT
+
+    assert set(CAUSE_LABEL) == set(CAUSE_TEXT)
+    web = Path(__file__).resolve().parents[1] / "web" / "src" / "lib"
+    for name in ("plain.ts", "format.ts"):
+        text = (web / name).read_text(encoding="utf-8")
+        missing = [code for code in CAUSE_TEXT if code not in text]
+        assert not missing, f"в {name} нет причин: {missing}"

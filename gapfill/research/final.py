@@ -71,7 +71,7 @@ def main():
         start = time.monotonic()
         model = lgb.train(params | {"seed": seed, "bagging_seed": seed, "feature_fraction_seed": seed},
                           lgb.Dataset(x, y), num_boost_round=args.rounds,
-                          callbacks=[lambda env: print(f"seed={seed}, деревьев={env.iteration + 1}", flush=True)
+                          callbacks=[lambda env, seed=seed: print(f"seed={seed}, деревьев={env.iteration + 1}", flush=True)
                                      if (env.iteration + 1) % 1000 == 0 else None])
         with gzip.open(path, "wt", encoding="utf-8") as stream:
             stream.write(model.model_to_string())

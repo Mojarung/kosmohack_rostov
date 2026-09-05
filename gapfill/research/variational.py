@@ -7,9 +7,9 @@ import numpy as np
 import pandas as pd
 from threadpoolctl import threadpool_limits
 
-from gapfill import research_calibrate as calibration
 from gapfill.config import ARTIFACTS_DIR
 from gapfill.data import load_all, make_mask
+from gapfill.research import calibrate as calibration
 from gapfill.research.blend import metric
 from gapfill.research.constraints import published_norms
 
@@ -47,7 +47,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     results = []
     for df in args.dfs:
-        def projection(prior, a, b, strength=1., ridge=0., scale=None):
+        def projection(prior, a, b, strength=1., ridge=0., scale=None, df=df):
             return posterior(prior, a, b, scale, df)
         calibration.linear_projection = projection
         with threadpool_limits(limits=1):

@@ -32,7 +32,11 @@ GAP_MAX = 30.0
 
 
 def rmse(truth: np.ndarray, prediction: np.ndarray) -> float:
-    """Корень из средней квадратичной ошибки одним проходом по массиву."""
+    """Корень из средней квадратичной ошибки одним проходом по массиву.
+
+    Это та же метрика, что и `gapfill.data.rmse`, но без обращения к данным кейса: модуль должен
+    считаться на голом окружении, где стоят только numpy и pandas.
+    """
     error = prediction - truth
     return float(np.sqrt(np.dot(error, error) / error.size))
 

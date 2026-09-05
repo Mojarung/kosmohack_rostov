@@ -83,7 +83,7 @@ def main():
         report["neural"] = metric(base.assign(pred=nn_mean), "pred")
     for weight in args.weights:
         source = base.assign(prior=weight * base.prior + (1 - weight) * nn_mean)
-        calibrated, evidence = calibrate(source, grid, norms, args.calibration, args.sigma)
+        calibrated, _evidence = calibrate(source, grid, norms, args.calibration, args.sigma)
         calibrated.to_parquet(out / f"blend_{weight}.parquet")
         entry = {"weight_lgb": weight}
         if not args.final:

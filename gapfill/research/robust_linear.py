@@ -7,9 +7,9 @@ import numpy as np
 import pandas as pd
 from threadpoolctl import threadpool_limits
 
-from gapfill import research_calibrate as calibration
 from gapfill.config import ARTIFACTS_DIR
 from gapfill.data import load_all, make_mask
+from gapfill.research import calibrate as calibration
 from gapfill.research.blend import metric
 from gapfill.research.constraints import linear_projection, published_norms
 

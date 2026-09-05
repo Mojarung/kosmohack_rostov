@@ -40,7 +40,7 @@ def window_stats(w: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp) -> dic
     if seg.empty or seg["era5_precip_mm"].isna().all():
         return {}
     dry = (seg["era5_precip_mm"] < DRY_DAY_MM).to_numpy()
-    runs, best, cur = [], 0, 0
+    best, cur = 0, 0
     for d in dry:
         cur = cur + 1 if d else 0
         best = max(best, cur)

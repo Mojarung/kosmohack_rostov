@@ -107,11 +107,13 @@ def _region_note(region: dict) -> tuple[str, list[str]]:
         return "unknown", []
     z, share, n = region["region_z"], region["share_polygons_depressed"], region["n_polygons"]
     if z <= REGION_LOW_Z or share >= 0.5:
-        return "regional", [f"соседние поля региона в эти дни тоже ниже нормы (медианный Z {z:.1f}, "
-                            f"ниже нормы {share:.0%} из {n} полей) — явление региональное"]
+        note = (f"соседние поля региона в эти дни тоже ниже нормы (медианный Z {z:.1f}, "
+                f"ниже нормы {share:.0%} из {n} полей) — явление региональное")
+        return "regional", [note]
     if z >= REGION_NORMAL_Z:
-        return "local", [f"другие поля региона в эти дни в норме (медианный Z {z:.1f}, ниже нормы {share:.0%} из {n}) — "
-                         "причина локальная, на самом поле"]
+        note = (f"другие поля региона в эти дни в норме (медианный Z {z:.1f}, ниже нормы {share:.0%} из {n}) — "
+                "причина локальная, на самом поле")
+        return "local", [note]
     return "mixed", [f"соседние поля региона в эти дни чуть ниже нормы (медианный Z {z:.1f})"]
 
 
@@ -128,21 +130,24 @@ def classify(ep: dict, pheno_dev: dict, pheno: dict, weather: dict, artifacts_ne
         return "data_suspect", 0.4, [f"внутри эпизода всего {obs_txt}, рядом {art_txt}"] + context
     if (peak_ratio is not None and peak_ratio >= 0.85 and pheno_dev.get("peak_shift_days", 0) >= ROTATION_PEAK_SHIFT
             and ep["end_doy"] <= 200):
-        return "crop_rotation", 0.7, [f"пик достигнут ({peak_ratio:.0%} нормы), но на {days(pheno_dev['peak_shift_days'])} "
-                                      "позже обычного: на поле яровая культура вместо привычной озимой, весеннее "
-                                      "отставание — смена фазы, а не угнетение"] + context
+        main = (f"пик достигнут ({peak_ratio:.0%} нормы), но на {days(pheno_dev['peak_shift_days'])} "
+                "позже обычного: на поле яровая культура вместо привычной озимой, весеннее "
+                "отставание — смена фазы, а не угнетение")
+        return "crop_rotation", 0.7, [main] + context
     # Обратный севооборот: пик не ниже нормы, но достигнут заметно раньше — озимая вместо привычной яровой.
     # Летний провал после ранней уборки — смена культуры, а не угнетение; раньше это шло в «критическую засуху».
     if (peak_ratio is not None and peak_ratio >= 0.85 and pheno_dev.get("peak_shift_days", 0) <= -ROTATION_PEAK_SHIFT
             and ep["start_doy"] >= 150 and not stress):
-        return "crop_rotation", 0.65, [f"пик достигнут ({peak_ratio:.0%} нормы), но на "
-                                       f"{days(-pheno_dev['peak_shift_days'])} раньше обычного: на поле озимая "
-                                       "вместо привычной яровой, летний спад — ранняя уборка, а не угнетение"] + context
+        main = (f"пик достигнут ({peak_ratio:.0%} нормы), но на {days(-pheno_dev['peak_shift_days'])} "
+                "раньше обычного: на поле озимая вместо привычной яровой, летний спад — ранняя уборка, "
+                "а не угнетение")
+        return "crop_rotation", 0.65, [main] + context
     flat = pheno.get("valid") and (pheno["peak"] < FLAT_PEAK_NDVI or (peak_ratio is not None and peak_ratio < 0.6))
     if flat and ep["start_doy"] <= 165:
         norm_peak = pheno["peak"] / max(peak_ratio, 1e-6) if peak_ratio else float("nan")
-        return "unsown_or_changed", 0.8, [f"пик главного сезона всего {pheno['peak']:.2f} при норме {norm_peak:.2f}: "
-                                          "кривая плоская с весны — поле не засеяно, под паром или занято другой культурой"] + context
+        main = (f"пик главного сезона всего {pheno['peak']:.2f} при норме {norm_peak:.2f}: "
+                "кривая плоская с весны — поле не засеяно, под паром или занято другой культурой")
+        return "unsown_or_changed", 0.8, [main] + context
     # Ранний спад объясняет только эпизоды самого сезона: у октябрьского эпизода аргумент «спад начался
     # раньше обычного» относится к другой, весенней фазе и вводит в заблуждение.
     if (peak_ratio is not None and peak_ratio >= 0.85 and pheno_dev.get("decline_shift_days", 0) <= -EARLY_DECLINE_DAYS
@@ -152,13 +157,15 @@ def classify(ep: dict, pheno_dev: dict, pheno: dict, weather: dict, artifacts_ne
         confidence = _stress_confidence(strength, scope) if stress else 0.6
         return cause, confidence, (notes + main + rnotes) if stress else (main + context)
     if pheno_dev.get("sos_shift_days", 0) >= 15 and ep["start_doy"] <= 150 and (peak_ratio or 0) >= LOW_PEAK_RATIO:
-        return "late_start", 0.6, [f"рост начался на {days(pheno_dev['sos_shift_days'])} позже нормы, "
-                                   f"но пик достигнут ({peak_ratio:.0%} нормы)"] + context
+        main = (f"рост начался на {days(pheno_dev['sos_shift_days'])} позже нормы, "
+                f"но пик достигнут ({peak_ratio:.0%} нормы)")
+        return "late_start", 0.6, [main] + context
     if stress:
         return "weather_drought", _stress_confidence(strength, scope), notes + rnotes
     if scope == "regional":
-        return "weather_drought", 0.5, ["явного дефицита осадков в ERA5 нет, но угнетены все поля региона — "
-                                        "вероятен региональный погодный фактор (заморозки, суховей, град)"] + context
+        main = ("явного дефицита осадков в ERA5 нет, но угнетены все поля региона — "
+                "вероятен региональный погодный фактор (заморозки, суховей, град)")
+        return "weather_drought", 0.5, [main] + context
     if peak_ratio is not None and peak_ratio < LOW_PEAK_RATIO:
         return "weak_season", 0.6 if scope == "local" else 0.55, [f"пик сезона {peak_ratio:.0%} от нормы без явного погодного сигнала"] + context
     return "weak_season", 0.45 if scope == "local" else 0.4, ["погодного сигнала нет; вероятны агротехнические причины"] + context

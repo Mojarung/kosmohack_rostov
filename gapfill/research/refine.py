@@ -137,7 +137,7 @@ def main():
         neural = refined_neural(Path(args.nn), new_context.reset_index(drop=True), new_grid, unresolved)
         unresolved["prior"] = .6 * unresolved.prior + .4 * neural
     unresolved["sigma"] = np.clip(.5 * variance.predict(xu[variance.feature_name()], num_threads=4) + .5 * .035, .015, .15)
-    calibrated, evidence = calibrate(unresolved, new_grid, norms, "robust", .04)
+    calibrated, _evidence = calibrate(unresolved, new_grid, norms, "robust", .04)
     exact = targets_recovered.assign(prior=recovered[TARGET].to_numpy(), pred=recovered[TARGET].to_numpy())
     prediction = pd.concat([calibrated, exact], ignore_index=True)
     prediction.to_parquet(directory / "predictions.parquet")
