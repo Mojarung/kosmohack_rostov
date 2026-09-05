@@ -33,7 +33,7 @@ function areaHa(polygon: GeoJSON.Polygon): number {
   return Math.abs(sum / 2) / 10_000;
 }
 
-/** Прогресс сбора: реального стрима нет, поэтому показываем стадии и прошедшее время. */
+/** Пока API не передаёт прогресс, показываем объём запроса и время ожидания. */
 function CollectProgress({ startedAt }: { startedAt: number }) {
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
@@ -41,40 +41,17 @@ function CollectProgress({ startedAt }: { startedAt: number }) {
     return () => window.clearInterval(timer);
   }, [startedAt]);
 
-  const stages = [
-    { label: "Поиск сцен Sentinel-2", at: 0 },
-    { label: "Landsat 8/9 и маска облаков", at: 35 },
-    { label: "Композиты MODIS", at: 80 },
-    { label: "Погода ERA5 и разбор сезонов", at: 115 },
-  ];
-  const active = stages.filter((stage) => elapsed >= stage.at).length - 1;
-
   return (
-    <div className="card card--sunk stack" style={{ gap: 10 }}>
+    <div className="card card--sunk stack" style={{ gap: 10 }} data-testid="collect-progress">
       <div className="spread">
         <span className="eyebrow">Собираем данные</span>
-        <span className="num meta">{elapsed} с</span>
+        <span className="num meta">{Math.floor(elapsed / 60)} мин {elapsed % 60} с</span>
       </div>
-      <div className="stack" style={{ gap: 6 }}>
-        {stages.map((stage, index) => (
-          <div key={stage.label} className="row" style={{ gap: 8 }}>
-            <span
-              aria-hidden
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: "50%",
-                background: index <= active ? "var(--ink)" : "var(--line-strong)",
-                transition: "background .3s var(--ease)",
-              }}
-            />
-            <span style={{ fontSize: 13, color: index <= active ? "var(--ink)" : "var(--muted)" }}>{stage.label}</span>
-          </div>
-        ))}
-      </div>
+      <span className="meta">{YEARS.start}–{YEARS.end} · сезонов: {YEARS.end - YEARS.start + 1}</span>
+      <span className="meta">Sentinel-2 · Landsat · MODIS · ERA5</span>
       <p className="meta">
-        Обычно занимает 1–3 минуты: для каждого сезона запрашиваются снимки трёх спутников и обрезаются по контуру
-        поля. Страницу можно не перезагружать.
+        Сбор нескольких лет может занять больше 5 минут — время зависит от скорости источников.
+        Дождитесь завершения на этой странице: отчёт откроется автоматически.
       </p>
     </div>
   );
