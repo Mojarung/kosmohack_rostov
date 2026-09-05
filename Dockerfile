@@ -30,11 +30,12 @@ RUN apt-get update     && apt-get install -y --no-install-recommends libgomp1 li
 
 # Зависимости отдельно от кода, чтобы слой кэшировался между сборками.
 # В образ идут только группы, нужные для работы: geo (сбор данных), serve (FastAPI),
-# infer (LightGBM, scikit-learn). Группа ml с CatBoost, XGBoost, Optuna, SHAP и Numba нужна
+# infer (LightGBM, scikit-learn), agent (клиент openai для Ollama Cloud и mcp — без него агент
+# и объяснения работают только по правилам). Группа ml с CatBoost, XGBoost, Optuna, SHAP и Numba нужна
 # только для экспериментов: на Linux она тянет nvidia-* и раздувает образ на десятки гигабайт.
 # --no-cache: иначе загруженные колёса остаются в слое рядом с распакованным venv.
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-cache --group infer --group geo --group serve
+RUN uv sync --frozen --no-dev --no-cache --group infer --group geo --group serve --group agent
 
 # torch ставится отдельно из индекса CPU-сборок: в общем lock-файле линуксовый torch тянет пакеты
 # nvidia-* (несколько гигабайт), а для инференса SeasonNet из models/ достаточно CPU.
