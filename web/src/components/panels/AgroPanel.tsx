@@ -1,4 +1,5 @@
 /** Один погодный график, три показателя; недоступные показатели не предлагаются. */
+import { useState } from "react";
 import type { AgroContext } from "../../api/analytics";
 import { shortDate } from "../../lib/format";
 import { comparison, dayAt, finite, historySpan, metricPoint, number } from "../../lib/metrics";
@@ -18,6 +19,7 @@ export function AgroPanel({ context, loading, error, retry, year, control, hover
   control: RangeControl; hover: number | null; onHover: (time: number | null) => void;
   preferred: WeatherMode; onMode: (mode: WeatherMode) => void;
 }) {
+  const [kolobokEnabled, setKolobokEnabled] = useState(false);
   if (loading || error) return <div className="season-weather" role="status">
     <span className="meta">{loading ? "Загружаем погоду…" : "Погода не загрузилась."}</span>
     {error && <button className="btn btn--sm btn--ghost" onClick={retry}>Повторить загрузку погоды</button>}
@@ -42,9 +44,18 @@ export function AgroPanel({ context, loading, error, retry, year, control, hover
       {finite(point.mean) ? ` · ${comparison(point.value, point.mean, spec.units)}${historySpan(metric)}` : " · истории для сравнения мало"}
     </p>
     <div className="metric-legend"><span style={{ color: spec.color }}>● {year}</span>
-      {history && <span>━ Среднее{historySpan(metric) || " прошлых лет"} · полоса 10–90%</span>}</div>
+      {history && <span>━ Среднее{historySpan(metric) || " прошлых лет"} · полоса 10–90%</span>}
+      {mode === "rain" && <button type="button" className="kolobok-toggle"
+        aria-pressed={kolobokEnabled} title={kolobokEnabled ? "Спрятать колобка" : "Покатить колобка"}
+        onClick={() => setKolobokEnabled(enabled => !enabled)}>
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+          <circle cx="5" cy="5" r="3.5" stroke="currentColor" fill={kolobokEnabled ? "currentColor" : "none"} />
+        </svg>
+        Колобок
+      </button>}
+    </div>
     <AgroChart metric={metric} color={spec.color} units={spec.units} year={year}
-      control={control} hover={hover} onHover={onHover} showKolobok={mode === "rain"} />
+      control={control} hover={hover} onHover={onHover} showKolobok={mode === "rain" && kolobokEnabled} />
     <RangeToolbar control={control} />
   </section>;
 }
