@@ -3,8 +3,8 @@
 import type { AgroContext, WeatherMetric } from "../../api/analytics";
 import type { SeasonYear } from "../../api/types";
 import { ms, shortDate } from "../../lib/format";
-import { comparison, dayAt, finite, metricPoint, number } from "../../lib/metrics";
-import { dryPlain, heatPlain, ndviPlain, rainPlain, type Tone } from "../../lib/plain";
+import { comparison, dayAt, finite, historySpan, metricPoint, number } from "../../lib/metrics";
+import { dryPlain, heatPlain, ndviPlain, rainPlain, valueNear, type Tone } from "../../lib/plain";
 
 export type MetricZoom = { chart: "ndvi" | "rain" | "thermal"; from: number; to: number };
 const DAY = 86400000;
@@ -32,7 +32,8 @@ function WeatherCard({ metric, day, id, label, units, plain, onZoom }: {
   const point = metricPoint(metric, day);
   const words = plain(point.value, point.mean);
   return <Metric id={id} label={`${label} · ${point.date ? shortDate(point.date) : "—"}`} phrase={words.text} tone={words.tone}
-    value={number(point.value)} units={units} note={comparison(point.value, point.mean, units).replace("к среднему", "к норме")}
+    value={number(point.value)} units={units}
+    note={comparison(point.value, point.mean, units).replace("к среднему", `к норме${historySpan(metric)}`)}
     onZoom={point.date && finite(point.value) ? () => onZoom({ chart: id === "heat" ? "thermal" : "rain",
       from: id === "heat" ? ms(`${point.date.slice(0, 4)}-04-01`) : ms(point.date) - 29 * DAY,
       to: ms(point.date) }) : undefined} />;
@@ -47,10 +48,15 @@ export function SeasonMetrics({ season, weather, hover, onZoom }: {
     .sort((a, b) => a.date.localeCompare(b.date)).at(-1);
   const target = day ?? latest?.date;
   const value = day ? season.curve.find(p => p.date === day)?.value : latest?.harmonized;
-  const normal = season.norm_mean.find(p => p.date === target)?.value;
-  const greens = ndviPlain(value, normal);
+  const normal = target ? valueNear(season.norm_mean, target) : undefined;
+  const spread = target ? valueNear(season.norm_std, target) : undefined;
+  const greens = ndviPlain(value, normal, spread);
   const dry = weather?.dry_spell;
   const dryWords = dry?.available ? dryPlain(dry.days) : null;
+  // Сезон длится до конца октября, поэтому в текущем году серия «не завершена» по определению.
+  // Вместо пугающего «неполные данные» говорим, до какого дня есть погода.
+  const weatherUntil = weather?.rain.available ? metricPoint(weather.rain, null).date : undefined;
+  const dryNote = dry?.complete ? "" : weatherUntil ? ` · погода до ${shortDate(weatherUntil)}` : " · сезон ещё идёт";
   return <div className="season-metrics" aria-label="Показатели поля">
     <Metric id="ndvi" label={`${day ? "Зелень поля" : "Последний снимок"} · ${target ? shortDate(target) : "—"}`}
       phrase={greens.text} tone={greens.tone}
@@ -62,7 +68,7 @@ export function SeasonMetrics({ season, weather, hover, onZoom }: {
     </>}
     {dry?.available && dryWords && <Metric id="dry" label="Самый долгий сухой период" phrase={dryWords.text} tone={dryWords.tone}
       value={`${dry.days} дн.`}
-      note={dry.start && dry.end ? `${shortDate(dry.start)} — ${shortDate(dry.end)}${dry.complete ? "" : " · неполные данные"}` : "сухих дней не было"}
+      note={dry.start && dry.end ? `${shortDate(dry.start)} — ${shortDate(dry.end)}${dryNote}` : "сухих дней не было"}
       onZoom={dry.start && dry.end ? () => onZoom({ chart: "rain", from: ms(dry.start!) - 3 * DAY, to: ms(dry.end!) + 3 * DAY }) : undefined} />}
   </div>;
 }

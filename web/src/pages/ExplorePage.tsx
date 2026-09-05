@@ -7,7 +7,7 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { api } from "../api/client";
 import type { CollectSource, OsmField, PolygonDetail } from "../api/types";
-import { severityTone } from "../lib/format";
+import { plural, severityTone } from "../lib/format";
 import { FieldArt, SearchFieldsArt } from "../components/art/Art";
 import { SeasonPanel } from "../components/panels/SeasonPanel";
 import { ErrorNote } from "../components/ui/Loader";
@@ -185,11 +185,11 @@ export default function ExplorePage() {
           <span className="head-facts">
             <span className="head-fact">
               <span className="num">{Object.keys(detail.years).length}</span>
-              <span className="eyebrow">сезонов собрано</span>
+              <span className="eyebrow">{plural(Object.keys(detail.years).length, "сезон собран", "сезона собрано", "сезонов собрано")}</span>
             </span>
             <span className="head-fact">
               <span className="num">{detail.episodes.length}</span>
-              <span className="eyebrow">эпизодов</span>
+              <span className="eyebrow">{plural(detail.episodes.length, "эпизод", "эпизода", "эпизодов")}</span>
             </span>
           </span>
         </div>
@@ -294,8 +294,8 @@ export default function ExplorePage() {
                 <div className="stack" style={{ gap: 1, minWidth: 0 }}>
                   <span className="saved-name">{item.name}</span>
                   <span className="meta" style={{ fontSize: 11 }}>
-                    {item.years.length ? `${item.years[0]}–${item.years.at(-1)}` : "нет сезонов"} · эпизодов{" "}
-                    {item.n_episodes}
+                    {item.years.length ? `${item.years[0]}–${item.years.at(-1)}` : "нет сезонов"} · {item.n_episodes}{" "}
+                    {plural(item.n_episodes, "эпизод", "эпизода", "эпизодов")}
                   </span>
                 </div>
                 <div className="row" style={{ gap: 6 }}>

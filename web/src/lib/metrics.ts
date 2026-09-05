@@ -11,7 +11,16 @@ export function metricPoint(metric: WeatherMetric, day: string | null) {
   return { date: metric.date[i], value: metric.value[i], mean: metric.mean[i] };
 }
 export function comparison(value: unknown, mean: unknown, units = "", digits = 1) {
-  return finite(value) && finite(mean)
-    ? `${value - mean > 0 ? "+" : ""}${number(value - mean, digits)} ${units} к среднему`.replace("  ", " ")
-    : "Нет оценки для сравнения";
+  if (!finite(value) || !finite(mean)) return "Нет оценки для сравнения";
+  const diff = number(value - mean, digits);
+  if (diff === "0" || diff === "-0") return "на уровне среднего";   // «+0 к среднему» выглядит как ошибка
+  return `${value - mean > 0 ? "+" : ""}${diff} ${units} к среднему`.replace("  ", " ");
+}
+
+/** Годы, по которым посчитан ориентир: « за 1996–2025»; пусто, если истории нет. */
+export function historySpan(metric: WeatherMetric): string {
+  const years = metric.history_years ?? [];
+  if (!years.length) return "";
+  const first = Math.min(...years), last = Math.max(...years);
+  return first === last ? ` за ${first}` : ` за ${first}–${last}`;
 }

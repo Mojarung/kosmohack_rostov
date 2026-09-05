@@ -34,6 +34,27 @@ interface SeasonChartProps {
   raw?: boolean;
 }
 
+/** Допустимый суточный скачок нормы: среднее нескольких гладких кривых так резко не меняется. */
+const NORM_MAX_DAILY_STEP = 0.03;
+/** Сколько дней у каждого края сезона проверяем на скачки. */
+const NORM_EDGE_DAYS = 7;
+
+/** Обрезает края нормы, где она собрана не по всем годам и потому скачет день ото дня.
+ *
+ *  В первые и последние дни сезона часть кривых прошлых лет ещё ненадёжна и в среднее
+ *  не входит, поэтому норма у краёв «ступенчатая» (0,24 → 0,37 за сутки). Отрезаем край
+ *  до последнего скачка в пределах недели. Детектор это не трогает: Z уже посчитан
+ *  на сервере, здесь только не рисуем ступеньки на графике. */
+function trimNormEdges(points: { date: string; value: number }[]): { date: string; value: number }[] {
+  const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date));
+  const jumpy = (i: number) => Math.abs(sorted[i].value - sorted[i - 1].value) > NORM_MAX_DAILY_STEP;
+  let start = 0;
+  for (let i = 1; i < Math.min(sorted.length, NORM_EDGE_DAYS); i += 1) if (jumpy(i)) start = i;
+  let end = sorted.length;
+  for (let i = Math.max(start + 1, sorted.length - NORM_EDGE_DAYS); i < sorted.length; i += 1) if (jumpy(i)) { end = i - 1; break; }
+  return sorted.slice(start, end);
+}
+
 /** Ежедневная сетка дат сезона и значения кривой/нормы, выровненные по ней. */
 function useSeasonGrid(season: SeasonYear) {
   return useMemo(() => {
@@ -42,7 +63,7 @@ function useSeasonGrid(season: SeasonYear) {
     season.norm_mean.forEach((p) => keys.add(p.date));
     const dates = [...keys].sort();
     const curveMap = new Map(season.curve.map((p) => [p.date, p.value]));
-    const normMap = new Map(season.norm_mean.map((p) => [p.date, p.value]));
+    const normMap = new Map(trimNormEdges(season.norm_mean).map((p) => [p.date, p.value]));
     const stdMap = new Map(season.norm_std.map((p) => [p.date, p.value]));
     return {
       dates: dates.map(localDate),

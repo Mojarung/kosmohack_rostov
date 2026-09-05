@@ -58,11 +58,19 @@ function percentOff(value: number, normal: number): number | null {
   return Math.round(((value - normal) / normal) * 100);
 }
 
-/** Фраза про зелень поля: «Зелени на 16 % меньше, чем обычно в это время». */
-export function ndviPlain(value: number | undefined, normal: number | undefined): { text: string; tone: Tone } {
+/** Фраза про зелень поля: «Зелени на 16 % меньше, чем обычно в это время».
+ *
+ *  `spread` — разброс истории на эту дату (norm_std). Пока отклонение меньше одного разброса,
+ *  процент не пугает: после уборки NDVI 0,12 против 0,21 — это «на 40 % меньше», хотя для
+ *  голого поля такая разница обычна. Тон и фраза тогда спокойные, число остаётся в карточке. */
+export function ndviPlain(value: number | undefined, normal: number | undefined, spread?: number): { text: string; tone: Tone } {
   const off = finite(value) && finite(normal) ? percentOff(value, normal) : null;
   if (off === null) return { text: "Не с чем сравнить: мало истории", tone: "ok" };
-  if (Math.abs(off) <= 7) return { text: "Зелени столько же, сколько обычно в это время", tone: "ok" };
+  const withinSpread = finite(spread) && spread > 0 && Math.abs(value! - normal!) < spread;
+  if (withinSpread && normal! < 0.25)
+    return { text: "Зелени мало, но так обычно и бывает в это время", tone: "ok" };
+  if (Math.abs(off) <= 7 || withinSpread)
+    return { text: "Зелени примерно столько же, сколько обычно в это время", tone: "ok" };
   const more = off > 0;
   const text = `Зелени на ${Math.abs(off)} % ${more ? "больше" : "меньше"}, чем обычно в это время`;
   return { text, tone: more ? "ok" : off < -25 ? "crit" : "warn" };
@@ -129,12 +137,28 @@ export interface Verdict {
   advice: string;
 }
 
+/** Значение ряда на дату или на ближайший день в пределах `maxDays`.
+ *
+ *  Норма сезона обрывается на день-два раньше последнего снимка (сетка сезона до 30 октября,
+ *  а у края не все годы надёжны), и без этого последний снимок сезона оставался «не с чем сравнить». */
+export function valueNear(series: { date: string; value: number }[], date: string, maxDays = 3): number | undefined {
+  const exact = series.find(p => p.date === date);
+  if (exact) return exact.value;
+  const target = localDate(date).getTime();
+  const nearest = series
+    .map(p => ({ value: p.value, gap: Math.abs(localDate(p.date).getTime() - target) / 86_400_000 }))
+    .filter(p => p.gap <= maxDays && finite(p.value))
+    .sort((a, b) => a.gap - b.gap)[0];
+  return nearest?.value;
+}
+
 /** Последнее реальное наблюдение сезона и ориентир на ту же дату. */
-export function latestState(season: SeasonYear): { date: string; value: number; normal: number | undefined } | null {
+export function latestState(season: SeasonYear): { date: string; value: number; normal: number | undefined; spread: number | undefined } | null {
   const latest = season.observations.filter(p => !p.artifact && finite(p.harmonized))
     .sort((a, b) => a.date.localeCompare(b.date)).at(-1);
   if (!latest) return null;
-  return { date: latest.date, value: latest.harmonized, normal: season.norm_mean.find(p => p.date === latest.date)?.value };
+  return { date: latest.date, value: latest.harmonized,
+    normal: valueNear(season.norm_mean, latest.date), spread: valueNear(season.norm_std, latest.date) };
 }
 
 /** Эпизод, который ещё идёт на дату последнего наблюдения (или закончился за неделю до неё). */
@@ -151,7 +175,7 @@ export function seasonVerdict(season: SeasonYear, episodes: Episode[], trend?: D
   const worst = [...episodes].sort((a, b) => a.min_z - b.min_z)[0];
   const real = episodes.filter(e => e.cause !== "crop_rotation" && e.cause !== "data_suspect");
   const current = ongoing(real, state?.date);
-  const greens = ndviPlain(state?.value, state?.normal);
+  const greens = ndviPlain(state?.value, state?.normal, state?.spread);
   const trendText = trendPlain(trend);
 
   const history = [...episodes].sort((a, b) => a.start.localeCompare(b.start)).map(e => episodeSentence(e));
