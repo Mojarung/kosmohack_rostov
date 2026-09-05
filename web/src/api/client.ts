@@ -5,6 +5,7 @@ import type {
   Episode,
   Meta,
   OsmField,
+  PlaceResult,
   PolygonDetail,
   PolygonSummary,
   Summary,
@@ -27,6 +28,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: init?.body ? { "Content-Type": "application/json", ...init?.headers } : init?.headers,
   });
+  const contentType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() ?? "";
+  if (contentType !== "application/json" && !contentType.endsWith("+json")) {
+    throw new Error(contentType === "text/html"
+      ? "Сервер вернул страницу вместо данных. Перезапустите сервер приложения и обновите страницу."
+      : `Сервер вернул ответ в неизвестном формате (HTTP ${response.status}). Повторите запрос.`);
+  }
   if (!response.ok) {
     let detail = response.statusText;
     try {
@@ -41,6 +48,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  places: (query: string, signal?: AbortSignal) =>
+    request<PlaceResult[]>(`/api/places?q=${encodeURIComponent(query)}`, { signal }),
   polygons: () => request<PolygonSummary[]>("/api/polygons"),
   polygon: (pid: string) => request<PolygonDetail>(`/api/polygon/${encodeURIComponent(pid)}`),
   agro: (pid: string, year: number, signal?: AbortSignal) =>

@@ -773,6 +773,18 @@
   grid-template-columns: minmax(0, 1fr) minmax(290px, 360px);
 }
 
+@media (max-width: 860px) {
+  .workspace--explore {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: max(420px, 55dvh) auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .workspace--explore > .workspace-side {
+    overflow: visible;
+  }
+}
+
 .step {
   display: flex;
   flex-direction: column;

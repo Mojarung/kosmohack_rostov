@@ -169,3 +169,11 @@ export interface CollectProgressState {
   sources: Record<string, CollectSource>;
   log: string[];
 }
+export interface PlaceResult {
+  id: string;
+  label: string;
+  center: [number, number];
+  bbox: [number, number, number, number] | null;
+  address: Record<string, string>;
+  kind: string;
+}
