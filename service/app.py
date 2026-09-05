@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from service import polygons as user_polygons
 from service.data import Store
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -121,9 +122,33 @@ def analyze(req: AnalyzeRequest) -> JSONResponse:
         _pool = ProcessPoolExecutor(max_workers=1)
     try:
         result = _pool.submit(_run_collect, req.geometry, req.name, req.start_year, req.end_year).result(timeout=1200)
-        return JSONResponse(result)
     except Exception as exc:        # ошибки внешних API отдаём пользователю понятным текстом
         raise HTTPException(502, f"не удалось собрать данные: {type(exc).__name__}: {exc}") from exc
+    entry = user_polygons.save(result, req.name)      # поле попадает в набор пользователя
+    return JSONResponse(result | {"uid": entry["uid"], "name": entry["name"]})
+
+
+@app.get("/api/user-polygons")
+def list_user_polygons() -> list[dict]:
+    """Набор полигонов пользователя: имя, геометрия, сводка по эпизодам и состояние последнего сезона."""
+    return user_polygons.list_saved()
+
+
+@app.get("/api/user-polygons/{uid}")
+def get_user_polygon(uid: str) -> dict:
+    """Сохранённый результат анализа (без повторного сбора данных)."""
+    result = user_polygons.load(uid)
+    if result is None:
+        raise HTTPException(404, "полигон не найден")
+    return result
+
+
+@app.delete("/api/user-polygons/{uid}")
+def delete_user_polygon(uid: str) -> dict:
+    """Удаление полигона из набора."""
+    if not user_polygons.delete(uid):
+        raise HTTPException(404, "полигон не найден")
+    return {"deleted": uid}
 
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

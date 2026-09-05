@@ -16,9 +16,12 @@
 - Сделан EDA: модули `eda/*.py` (запуск `uv run python -m eda.run_all`, 36 графиков и `reports/eda/summary.json`), отчёт `docs/08-eda-report.md`.
 - Первый проход EDA (скрипты `eda/v1/`, заметки `docs/11-eda-v1-notes.md`) и дашборд `reports/dashboard/dashboard.html` влиты в общую ветку; сверка двух EDA — `docs/10-branch-comparison.md`.
 - Обзор моделей, пакетов и источников данных — `docs/09-open-source-landscape.md`.
-- **Задача 1 решена первым проходом**: пакет `gapfill/` (признаки → LightGBM + SeasonNet → смесь 0.5/0.5), `submission.csv` в корне.
-  Валидация (15 % известных точек train+test как контрольные): смесь RMSE 0.055, под состав test 0.062 (GapScore ≈ 11), baseline 0.092.
-  Метод — `docs/12-gapfill-model.md`, журнал — `experiments/README.md`. Кэш признаков и модели — `artifacts/` (не в git).
+- **Задача 1 решена**: пакет `gapfill/` (признаки → LightGBM + SeasonNet → смесь 0.5/0.5), `submission.csv` в корне.
+  **Вторая версия test** (2026-09-05, `data/test_features_new.csv`: 20 полигонов, 2010–2024, 2 323 точки) — цель;
+  первая версия `data/test_dataset.csv` — только дополнительные известные точки (`EXTRA_PATHS`, split `extra`), её
+  submission лежит в `reports/gapfill/`. Валидация на новых данных (exp-007): смесь RMSE 0.054, на страте test 0.056
+  (GapScore ≈ 13), baseline 0.093. Метод — `docs/12-gapfill-model.md`, журнал — `experiments/README.md`.
+  Кэш признаков и модели — `artifacts/` (не в git); ключ кэша включает отпечаток данных (`data_tag`).
 - Ключевые находки для модели: известные точки test — легальные обучающие данные; «шум дня» других полигонов
   (corr остатков 0.32–0.48) и веса похожести полигонов вместо координат; MODIS = среднее S2/Landsat за [d, d+15];
   потолок — усечённый RMSE ≈ 0.041 (шум одного наблюдения), 1.2 % выбросов target дают 43 % ошибки.
@@ -30,13 +33,16 @@
 - **Веб-сервис** — `service/` (FastAPI `service.app:app`, UI `service/static/index.html`, сбор данных для новых полигонов
   `service/collect.py`: Earth Search S2, Planetary Computer Landsat/MODIS, Open-Meteo ERA5, OSM Overpass; анализ `service/analyze_new.py`).
   Запуск `uv run uvicorn service.app:app --port 8000`. Готовые веса в `models/` (инференс без обучения — `gapfill.predict_saved`),
-  `Dockerfile`, сводный отчёт `docs/14-research-report.md`.
-- Не сделано: презентация; LLM-объяснения не проверены (нет ключа); сборка Docker не проверена (демон не запущен).
-  Сбор данных для нового поля проверен: 7 сезонов за ~3 мин (exp-104).
+  `Dockerfile`, сводный отчёт `docs/14-research-report.md`. Набор полигонов пользователя — `service/polygons.py`
+  (`artifacts/service/polygons/`, API `/api/user-polygons`, карточка «Мои поля», цвет контура на карте по тяжести).
+- Сверка с ТЗ по пунктам — `docs/07-submission-checklist.md` (статусы 2026-09-05); вопросы к экспертам и трекерам — `docs/15-consultation-questions.md`.
+- Не сделано: презентация; LLM-объяснения не проверены (нет ключа); сборка Docker не проверена (демон не запущен);
+  сверка с ответами организаторов к первой версии test — ждём файл. Сбор данных для нового поля проверен: 7 сезонов за ~3 мин (exp-104).
 
 ## Неочевидное про данные
 
-- Тестовый файл у нас называется `data/test_dataset.csv`, а в ТЗ он `private_features.csv` — это один и тот же файл (см. `docs/03-data.md`).
+- `private_features.csv` из ТЗ — это `data/test_features_new.csv` (вторая версия, по ней метрика); `data/test_dataset.csv` — первая
+  версия, больше не оценивается (см. `docs/03-data.md`). В новой версии нет колонок `ndvi_climatology_*`, у 6 из 20 полигонов нет ERA5.
 - **Координат полей в данных нет**, только анонимные `AOI-xxxx`. Контуры из OSM/WorldCereal не с чем связать; карта в сервисе — для новых территорий.
 - `primary_ndvi` = coalesce(S2 → Landsat → MODIS). Сенсоры смещены: Landsat +0.037, MODIS +0.083 к S2. Сенсор скрытой точки угадывается по расписанию съёмки (MODIS на сетке doy 97, 113, …, шаг 16; S2 шаг 5; Landsat шаг 8) — правило в `eda/cycles.py` даёт 92 %.
 - Baseline «среднее соседей» RMSE 0.093 (GapScore 2.0); глобальная сенсорная коррекция без обучения — 0.084 (GapScore 4.9); потолок при идеальной коррекции около 0.065. Ошибка не зависит от расстояния до соседа, 4.5 % крупных промахов дают 40 % всей ошибки.

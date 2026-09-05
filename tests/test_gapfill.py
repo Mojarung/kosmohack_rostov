@@ -4,9 +4,43 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from gapfill.data import gap_score, make_mask, rmse
+from gapfill.data import data_tag, gap_score, load_all, make_mask, rmse
 from gapfill.data import testlike_rmse as weighted_rmse
 from gapfill.smooth import local_linear
+
+COLUMNS = ["anon_polygon_id", "date", "s2_ndvi", "s2_evi", "s2_ndwi", "landsat_ndvi", "landsat_evi", "landsat_ndwi",
+           "modis_ndvi", "modis_evi", "era5_temp_c", "era5_precip_mm", "year", "primary_ndvi", "doy",
+           "n_reference_years", "is_synthetic_gap", "crop_type"]
+
+
+def _rows(pid: str, dates: list[str], values: list[float | None], gap: list[bool]) -> pd.DataFrame:
+    """Мини-датасет в формате организаторов: известная точка — значение S2, контрольная — всё пусто."""
+    rows = []
+    for d, v, g in zip(dates, values, gap):
+        row = dict.fromkeys(COLUMNS)
+        row.update({"anon_polygon_id": pid, "date": d, "is_synthetic_gap": g, "crop_type": "зерновые"})
+        if v is not None and not g:
+            row.update({"s2_ndvi": v, "primary_ndvi": v, "year": int(d[:4])})
+        rows.append(row)
+    return pd.DataFrame(rows, columns=COLUMNS)
+
+
+def test_load_all_extra_file_gives_context_but_not_gaps(tmp_path):
+    """Известные точки дополнительного файла попадают в obs, его контрольные точки не предсказываются,
+    при совпадении полигон+дата приоритет у основного test."""
+    train = _rows("AOI-A", ["2020-05-01", "2020-05-06"], [0.5, 0.6], [False, False])
+    test = _rows("AOI-B", ["2020-05-01", "2020-05-06", "2020-05-11"], [0.4, None, 0.45], [False, True, False])
+    extra = _rows("AOI-B", ["2020-05-11", "2020-05-16", "2020-05-21"], [0.9, None, 0.5], [False, True, False])
+    paths = [tmp_path / f"{n}.csv" for n in ("train", "test", "extra")]
+    for p, df in zip(paths, (train, test, extra)):
+        df.to_csv(p, index=False, encoding="utf-8")
+    obs, grid, gaps = load_all(*paths[:2], extra_paths=[paths[2]])
+    assert len(gaps) == 1 and gaps["pid"].iloc[0] == "AOI-B" and gaps["split"].iloc[0] == "test"
+    assert sorted(obs["split"].unique()) == ["extra", "test", "train"]
+    assert obs.loc[obs["date"] == "2020-05-11", "primary_ndvi"].iloc[0] == pytest.approx(0.45)   # test важнее extra
+    assert int(grid["is_gap"].sum()) == 2 and len(grid) == 7
+    obs_no_extra, _, _ = load_all(*paths[:2], extra_paths=[])
+    assert len(obs_no_extra) == 4 and data_tag(obs_no_extra) != data_tag(obs)
 
 
 def test_local_linear_recovers_line():

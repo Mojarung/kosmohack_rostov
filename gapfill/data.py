@@ -5,10 +5,13 @@
 
 from __future__ import annotations
 
+import hashlib
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
-from gapfill.config import (CROP_CODES, EPOCH, GAP_SHARE, INDEX_COLS, SENSOR_CODE, SENSOR_NDVI,
+from gapfill.config import (CROP_CODES, EPOCH, EXTRA_PATHS, GAP_SHARE, INDEX_COLS, SENSOR_CODE, SENSOR_NDVI,
                             TARGET, TEST_PATH, TRAIN_PATH, WEATHER_COLS)
 
 KEEP = ["pid", "date", "day_num", "year", "doy", "crop", "split", "is_gap", TARGET, *INDEX_COLS, *WEATHER_COLS]
@@ -41,21 +44,36 @@ def sensor_of(df: pd.DataFrame) -> np.ndarray:
     return np.select(conds, list(SENSOR_CODE.values()), default=-1).astype("int8")
 
 
-def load_all(train_path=TRAIN_PATH, test_path=TEST_PATH) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def load_all(train_path=TRAIN_PATH, test_path=TEST_PATH,
+             extra_paths=EXTRA_PATHS) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Возвращает (obs, grid, gaps).
 
-    obs  — все строки с известным primary_ndvi из train и test (без контрольных точек), с кодом сенсора;
-    grid — все строки обоих наборов (нужна ежедневная погода ERA5);
-    gaps — контрольные точки test (is_synthetic_gap = True), которые нужно предсказать.
-    test_path — файл private_features.csv организаторов (в репозитории он назван data/test_dataset.csv).
+    obs  — все строки с известным primary_ndvi из всех файлов (без контрольных точек), с кодом сенсора;
+    grid — все строки всех файлов (нужна ежедневная погода ERA5);
+    gaps — контрольные точки test_path (is_synthetic_gap = True), которые нужно предсказать.
+    test_path  — private_features.csv организаторов (вторая версия: data/test_features_new.csv);
+    extra_paths — файлы того же формата, чьи известные точки идут в контекст и обучение, а контрольные
+                  точки не предсказываются (первая версия test). Отсутствующие файлы пропускаются;
+                  при совпадении полигон+дата приоритет у train, затем test, затем extra.
     """
-    grid = pd.concat([_read(train_path, "train"), _read(test_path, "test")], ignore_index=True)
+    parts = [_read(train_path, "train"), _read(test_path, "test")]
+    parts += [_read(p, "extra") for p in extra_paths if Path(p).exists()]
+    grid = pd.concat(parts, ignore_index=True).drop_duplicates(["pid", "date"], keep="first")
     grid = grid.sort_values(["pid", "date"]).reset_index(drop=True)
     obs = grid.loc[grid[TARGET].notna() & ~grid["is_gap"]].copy()
     obs["sensor"] = sensor_of(obs)
     obs = obs.reset_index(drop=True)
-    gaps = grid.loc[grid["is_gap"]].reset_index(drop=True)
+    gaps = grid.loc[grid["is_gap"] & grid["split"].eq("test")].reset_index(drop=True)
     return obs, grid, gaps
+
+
+def data_tag(obs: pd.DataFrame) -> str:
+    """Короткий отпечаток набора известных точек: ключ кэша признаков, меняется вместе с данными."""
+    h = hashlib.md5()
+    h.update(np.ascontiguousarray(obs["day_num"].to_numpy(np.int64)).tobytes())
+    h.update(np.ascontiguousarray(obs[TARGET].to_numpy(np.float64).round(6)).tobytes())
+    h.update("|".join(obs["pid"].astype(str)).encode("utf-8"))
+    return f"n{len(obs)}_{h.hexdigest()[:8]}"
 
 
 def make_mask(obs: pd.DataFrame, share: float = GAP_SHARE, seed: int = 0) -> np.ndarray:
@@ -90,8 +108,10 @@ def polygon_kinds(obs: pd.DataFrame) -> pd.Series:
     return pd.Series(kinds, name="poly_kind")
 
 
-# Состав контрольных точек test по стратам (тип полигона, год 2025?) — для взвешивания валидации
-TEST_STRATA = {("new_2025only", True): 228, ("new_hist", False): 2187, ("new_hist", True): 233, ("old", True): 464}
+# Состав контрольных точек test по стратам (тип полигона, год 2025?) — для взвешивания валидации.
+# Вторая версия test (2026-09-05): 20 новых полигонов с историей 2010–2024, все 2 323 точки в одной страте.
+# Первая версия: {("new_2025only", True): 228, ("new_hist", False): 2187, ("new_hist", True): 233, ("old", True): 464}.
+TEST_STRATA = {("new_hist", False): 2323}
 
 
 def testlike_rmse(err: np.ndarray, kind: np.ndarray, is_2025: np.ndarray) -> float:

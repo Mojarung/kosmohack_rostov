@@ -1,7 +1,7 @@
 """Инференс из готовых артефактов без обучения: models/ (LightGBM .txt.gz + SeasonNet .pt) → submission.csv.
 
-Запуск: uv run python -m gapfill.predict_saved --input data/test_dataset.csv --output submission.csv --models models
-Контекст для контрольных точек — все известные точки train и входного файла; признаки считаются так же,
+Запуск: uv run python -m gapfill.predict_saved --input data/test_features_new.csv --output submission.csv --models models
+Контекст для контрольных точек — все известные точки train, входного файла и файлов --extra; признаки считаются так же,
 как при обучении (gapfill.features). Смесь: 0.5 · среднее LightGBM + 0.5 · среднее SeasonNet.
 """
 
@@ -15,7 +15,7 @@ import lightgbm as lgb
 import numpy as np
 import torch
 
-from gapfill.config import ROOT, SUBMISSION_PATH, TEST_PATH, TRAIN_PATH
+from gapfill.config import EXTRA_PATHS, ROOT, SUBMISSION_PATH, TEST_PATH, TRAIN_PATH
 from gapfill.data import load_all
 from gapfill.nn_data import EpochInputs, assemble, build_tensors, loo_residual_array
 from gapfill.nn_model import SeasonNet, gap_query_days, predict
@@ -59,10 +59,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Инференс из сохранённых моделей")
     parser.add_argument("--input", type=str, default=str(TEST_PATH), help="private_features.csv")
     parser.add_argument("--train", type=str, default=str(TRAIN_PATH))
+    parser.add_argument("--extra", type=str, nargs="*", default=[str(p) for p in EXTRA_PATHS],
+                        help="файлы с дополнительными известными точками (первая версия test); --extra без значений — не использовать")
     parser.add_argument("--output", type=str, default=str(SUBMISSION_PATH))
     parser.add_argument("--models", type=str, default=str(ROOT / "models"))
     args = parser.parse_args()
-    obs, grid, gaps = load_all(args.train, args.input)
+    obs, grid, gaps = load_all(args.train, args.input, args.extra)
     models_dir = Path(args.models)
     p_lgb = predict_lgb(models_dir, obs, grid, gaps)
     p_nn = predict_nn(models_dir, obs, grid, gaps)

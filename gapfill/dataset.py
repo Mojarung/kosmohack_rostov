@@ -1,8 +1,8 @@
 """Кэшированные обучающие и валидационные примеры.
 
-Признаки детерминированы по (версия признаков, seed валидационной маски, seed и номер обучающей маски),
-поэтому считаются один раз и складываются в artifacts/features/*.parquet. При изменении признаков
-увеличить FEATURE_VERSION.
+Признаки детерминированы по (версия признаков, отпечаток данных, seed валидационной маски, seed и номер
+обучающей маски), поэтому считаются один раз и складываются в artifacts/features/*.parquet. При изменении
+признаков увеличить FEATURE_VERSION; при смене входных файлов ключ меняется сам (data_tag).
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 from gapfill.config import ARTIFACTS_DIR, TARGET
-from gapfill.data import make_mask, polygon_kinds
+from gapfill.data import data_tag, make_mask, polygon_kinds
 from gapfill.features import build_features, sensor_prior_features
 
 FEATURE_VERSION = 2
@@ -22,8 +22,8 @@ CACHE_DIR = ARTIFACTS_DIR / "features"
 META = ["pid", "date", "day_num", "year", "doy", "split", "sensor", TARGET]
 
 
-def _key(val_seed: int | None, seed: int | None = None, k: int | None = None) -> str:
-    part = f"v{FEATURE_VERSION}_val{'none' if val_seed is None else val_seed}"
+def _key(tag: str, val_seed: int | None, seed: int | None = None, k: int | None = None) -> str:
+    part = f"v{FEATURE_VERSION}_{tag}_val{'none' if val_seed is None else val_seed}"
     return part if seed is None else f"{part}_s{seed}_m{k}"
 
 
@@ -51,7 +51,7 @@ def _examples(targets: pd.DataFrame, context: pd.DataFrame, grid: pd.DataFrame) 
 
 def val_examples(obs: pd.DataFrame, grid: pd.DataFrame, val_seed: int) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Валидационные точки (маска val_seed) с признаками по остальным известным точкам."""
-    key = _key(val_seed)
+    key = _key(data_tag(obs), val_seed)
     cached = _load(key)
     if cached is None:
         val_mask = make_mask(obs, seed=val_seed)
@@ -66,9 +66,10 @@ def train_examples(obs: pd.DataFrame, grid: pd.DataFrame, val_seed: int | None, 
     """Обучающие примеры: n_masks масок по контексту (obs без валидационной маски, если val_seed задан)."""
     base = obs if val_seed is None else obs.loc[~make_mask(obs, seed=val_seed)]
     base = base.reset_index(drop=True)
+    tag = data_tag(obs)
     xs, metas = [], []
     for k in range(n_masks):
-        key = _key(val_seed, seed, k)
+        key = _key(tag, val_seed, seed, k)
         cached = _load(key)
         if cached is None:
             t0 = time.time()

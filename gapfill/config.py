@@ -5,7 +5,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 TRAIN_PATH = DATA_DIR / "train_dataset.csv"
-TEST_PATH = DATA_DIR / "test_dataset.csv"
+# Вторая версия private_features.csv (обновление организаторов 2026-09-05): 20 полигонов, история 2010–2024
+TEST_PATH = DATA_DIR / "test_features_new.csv"
+# Первая версия test: используется только как известные точки (контекст и обучение), её контрольные точки
+# больше не оцениваются и не предсказываются
+EXTRA_PATHS = (DATA_DIR / "test_dataset.csv",)
 ARTIFACTS_DIR = ROOT / "artifacts"          # модели, признаки, промежуточные файлы (не в git)
 SUBMISSION_PATH = ROOT / "submission.csv"
 
@@ -28,7 +32,7 @@ CYCLE_PERIOD = {"s2": 5, "landsat": 8}
 MODIS_GRID_DOY = tuple(range(1, 366, 16))   # 1, 17, 33, …, 97, 113, …, 289, 305, …
 MODIS_WINDOW = 15                            # композит MOD13Q1 датирован началом окна [d, d+15]
 
-# Доля контрольных точек среди исходно известных в test (3 112 / 20 753)
+# Доля контрольных точек среди исходно известных в test (3 112 / 20 753 в первой версии, 2 323 / 15 487 во второй)
 GAP_SHARE = 0.15
 
 # Полосы ядра локальной линейной регрессии (дни)

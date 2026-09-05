@@ -17,13 +17,15 @@ from anomaly.config import REPORT_DIR
 from anomaly.detect import z_series
 from anomaly.series import curves_by_year, harmonized_series
 from anomaly.weather import daily_weather
-from gapfill.config import CROP_CODES, SUBMISSION_PATH
+from gapfill.config import CROP_CODES, ROOT, SUBMISSION_PATH
 from gapfill.data import load_all, polygon_kinds
 
 CROP_NAMES = {v: k for k, v in CROP_CODES.items()}
 SENSOR_NAMES = {0: "Sentinel-2", 1: "Landsat", 2: "MODIS"}
-KIND_NAMES = {"old": "полигон train (история 2010–2024, 2025 в test)", "new_hist": "полигон test с историей",
-              "new_2025only": "полигон test, только сезон 2025"}
+KIND_NAMES = {"old": "полигон train (история 2010–2024, сезон 2025 из первой версии test)",
+              "new_hist": "полигон test с историей", "new_2025only": "полигон test, только сезон 2025"}
+# Предсказания для контрольных точек первой версии test (их показываем как восстановленные, но не оцениваем)
+EXTRA_SUBMISSIONS = sorted((ROOT / "reports" / "gapfill").glob("submission_*.csv"))
 
 
 class Store:
@@ -44,10 +46,17 @@ class Store:
         return pd.read_csv(path) if path.exists() else pd.DataFrame()
 
     def _read_submission(self) -> pd.DataFrame:
-        if not SUBMISSION_PATH.exists():
+        """Восстановленные значения контрольных точек: submission.csv (текущий test) плюс старые версии;
+        оставляем только строки, которые действительно являются контрольными точками в данных."""
+        frames = []
+        for path in [SUBMISSION_PATH, *EXTRA_SUBMISSIONS]:
+            if path.exists():
+                sub = pd.read_csv(path).rename(columns={"anon_polygon_id": "pid", "primary_ndvi_pred": "value"})
+                frames.append(sub.assign(date=pd.to_datetime(sub["date"])))
+        if not frames:
             return pd.DataFrame(columns=["pid", "date", "value"])
-        sub = pd.read_csv(SUBMISSION_PATH).rename(columns={"anon_polygon_id": "pid", "primary_ndvi_pred": "value"})
-        return sub.assign(date=pd.to_datetime(sub["date"]))
+        sub = pd.concat(frames, ignore_index=True).drop_duplicates(["pid", "date"], keep="first")
+        return sub.merge(self.grid.loc[self.grid["is_gap"], ["pid", "date"]], on=["pid", "date"], how="inner")
 
     def crop_norm_for(self, pid: str):
         """Норма по культуре (для полигонов без истории), считается один раз по всем полигонам."""
@@ -68,7 +77,7 @@ class Store:
                         "n_episodes": int(len(eps)),
                         "n_critical": int((eps["severity"] == "критическая").sum()) if len(eps) else 0,
                         "has_weather": bool(self.grid.loc[self.grid["pid"] == pid, "era5_temp_c"].notna().any()),
-                        "n_gaps": int((self.gaps["pid"] == pid).sum())})
+                        "n_gaps": int((self.restored["pid"] == pid).sum())})
         return out
 
     @lru_cache(maxsize=128)

@@ -15,7 +15,7 @@ import pandas as pd
 import torch
 from torch import nn
 
-from gapfill.config import ARTIFACTS_DIR, RANDOM_SEED, SENSOR_CODE, TARGET
+from gapfill.config import ARTIFACTS_DIR, EXTRA_PATHS, RANDOM_SEED, SENSOR_CODE, TARGET, TEST_PATH, TRAIN_PATH
 from gapfill.data import gap_score, load_all, make_mask, polygon_kinds, rmse, testlike_rmse
 from gapfill.nn_data import N_CHANNELS, EpochInputs, SeasonTensors, assemble, build_tensors, loo_residual_array
 
@@ -120,7 +120,7 @@ def train(args: argparse.Namespace) -> dict:
     torch.manual_seed(RANDOM_SEED + args.seed)
     rng = np.random.default_rng(RANDOM_SEED + args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    obs, grid, gaps = load_all()
+    obs, grid, gaps = load_all(args.train, args.input, args.extra)
     meta = obs.assign(poly_kind=obs["pid"].map(polygon_kinds(obs)).astype(str), is_2025=obs["year"].eq(2025))
     t = build_tensors(obs, grid)
     val_mask = np.zeros(len(obs), bool) if args.final else make_mask(obs, seed=args.val_seed)
@@ -209,6 +209,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--val-seed", type=int, default=777)
     parser.add_argument("--out", type=str, default="nn_v1")
     parser.add_argument("--final", action="store_true", help="обучение без валидации и предсказание контрольных точек")
+    parser.add_argument("--input", type=str, default=str(TEST_PATH), help="private_features.csv организаторов")
+    parser.add_argument("--train", type=str, default=str(TRAIN_PATH), help="train_dataset.csv")
+    parser.add_argument("--extra", type=str, nargs="*", default=[str(p) for p in EXTRA_PATHS],
+                        help="файлы с дополнительными известными точками (первая версия test)")
     return parser.parse_args(argv)
 
 

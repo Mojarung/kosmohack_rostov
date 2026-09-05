@@ -26,6 +26,10 @@
   .poly { padding:7px 8px; border-radius:6px; cursor:pointer; display:flex; justify-content:space-between; gap:8px; }
   .poly:hover { background:#f1efe6; } .poly.active { background:#e5efe7; }
   .poly .meta { color:var(--muted); font-size:12px; }
+  .poly button.del { border:0; background:transparent; color:var(--muted); cursor:pointer; font-size:15px; padding:0 4px; align-self:flex-start; }
+  .poly button.del:hover { color:var(--crit); }
+  .maplegend { font-size:12px; color:var(--muted); margin-top:6px; }
+  .maplegend i { display:inline-block; width:12px; height:12px; border-radius:3px; margin:0 3px 0 8px; vertical-align:middle; }
   .badge { display:inline-block; padding:1px 7px; border-radius:10px; font-size:12px; color:#fff; }
   .badge.crit { background:var(--crit); } .badge.warn { background:var(--warn); } .badge.ok { background:var(--accent); }
   #map { height:260px; border-radius:8px; }
@@ -65,6 +69,11 @@
         <button class="primary" id="analyze" disabled>Собрать данные и проанализировать</button>
       </div>
       <div id="status">Нарисуйте контур поля на карте или найдите готовые контуры OSM и кликните по полю.</div>
+      <div class="maplegend">Мои поля на карте — состояние последнего сезона:<i style="background:#2f6f3e"></i>норма<i style="background:#e8a33d"></i>умеренное угнетение<i style="background:#c8423f"></i>критическое</div>
+    </div>
+    <div class="card">
+      <h2>Мои поля <span id="savedcount"></span></h2>
+      <div id="saved"></div>
     </div>
     <div class="card">
       <h2>Полигоны кейса</h2>
@@ -100,7 +109,9 @@
   </section>
 </main>
 <script>
-const S = { polys: [], current: null, data: null, year: null, drawn: null };
+const S = { polys: [], current: null, data: null, year: null, drawn: null, saved: [], currentUid: null };
+const STATUS_COLOR = { "критическая": "#c8423f", "умеренная": "#e8a33d", "норма": "#2f6f3e" };
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 const SENSOR_COLOR = { "Sentinel-2": "#2b6cb0", "Landsat": "#805ad5", "MODIS": "#dd6b20" };
 const CAUSE = { weather_drought: "погодный стресс", unsown_or_changed: "не засеяно / другая культура",
   early_decline: "ранний спад", weak_season: "ослабленный сезон", late_start: "поздний старт",
@@ -125,9 +136,41 @@ function renderList() {
 }
 
 async function loadPolygon(pid) {
-  S.current = pid; renderList();
+  S.current = pid; S.currentUid = null; renderList(); renderSaved();
   S.data = await api(`/api/polygon/${pid}`);
   showData(S.data, pid, S.data.crop + " · " + S.data.kind);
+}
+
+// набор полигонов пользователя: список слева и контуры на карте, цвет — состояние последнего сезона
+function renderSaved() {
+  const items = S.saved;
+  savedLayer.clearLayers();
+  savedLayer.addData({ type: "FeatureCollection", features: items.filter(p => p.geometry).map(p => ({ type: "Feature", geometry: p.geometry,
+    properties: { uid: p.uid, name: p.name, status: p.last_year_status, last_year: p.last_year } })) });
+  document.getElementById("savedcount").textContent = items.length ? "· " + items.length : "";
+  const el = document.getElementById("saved");
+  if (!items.length) { el.innerHTML = '<div class="muted">Пока пусто: проанализированные поля сохраняются здесь и на карте.</div>'; return; }
+  el.innerHTML = items.map(p => `
+    <div class="poly ${S.currentUid === p.uid ? "active" : ""}" data-uid="${p.uid}">
+      <div><div>${esc(p.name)} <span class="badge" style="background:${STATUS_COLOR[p.last_year_status] || "#888"}">${p.last_year_status}${p.last_year ? " " + p.last_year : ""}</span></div>
+           <div class="meta">${p.years.length ? p.years[0] + "–" + p.years[p.years.length - 1] : "нет сезонов"} · эпизодов ${p.n_episodes}${p.n_critical ? " · критических " + p.n_critical : ""} · ${p.created_at.slice(0, 16).replace("T", " ")}</div></div>
+      <button class="del" title="удалить из набора" data-uid="${p.uid}">✕</button>
+    </div>`).join("");
+  el.querySelectorAll(".poly").forEach(d => d.onclick = () => loadSaved(d.dataset.uid));
+  el.querySelectorAll(".del").forEach(b => b.onclick = async ev => {
+    ev.stopPropagation();
+    if (!confirm("Удалить поле из набора?")) return;
+    try { await api(`/api/user-polygons/${b.dataset.uid}`, { method: "DELETE" }); } catch (err) { document.getElementById("status").textContent = "Ошибка: " + err.message; }
+    if (S.currentUid === b.dataset.uid) S.currentUid = null;
+    refreshSaved();
+  });
+}
+async function refreshSaved() { try { S.saved = await api("/api/user-polygons"); } catch (err) { S.saved = []; } renderSaved(); }
+async function loadSaved(uid) {
+  const data = await api(`/api/user-polygons/${uid}`);
+  S.current = null; S.currentUid = uid; renderList(); renderSaved();
+  showData(data, data.name, data.kind + (data.collected ? " · " + data.collected : ""));
+  if (data.geometry) map.fitBounds(L.geoJSON(data.geometry).getBounds(), { maxZoom: 14 });
 }
 
 function showData(data, title, subtitle) {
@@ -202,6 +245,9 @@ const drawn = new L.FeatureGroup().addTo(map);
 map.addControl(new L.Control.Draw({ draw: { polygon: { allowIntersection: false, showArea: true }, polyline: false, circle: false, rectangle: true, marker: false, circlemarker: false }, edit: { featureGroup: drawn } }));
 map.on(L.Draw.Event.CREATED, e => { drawn.clearLayers(); drawn.addLayer(e.layer); S.drawn = e.layer.toGeoJSON().geometry;
   document.getElementById("analyze").disabled = false; document.getElementById("status").textContent = "Контур задан. Нажмите «Собрать данные»."; });
+const savedLayer = L.geoJSON(null, { style: f => ({ color: STATUS_COLOR[f.properties.status] || "#2f6f3e", weight: 2.5, fillOpacity: 0.28 }),
+  onEachFeature: (f, layer) => { layer.bindTooltip(`${f.properties.name}: ${f.properties.status}${f.properties.last_year ? " (" + f.properties.last_year + ")" : ""}`);
+    layer.on("click", () => loadSaved(f.properties.uid)); } }).addTo(map);
 const osmLayer = L.geoJSON(null, { style: { color: "#2f6f3e", weight: 1.5, fillOpacity: 0.12 },
   onEachFeature: (f, layer) => layer.on("click", () => { drawn.clearLayers(); S.drawn = f.geometry;
     document.getElementById("name").value = f.properties.name; document.getElementById("analyze").disabled = false;
@@ -222,13 +268,16 @@ document.getElementById("analyze").onclick = async () => {
   try {
     const data = await api("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ geometry: S.drawn, name: document.getElementById("name").value }) });
-    S.current = null; renderList(); showData(data, data.pid, data.kind);
-    document.getElementById("status").textContent = "Готово: " + (data.collected || "");
+    S.current = null; S.currentUid = data.uid || null; renderList();
+    showData(data, data.name || data.pid, data.kind + (data.collected ? " · " + data.collected : ""));
+    await refreshSaved();
+    document.getElementById("status").textContent = "Готово, поле сохранено в «Мои поля»: " + (data.collected || "");
   } catch (err) { document.getElementById("status").textContent = "Ошибка: " + err.message; }
   btn.disabled = false;
 };
 document.getElementById("search").oninput = renderList;
 document.getElementById("sort").onchange = renderList;
+refreshSaved();
 api("/api/polygons").then(p => { S.polys = p; renderList(); const first = [...p].sort((a, b) => b.n_critical - a.n_critical)[0]; if (first) loadPolygon(first.pid); });
 </script>
 </body>
