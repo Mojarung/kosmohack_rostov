@@ -4,8 +4,8 @@
  *  содержимое всплывает, чанк экрана предзагружен (см. App.tsx), поэтому заглушка почти не появляется.
  *  Анимируются только transform и opacity. */
 
-import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { useEffect, useLayoutEffect, useRef, useTransition, type ReactNode } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import gsap from "gsap";
 
 import { BubbleLayer, burstBubbles } from "../motion/Bubbles";
@@ -20,6 +20,29 @@ const NAV = [
 
 /** Оттенки пузырьков внутренних экранов: те же, что на главной. */
 const PALETTE = ["#f6ead6", "#f0e2cc", "#e7eee0", "#e4ecf4", "#fbf4e8"];
+
+/** Вкладка. Переход запускается через startTransition: React дорисовывает новый экран в фоне,
+ *  старый остаётся на месте и кликабельным, поэтому смены вкладки не «проваливается» в пустоту. */
+function Tab({ to, label, onNavigate }: { to: string; label: string; onNavigate: (to: string) => void }) {
+  const { pathname } = useLocation();
+  const active = pathname === to || pathname.startsWith(to + "/");
+  return (
+    <a
+      href={to}
+      className="shell-tab"
+      aria-current={active ? "page" : undefined}
+      onClick={(event) => {
+        // средняя кнопка и клик с модификатором — открыть в новой вкладке, не перехватываем
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        if (!active) onNavigate(to);
+      }}
+    >
+      {label}
+    </a>
+  );
+}
+
 
 /** Пузырь под активной вкладкой: переезжает и растягивается под её ширину. */
 function useMovingPill(pathname: string) {
@@ -59,9 +82,13 @@ function useMovingPill(pathname: string) {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const [isPending, startTransition] = useTransition();
   const previous = useRef(pathname);
   const mainRef = useRef<HTMLElement>(null);
   const { navRef, pillRef } = useMovingPill(pathname);
+
+  const go = (to: string) => startTransition(() => navigate(to));
 
   // всплеск пузырьков и подъём страницы при каждом переходе
   useEffect(() => {
@@ -83,6 +110,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="shell">
       <BubbleLayer count={14} palette={PALETTE} opacity={0.45} intro={false} />
 
+      {/* тонкая полоса сверху, пока новый экран дорисовывается */}
+      <span className={"shell-progress" + (isPending ? " is-on" : "")} aria-hidden />
+
       <header className="shell-header">
         <div className="shell-header-inner">
           <NavLink to="/" className="shell-brand">
@@ -96,9 +126,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <nav ref={navRef} className="shell-nav">
             <span ref={pillRef} className="shell-pill" aria-hidden />
             {NAV.map((item) => (
-              <NavLink key={item.to} to={item.to} className="shell-tab">
-                {item.label}
-              </NavLink>
+              <Tab key={item.to} to={item.to} label={item.label} onNavigate={go} />
             ))}
           </nav>
         </div>

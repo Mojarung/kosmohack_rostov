@@ -1,6 +1,6 @@
 /** Все найденные эпизоды по всем полям: фильтры по году, причине и тяжести. */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
@@ -8,6 +8,10 @@ import { api } from "../api/client";
 import { CAUSE_LABEL, dateRange, plural, severityTone } from "../lib/format";
 import { Reveal } from "../components/motion/Reveal";
 import { ErrorNote, Loader } from "../components/ui/Loader";
+
+/** Сколько строк таблицы показывать сразу и на сколько прибавлять при прокрутке.
+ *  Разом отрисованные шестьсот с лишним эпизодов задерживали переключение вкладки почти на полсекунды. */
+const PAGE = 40;
 
 export default function AnomaliesPage() {
   const [year, setYear] = useState<number | undefined>();
@@ -25,6 +29,21 @@ export default function AnomaliesPage() {
     [summary.data],
   );
   const causes = useMemo(() => Object.keys(summary.data?.by_cause ?? {}), [summary.data]);
+
+  // видимая часть списка; при смене фильтров начинаем сначала
+  const [visible, setVisible] = useState(PAGE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => setVisible(PAGE), [year, cause, severity]);
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setVisible((n) => n + PAGE); },
+      { rootMargin: "300px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [episodes.data]);
   const maxByYear = Math.max(1, ...Object.values(summary.data?.by_year ?? { a: 1 }));
 
   return (
@@ -157,7 +176,7 @@ export default function AnomaliesPage() {
                 </tr>
               </thead>
               <tbody>
-                {episodes.data.map((episode, index) => (
+                {episodes.data.slice(0, visible).map((episode, index) => (
                   <tr key={`${episode.pid}-${episode.start}-${index}`} style={{ borderBottom: "1px solid var(--line)" }}>
                     <td style={{ padding: "9px 12px" }}>
                       <Link to={`/field/${episode.pid}`} className="mono" style={{ textDecoration: "none" }}>
@@ -202,6 +221,11 @@ export default function AnomaliesPage() {
                 ))}
               </tbody>
             </table>
+            {visible < episodes.data.length && (
+              <div ref={sentinelRef} className="meta" style={{ padding: "14px 12px" }}>
+                Показано {visible} из {episodes.data.length}; прокрутите ниже, чтобы догрузить.
+              </div>
+            )}
           </div>
         </>
       )}

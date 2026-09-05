@@ -171,3 +171,37 @@
   .shell-brand-sub { display: none; }
   .shell-tab { padding: 0 11px; font-size: 12.5px; }
 }
+
+/* --- полоса перехода: видна только пока React дорисовывает следующий экран --- */
+
+.shell-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 40;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s var(--ease);
+}
+
+.shell-progress.is-on {
+  opacity: 1;
+}
+
+.shell-progress::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 34%;
+  background: linear-gradient(to right, rgba(33, 29, 23, 0) 0%, var(--ink) 50%, rgba(33, 29, 23, 0) 100%);
+  animation: shell-run 1s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell-progress::after { animation: none; width: 100%; opacity: 0.4; }
+}
