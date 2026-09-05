@@ -33,7 +33,7 @@ function ImageView({ manifest, scene, index, onDate, onIndex }: {
   return <>
     <div className="imagery-controls">
       <label className="row meta">Снимок <select className="input" aria-label="Дата снимка" value={scene.date} onChange={e => onDate(e.target.value)}>
-        {[...manifest.scenes].reverse().map(s => <option key={s.date} value={s.date}>{shortDate(s.date)} {manifest.year}</option>)}
+        {[...manifest.scenes].sort((a, b) => a.date.localeCompare(b.date)).map(s => <option key={s.date} value={s.date}>{shortDate(s.date)} {manifest.year}</option>)}
       </select></label>
       <div className="metric-tabs" role="group" aria-label="Слой карты">
         {(Object.keys(LAYERS) as ImageIndex[]).map(key => <button key={key} type="button" data-image={key}
