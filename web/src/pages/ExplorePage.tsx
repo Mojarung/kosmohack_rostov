@@ -144,7 +144,7 @@ export default function ExplorePage() {
     }
   }
 
-  const detail = opened.data ?? result;
+  const detail = uid ? opened.data : result;
   const area = selection ? areaHa(selection) : 0;
   const savedList = useMemo(() => saved.data ?? [], [saved.data]);
 
@@ -316,7 +316,7 @@ export default function ExplorePage() {
             </div>
             <span className="meta">{Object.keys(detail.years).length} сезонов собрано</span>
           </div>
-          <SeasonPanel detail={detail} />
+          <SeasonPanel key={detail.pid} detail={detail} />
         </section>
       )}
     </div>

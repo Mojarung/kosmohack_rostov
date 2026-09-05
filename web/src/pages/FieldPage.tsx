@@ -24,10 +24,10 @@ export default function FieldPage() {
     <div className="stack" style={{ gap: 18 }}>
       <div className="spread" style={{ flexWrap: "wrap", gap: 12 }}>
         <div className="stack" style={{ gap: 6 }}>
-          <Link to="/" className="meta" style={{ textDecoration: "none" }}>
+          <Link to="/fields" className="meta" style={{ textDecoration: "none" }}>
             ← все поля
           </Link>
-          <h1 style={{ fontSize: 34 }}>{data.pid}</h1>
+          <h1 style={{ fontSize: 34 }}>{data.name || data.pid}</h1>
           <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
             <span className="tag">{data.crop}</span>
             <span className="meta">{data.kind}</span>
@@ -69,7 +69,7 @@ export default function FieldPage() {
         </p>
       )}
 
-      <SeasonPanel detail={data} />
+      <SeasonPanel key={data.pid} detail={data} />
     </div>
   );
 }

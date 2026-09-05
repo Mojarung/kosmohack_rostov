@@ -14,6 +14,7 @@ import { useDrawingArea, useXScale, useYScale } from "@mui/x-charts/hooks";
 
 import type { WeatherYear } from "../../api/types";
 import { BrushLayer } from "./BrushLayer";
+import { PlotClip } from "./PlotClip";
 import type { RangeControl } from "./range";
 
 const X_AXIS = "wx-x";
@@ -98,7 +99,7 @@ export function WeatherChart({ weather, height = 160, control, hover, onHover }:
         {
           id: X_AXIS,
           data: data.dates,
-          scaleType: "time",
+          scaleType: "utc",
           min: new Date(control.view.from),
           max: new Date(control.view.to),
           tickNumber: 6,
@@ -113,8 +114,8 @@ export function WeatherChart({ weather, height = 160, control, hover, onHover }:
         { id: TEMP, position: "right", width: 42, label: "°C" },
       ]}
     >
-      <RainBars dates={data.dates} precip={data.precip} />
-      <LinePlot />
+      <PlotClip><RainBars dates={data.dates} precip={data.precip} />
+      <LinePlot /></PlotClip>
       <ChartsXAxis axisId={X_AXIS} />
       <ChartsYAxis axisId={RAIN} />
       <ChartsYAxis axisId={TEMP} />

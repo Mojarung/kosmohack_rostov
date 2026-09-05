@@ -17,6 +17,7 @@ import { useDrawingArea, useXScale, useYScale } from "@mui/x-charts/hooks";
 import type { Episode, SeasonYear } from "../../api/types";
 import { SENSOR_COLOR, ms } from "../../lib/format";
 import { BrushLayer } from "./BrushLayer";
+import { PlotClip } from "./PlotClip";
 import type { RangeControl } from "./range";
 
 const X_AXIS = "season-x";
@@ -30,6 +31,7 @@ interface SeasonChartProps {
   control: RangeControl;
   hover: number | null;
   onHover: (value: number | null) => void;
+  raw?: boolean;
 }
 
 /** Ежедневная сетка дат сезона и значения кривой/нормы, выровненные по ней. */
@@ -95,14 +97,14 @@ function EpisodeBands({ episodes }: { episodes: Episode[] }) {
 }
 
 /** Исходные наблюдения: круг по сенсору, крест — отбракованный артефакт. */
-function ObservationDots({ season }: { season: SeasonYear }) {
+function ObservationDots({ season, raw = false }: { season: SeasonYear; raw?: boolean }) {
   const xScale = useXScale(X_AXIS);
   const yScale = useYScale(Y_AXIS);
   return (
     <g>
-      {season.observations.map((obs) => {
+      {season.observations.filter(obs => raw || !obs.artifact).map((obs) => {
         const x = xScale(ms(obs.date));
-        const y = yScale(obs.value);
+        const y = yScale(raw ? obs.value : obs.harmonized);
         if (x === undefined || y === undefined) return null;
         const color = SENSOR_COLOR[obs.sensor] ?? "#666";
         const label = `${obs.date} · ${obs.sensor} · ${obs.value.toFixed(3)}${
@@ -110,7 +112,7 @@ function ObservationDots({ season }: { season: SeasonYear }) {
         }`;
         if (obs.artifact) {
           return (
-            <g key={`a${obs.date}`} stroke="#c8423f" strokeWidth={1.5} opacity={0.85}>
+            <g key={`a${obs.date}-${obs.sensor}`} stroke="#c8423f" strokeWidth={1.5} opacity={0.85}>
               <title>{label}</title>
               <line x1={x - 4} y1={y - 4} x2={x + 4} y2={y + 4} />
               <line x1={x - 4} y1={y + 4} x2={x + 4} y2={y - 4} />
@@ -118,7 +120,7 @@ function ObservationDots({ season }: { season: SeasonYear }) {
           );
         }
         return (
-          <circle key={`o${obs.date}`} cx={x} cy={y} r={3.4} fill={color} stroke="#fff" strokeWidth={1}>
+          <circle key={`o${obs.date}-${obs.sensor}`} cx={x} cy={y} r={3.4} fill={color} stroke="#fff" strokeWidth={1}>
             <title>{label}</title>
           </circle>
         );
@@ -148,7 +150,7 @@ function RestoredDots({ season }: { season: SeasonYear }) {
   );
 }
 
-export function SeasonChart({ season, episodes, height = 340, control, hover, onHover }: SeasonChartProps) {
+export function SeasonChart({ season, episodes, height = 300, control, hover, onHover, raw = false }: SeasonChartProps) {
   const grid = useSeasonGrid(season);
   if (grid.dates.length === 0) {
     return <div className="meta">В этом сезоне нет наблюдений.</div>;
@@ -173,7 +175,7 @@ export function SeasonChart({ season, episodes, height = 340, control, hover, on
         {
           type: "line",
           id: "curve",
-          label: "восстановленная кривая",
+          label: "Кривая NDVI",
           data: grid.curve,
           color: "#1a1d16",
           showMark: false,
@@ -185,7 +187,7 @@ export function SeasonChart({ season, episodes, height = 340, control, hover, on
         {
           id: X_AXIS,
           data: grid.dates,
-          scaleType: "time",
+          scaleType: "utc",
           min: new Date(control.view.from),
           max: new Date(control.view.to),
           tickNumber: 6,
@@ -198,11 +200,11 @@ export function SeasonChart({ season, episodes, height = 340, control, hover, on
       yAxis={[{ id: Y_AXIS, min: 0, max: 1, width: 46, tickNumber: 5, valueFormatter: (v: number) => v.toFixed(1) }]}
     >
       <ChartsGrid horizontal />
-      <EpisodeBands episodes={episodes} />
+      <PlotClip><EpisodeBands episodes={episodes} />
       <NormBand band={grid.band} />
       <LinePlot />
-      <ObservationDots season={season} />
-      <RestoredDots season={season} />
+      <ObservationDots season={season} raw={raw} />
+      {raw && <RestoredDots season={season} />}</PlotClip>
       <ChartsXAxis axisId={X_AXIS} />
       <ChartsYAxis axisId={Y_AXIS} label="NDVI" />
       <ChartsTooltip />

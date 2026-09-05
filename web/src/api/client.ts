@@ -9,6 +9,17 @@ import type {
   Summary,
   UserPolygon,
 } from "./types";
+import type { AgroContext, ImageryResponse } from "./analytics";
+
+// Повторное открытие поля во время сбора присоединяется к уже запущенному запросу.
+const collecting = new Map<string, Promise<ImageryResponse>>();
+function collectImagery(pid: string, year: number) {
+  const path = `/api/polygon/${encodeURIComponent(pid)}/imagery?year=${year}`;
+  if (!collecting.has(path)) {
+    collecting.set(path, request<ImageryResponse>(path, { method: "POST" }).finally(() => collecting.delete(path)));
+  }
+  return collecting.get(path)!;
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -31,6 +42,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   polygons: () => request<PolygonSummary[]>("/api/polygons"),
   polygon: (pid: string) => request<PolygonDetail>(`/api/polygon/${encodeURIComponent(pid)}`),
+  agro: (pid: string, year: number, signal?: AbortSignal) =>
+    request<AgroContext>(`/api/polygon/${encodeURIComponent(pid)}/agro?year=${year}`, { signal }),
+  imagery: (pid: string, year: number, signal?: AbortSignal) =>
+    request<ImageryResponse>(`/api/polygon/${encodeURIComponent(pid)}/imagery?year=${year}`, { signal }),
+  collectImagery,
   episodes: (params: { year?: number; cause?: string; severity?: string } = {}) => {
     const query = new URLSearchParams();
     if (params.year) query.set("year", String(params.year));

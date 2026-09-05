@@ -204,7 +204,43 @@ def test_imagery_cache_and_year_validation(service_client, monkeypatch, tmp_path
     {"geometry": {"type": "Point", "coordinates": [39, 47]}},
     {"geometry": {"type": "Polygon", "coordinates": [[[39, 47], [40, 47], [40, 48], [39, 47]]]},
      "start_year": 2025, "end_year": 2019},
+    {"geometry": {"type": "Polygon", "coordinates": [[[39, 47], [39.01, 47], [39.01, 47.01], [39, 47]]]},
+     "start_year": 2025, "end_year": 2025},
 ])
 def test_invalid_collection_inputs_fail_before_collection(service_client, payload):
     """Неверный объект/интервал не попадает в процесс сборщика."""
     assert service_client.post("/api/analyze", json=payload).status_code == 422
+
+
+def test_cors_survives_app_initialization(service_client):
+    """После слияния CORS не должен теряться из-за повторного создания FastAPI."""
+    response = service_client.get("/api/health", headers={"Origin": "http://localhost:5173"})
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+def test_collected_report_is_public_and_has_insights(service_client, monkeypatch, tmp_path):
+    """Новый сбор сразу даёт те же показатели, что повторное открытие поля."""
+    from concurrent.futures import Future
+    from service import field_store, polygons
+    import service.app as module
+
+    monkeypatch.setattr(field_store, "ROOT", tmp_path / "fields")
+    monkeypatch.setattr(polygons, "POLYGONS_DIR", tmp_path / "polygons")
+    geometry = {"type": "Polygon", "coordinates": [[[39, 47], [39.01, 47], [39.01, 47.01], [39, 47]]]}
+    report = {"pid": field_store.field_id(geometry), "geometry": geometry, "years": {"2025": {}},
+              "episodes": [], "_weather": [{"date": "2025-06-01", "era5_precip_mm": 2}]}
+
+    class Pool:
+        def submit(self, *args):
+            result = Future()
+            result.set_result(report)
+            return result
+        def shutdown(self, **kwargs):
+            pass
+    monkeypatch.setattr(module, "_pool", Pool())
+    result = service_client.post("/api/analyze", json={"geometry": geometry}).json()
+    assert "_weather" not in result and "insights" in result
+    reopened = service_client.get(f"/api/user-polygons/{result['uid']}").json()
+    assert reopened["insights"] == result["insights"] and "_weather" not in reopened
+    assert service_client.get(f"/api/polygon/{result['pid']}/agro?year=2025").status_code == 200
+    assert len(service_client.get("/api/user-polygons").json()) == 1

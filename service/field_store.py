@@ -35,6 +35,16 @@ def read_report(pid: str) -> dict | None:
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
 
 
+def delete_report(pid: str) -> bool:
+    """Удаляет отчёт из списка полей; файлы снимков и погоды остаются в кэше."""
+    with LOCK:
+        path = _path(pid, "reports")
+        if not path.exists():
+            return False
+        path.unlink()
+        return True
+
+
 def save_report(report: dict) -> None:
     """Записывает готовый отчёт отдельно от изменяемых пользователем параметров."""
     with LOCK:

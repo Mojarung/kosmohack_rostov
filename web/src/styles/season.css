@@ -1,0 +1,72 @@
+/* Дополнения панели поля в тёплой палитре и типографике основного интерфейса. */
+.season-panel, .season-content, .season-weather { min-width: 0; }
+.season-heading { padding: 14px var(--pad); gap: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+.season-year { font: 22px var(--font-display); }
+.season-years { display: flex; gap: 4px; flex-wrap: wrap; }
+.season-years button { position: relative; padding: 4px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); cursor: pointer; font-size: 12px; }
+.season-years button[aria-pressed=true] { color: white; background: var(--ink); border-color: var(--ink); }
+.season-years button[data-level=moderate] { box-shadow: inset 0 -2px #e8a33d; }
+.season-years button[data-level=critical] { box-shadow: inset 0 -2px #c8423f; }
+.season-content { padding: 16px var(--pad) 0; }
+.season-content h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; margin: 0; }
+.season-content .season-toolbar { padding: 0; }
+.season-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 20px; }
+.season-metric { display: flex; flex-direction: column; min-width: 0; gap: 4px; padding: 12px; background: var(--surface-sunk); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.season-metric > .num { font-size: clamp(19px, 1.8vw, 26px); font-weight: 500; line-height: 1.3; }
+.season-metric small { font-size: .65em; white-space: nowrap; }
+.season-metric .meta { font-size: 11px; }
+.metric-legend { display: flex; flex-wrap: wrap; gap: 5px 14px; margin-top: 10px; color: var(--muted); font-size: 11px; }
+.chart-instruction { font-size: 11px; margin: 0 0 12px; }
+.insight-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.field-insight { min-width: 0; align-self: start; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-sunk); }
+.field-insight > summary { list-style: none; display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; cursor: pointer; }
+.field-insight > summary::-webkit-details-marker { display: none; }
+.field-insight > summary::before { content: none; }
+.field-insight > summary::after { content: "Подробнее ↗"; color: var(--muted); font-size: 10px; margin-top: 3px; }
+.field-insight[open] > summary::after { content: "Свернуть ↑"; }
+.field-insight strong { font-size: 17px; font-weight: 600; line-height: 1.4; }
+.field-insight .meta { font-size: 11px; }
+.field-insight[data-status=worsening] strong { color: var(--crit-ink); }
+.field-insight[data-status=easing] strong, .field-insight[data-status=recovered] strong { color: var(--ok-ink); }
+.insight-evidence { border-top: 1px solid var(--line); padding: 10px 14px; font-size: 12px; color: var(--ink-soft); }
+.insight-evidence p { margin: 0 0 8px; }
+.season-weather { border-top: 1px solid var(--line); margin-top: 16px; padding: 16px 0 12px; }
+.metric-tabs { display: flex; flex-wrap: wrap; gap: 2px; background: var(--surface-sunk); border: 1px solid var(--line); padding: 3px; border-radius: 999px; }
+.metric-tabs button { font: inherit; font-size: 12px; border: 0; background: transparent; color: var(--muted); cursor: pointer; border-radius: 999px; padding: 5px 12px; }
+.metric-tabs button[aria-pressed=true] { background: var(--ink); color: white; }
+.metric-tabs button:disabled { opacity: .45; cursor: default; }
+.weather-description { font-size: 11px; margin: 8px 0 2px; }
+.weather-readout { font-size: 12px; min-height: 20px; margin: 0; color: var(--ink-soft); }
+.metric-help { font-size: 12px; color: var(--muted); }
+.metric-help > summary { cursor: pointer; padding: 5px 0; }
+.metric-help .stack { gap: 8px; padding: 8px 0; max-width: 85ch; }
+.metric-help p { margin: 0; }
+.season-calculation { border-top: 1px solid var(--line); }
+.season-calculation > summary { padding: 14px 0; cursor: pointer; color: var(--muted); font-size: 13px; }
+.season-calculation > .stack { padding-bottom: 16px; }
+.season-episodes { padding: 18px var(--pad); border-top: 1px solid var(--line); gap: 10px; }
+.season-imagery { margin-top: 12px; scroll-margin-top: 140px; }
+.imagery-heading { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 10px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; font-weight: 600; padding: 14px 0; cursor: pointer; text-align: left; }
+.imagery-heading .meta { font-weight: 400; font-size: 11px; }
+.imagery-controls { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.imagery-controls .input { width: auto; max-width: 100%; font-size: 12px; padding: 6px 10px; }
+.imagery-body > .meta { margin: 8px 0; font-size: 12px; }
+.imagery-map { height: 330px; }
+.imagery-map-status { position: absolute; top: 55px; left: 12px; right: 12px; background: var(--surface); border-radius: 8px; padding: 8px; z-index: 5; font-size: 12px; }
+.imagery-legend { max-width: 380px; margin: 10px auto; }
+.imagery-legend > div:first-child { height: 8px; border-radius: 5px; }
+.imagery-legend .meta { font-size: 10px; }
+.season-panel summary:focus-visible, .season-panel button:focus-visible { outline: 2px solid var(--ink-soft); outline-offset: 3px; }
+@media (max-width: 1050px) { .season-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) {
+  .season-content { padding: 12px 10px 0; }
+  .season-heading, .season-episodes { padding: 14px 12px; }
+  .season-metrics, .insight-grid { gap: 6px; }
+  .season-metric { padding: 9px; }
+  .field-insight > summary { padding: 9px; }
+  .field-insight strong { font-size: 14px; }
+  .metric-tabs button { padding: 5px 9px; font-size: 11px; }
+  .imagery-controls { align-items: stretch; flex-direction: column; }
+  .imagery-map { height: 290px; }
+  .map-credit { max-width: calc(100% - 16px); font-size: 9px; }
+}
