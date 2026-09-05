@@ -5,7 +5,7 @@
 # Или вручную:                         docker build -t kosmohack . && docker run -p 8000:8000 kosmohack
 # Batch-инференс (задача 1) в контейнере:
 #   docker run --rm -v "$PWD/data:/app/data" -v "$PWD/out:/app/out" kosmohack \
-#     uv run python -m gapfill.predict_saved --input data/test_features_new.csv --output out/submission.csv
+#     uv run --no-sync python -m gapfill.predict_improved --output artifacts/submission.csv --device cpu
 
 # --- этап 1: сборка интерфейса ---
 FROM node:24-alpine AS web

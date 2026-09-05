@@ -35,7 +35,7 @@
   плюс интерфейс `web/` (React 19 + Vite + MUI X Charts + AntV L7 на тайлах OSM + GSAP, exp-105).
   Всё вместе поднимается `docker compose up --build` → http://localhost:8000/. Без сборки фронтенда сервис отдаёт
   резервный HTML (`service/static/index.html`, он же `/legacy`). Локально без Docker: `cd web && npm ci && npm run build`,
-  затем `uv run uvicorn service.app:app --port 8000`. Готовые веса в `models/` (инференс без обучения — `gapfill.predict_saved`),
+  затем `uv run uvicorn service.app:app --port 8000`. Готовые веса в `models/` и `models/improved/` (инференс без обучения — `gapfill.predict_improved`),
   сводный отчёт `docs/14-research-report.md`. Набор полигонов пользователя — `service/polygons.py`
   (`artifacts/service/polygons/`, API `/api/user-polygons`, карточка «Мои поля», цвет контура на карте по тяжести).
 - **Метрика пересчитывается за 0.04 с**: `uv run --no-sync python -m gapfill.metrics` считает RMSE и GapScore
@@ -56,6 +56,15 @@
 - Сверка с ТЗ по пунктам — `docs/07-submission-checklist.md` (статусы 2026-09-05); вопросы к экспертам и трекерам — `docs/15-consultation-questions.md`.
 - Docker проверен: `docker compose up --build` собирается, интерфейс и API отвечают, batch-инференс в контейнере
   воспроизводит submission (расхождение 7e-5, CPU против GPU). Образ 1.33 ГБ (группы infer + geo + service + torch CPU).
+- **Docker проверен 2026-09-05 (после слияния веток)**: `docker compose up --build` собирается, образ 3.31 ГБ.
+  Две поломки исправлены: в slim-образе не было `libexpat1` (её требует rasterio, из-за чего `check_runtime()`
+  в lifespan валил старт сервиса), а группа `service` стала включать `ml` и раздувала образ до 22.8 ГБ —
+  веб-слой вынесен в группу `serve`, в образ идут `serve + geo + infer`. Batch-инференс в контейнере
+  воспроизводит `submission.csv` с расхождением 5.9e-07. Все пять экранов проверены на 1440x900,
+  1920x937 и 1366x768: страница не прокручивается, ошибок в консоли нет.
+- **Осторожно с переводами строк**: `models/improved/uncertainty.txt` — текстовая модель LightGBM,
+  Git с `core.autocrlf=true` испортил её на выгрузке. Защита — `.gitattributes` (`models/**` помечены `-text`)
+  и нормализация в `load_booster`.
 - Не сделано: презентация; LLM-объяснения не проверены (нет ключа); сверка с ответами организаторов
   к первой версии test — ждём файл. Сбор данных для нового поля проверен: 6 сезонов за 2 мин 49 с через интерфейс.
 

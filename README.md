@@ -55,7 +55,7 @@ uv run python -m gapfill.predict --input data/test_features_new.csv --output sub
 for s in 0 1 2 3 4; do uv run python -m gapfill.nn_model --final --epochs 600 --dropout 0.25 --seed $s --out final_nn; done
 uv run python -m gapfill.make_submission final_lgb:0.5 final_nn:0.5          # → submission.csv (2 323 строки)
 # batch-инференс без обучения, из сохранённых моделей models/ (LightGBM .txt.gz + SeasonNet .pt, ~60 МБ, в репозитории):
-uv run python -m gapfill.predict_saved --input data/test_features_new.csv --output submission.csv --models models
+uv run --no-sync python -m gapfill.predict_improved --output submission.csv --device cpu
 uv run pytest tests -q
 ```
 
@@ -120,7 +120,7 @@ docker compose up --build      # соберёт интерфейс и бэкен
 Batch-инференс в том же контейнере:
 
 ```bash
-docker compose exec app uv run python -m gapfill.predict_saved   --input data/test_features_new.csv --output submission.csv
+docker compose exec app uv run --no-sync python -m gapfill.predict_improved   --output artifacts/submission.csv --device cpu
 ```
 
 ### Пересчёт метрики задачи 1
