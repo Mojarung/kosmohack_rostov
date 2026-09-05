@@ -1,5 +1,5 @@
 /** Единая панель сезона: оформление main, погодные показатели и карты из field-insights. */
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../api/client";
@@ -9,10 +9,11 @@ import { SeasonChart } from "../charts/SeasonChart";
 import { WeatherChart } from "../charts/WeatherChart";
 import { ZChart } from "../charts/ZChart";
 import { useDateRange } from "../charts/range";
+import { RangeToolbar } from "../charts/RangeToolbar";
 import { EpisodeCard } from "./EpisodeCard";
 import { FieldVerdict } from "./FieldVerdict";
-import { SeasonMetrics } from "./SeasonMetrics";
-import { AgroPanel } from "./AgroPanel";
+import { SeasonMetrics, type MetricZoom } from "./SeasonMetrics";
+import { AgroPanel, type WeatherMode } from "./AgroPanel";
 import { FieldInsights } from "./FieldInsights";
 
 function Legend() {
@@ -28,6 +29,8 @@ function SeasonContent({ detail, year, onYear, aside }: { detail: PolygonDetail;
   const shape = (detail.shape ?? []).filter(s => s.year === year);
   const bounds = useMemo(() => ({ from: ms(`${year}-04-01`), to: ms(`${year}-10-30`) }), [year]);
   const control = useDateRange(bounds);
+  const ndviTarget = useRef<HTMLDivElement>(null), weatherTarget = useRef<HTMLDivElement>(null);
+  const [weatherMode, setWeatherMode] = useState<WeatherMode>("rain");
   const [params] = useSearchParams();
   const requestedFrom = params.get("from"), requestedTo = params.get("to");
   useEffect(() => {
@@ -39,6 +42,15 @@ function SeasonContent({ detail, year, onYear, aside }: { detail: PolygonDetail;
     }
   }, [requestedFrom, requestedTo, year, bounds.from, bounds.to, control.select, params]);
   const [hover, setHover] = useState<number | null>(null), [showDetails, setShowDetails] = useState(false);
+  function zoomMetric({ chart, from, to }: MetricZoom) {
+    if (!Number.isFinite(from) || !Number.isFinite(to)) return;
+    setHover(null);
+    control.select(from, Math.max(to, from + 5 * 86400000));
+    if (chart !== "ndvi") setWeatherMode(chart);
+    const target = chart === "ndvi" ? ndviTarget.current : weatherTarget.current;
+    target?.focus({ preventScroll: true });
+    target?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
+  }
   const agro = useQuery({ queryKey: ["agro", detail.pid, year, detail.saved_at],
     queryFn: ({ signal }) => api.agro(detail.pid, year, signal), retry: false });
   if (!season) return <p className="meta">Нет наблюдений за этот сезон.</p>;
@@ -47,19 +59,23 @@ function SeasonContent({ detail, year, onYear, aside }: { detail: PolygonDetail;
     <SeasonHeader detail={detail} year={year} onYear={onYear} />
     <div className="pane-body season-content">
       <FieldVerdict season={season} episodes={episodes} trend={detail.insights?.[year]} weather={agro.data} />
-      <SeasonMetrics season={season} weather={agro.data} hover={hover} />
+      <SeasonMetrics season={season} weather={agro.data} hover={hover} onZoom={zoomMetric} />
+      <div ref={ndviTarget} tabIndex={-1} role="region" aria-label="График зелени поля" className="metric-chart-target">
       <div className="season-toolbar">
         <h3>Как росло поле по снимкам</h3>
-        <button type="button" className="btn btn--sm btn--ghost" onClick={control.reset} disabled={!control.zoomed}>Весь сезон</button>
+        <RangeToolbar control={control} />
       </div>
       <Legend />
       <div data-testid="ndvi-chart" data-from={control.view.from} data-to={control.view.to}>
         <SeasonChart season={season} episodes={episodes} control={control} hover={hover} onHover={setHover} />
       </div>
       <p className="meta chart-instruction">Линия — зелень поля, серая полоса — как бывает обычно. Выделите период мышью, чтобы приблизить; двойной клик — весь сезон.</p>
+      </div>
       <FieldInsights detail={detail} year={year} />
+      <div ref={weatherTarget} tabIndex={-1} role="region" aria-label="График погоды" className="metric-chart-target">
       <AgroPanel context={agro.data} loading={agro.isPending} error={agro.isError} retry={() => void agro.refetch()}
-        year={year} control={control} hover={hover} onHover={setHover} />
+        year={year} control={control} hover={hover} onHover={setHover} preferred={weatherMode} onMode={setWeatherMode} />
+      </div>
       <details className="season-calculation" onToggle={e => setShowDetails(e.currentTarget.open)}>
         <summary>Подробности для агронома: данные и расчёт</summary>
         {showDetails && <div className="stack" style={{ gap: 12 }}>

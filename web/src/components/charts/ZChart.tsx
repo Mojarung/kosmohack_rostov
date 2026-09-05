@@ -52,12 +52,24 @@ interface ZChartProps {
   onHover: (value: number | null) => void;
 }
 
-export function ZChart({ season, episodes, height = 150, control, hover, onHover }: ZChartProps) {
+export function ZChart({ season, episodes, height = 210, control, hover, onHover }: ZChartProps) {
   const data = useMemo(
-    () => ({
-      dates: season.z.map((p) => localDate(p.date)),
-      values: season.z.map((p) => p.value),
-    }),
+    () => {
+      const values = season.z.map(p => Number.isFinite(p.value) ? p.value : null);
+      let low = 0, high = 0;
+      for (const value of values) {
+        if (value === null) continue;
+        low = Math.min(low, value);
+        high = Math.max(high, value);
+      }
+      // Одна шкала на сезон: при приближении линия не меняет высоту, пики не обрезаются.
+      const padding = Math.max(0.3, (high - low) * 0.08);
+      return {
+        dates: season.z.map(p => localDate(p.date)), values,
+        min: Math.min(-4, Math.floor(low - padding)),
+        max: Math.max(3, Math.ceil(high + padding)),
+      };
+    },
     [season],
   );
   if (data.dates.length < 2) return null;
@@ -89,7 +101,7 @@ export function ZChart({ season, episodes, height = 150, control, hover, onHover
           valueFormatter: (date: Date, context) => axisDate(date, context.location),
         },
       ]}
-      yAxis={[{ id: Y_AXIS, min: -4, max: 3, width: 42, tickNumber: 4 }]}
+      yAxis={[{ id: Y_AXIS, min: data.min, max: data.max, width: 54, tickNumber: 5 }]}
     >
       <PlotClip><Bands episodes={episodes} />
       <ChartsReferenceLine y={-1} lineStyle={{ stroke: "#e8a33d", strokeDasharray: "4 4" }} />
