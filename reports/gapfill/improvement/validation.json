@@ -1,0 +1,178 @@
+{
+  "status": "local_holdout_not_private_leaderboard",
+  "source_commit": "2f6b2a4c8a1d10d945d44a3bc826e4d652c3e986",
+  "runs": [
+    {
+      "run": "posterior_kriging777",
+      "val_seed": 777,
+      "args": {
+        "components": "artifacts/research/blend_kriging777/components.parquet",
+        "val_seed": 777,
+        "steps": 2500,
+        "seed": 42,
+        "chains": 64,
+        "reflections": 8,
+        "out": "posterior_kriging777"
+      },
+      "model_args": {
+        "model": "artifacts/research/kriging30_777/all/model.txt",
+        "nn": [
+          "nn_residual777"
+        ],
+        "val_seed": 777,
+        "weights": [
+          0.6
+        ],
+        "sigma": 0.04,
+        "calibration": "robust",
+        "out": "blend_kriging777",
+        "final": false,
+        "uncertainty": "artifacts/research/uncertainty_kriging777/model.txt"
+      },
+      "calibration_method": "posterior",
+      "model_only": {
+        "all": {
+          "n": 9199,
+          "rmse": 0.05252888869321871,
+          "gap_score": 14.24
+        },
+        "target": {
+          "n": 1951,
+          "rmse": 0.0569541355955302,
+          "gap_score": 12.91
+        }
+      },
+      "calibrated": {
+        "all": {
+          "n": 9199,
+          "rmse": 0.05016205974067923,
+          "gap_score": 14.95
+        },
+        "target": {
+          "n": 1951,
+          "rmse": 0.04580152231029886,
+          "gap_score": 16.26
+        }
+      },
+      "predictions": "validation_777.csv",
+      "sha256": "83d9c6d99b32817edb78fe13c3186b77eb4fcca808c9dcf945deb4099010a0ba"
+    },
+    {
+      "run": "posterior_kriging999",
+      "val_seed": 999,
+      "args": {
+        "components": "artifacts/research/blend_kriging999/components.parquet",
+        "val_seed": 999,
+        "steps": 2500,
+        "seed": 42,
+        "chains": 64,
+        "reflections": 8,
+        "out": "posterior_kriging999"
+      },
+      "model_args": {
+        "model": "artifacts/research/kriging30_999/all/model.txt",
+        "nn": [
+          "nn_confirm999"
+        ],
+        "val_seed": 999,
+        "weights": [
+          0.6
+        ],
+        "sigma": 0.04,
+        "calibration": "robust",
+        "out": "blend_kriging999",
+        "final": false,
+        "uncertainty": "artifacts/research/uncertainty_kriging999/model.txt"
+      },
+      "calibration_method": "posterior",
+      "model_only": {
+        "all": {
+          "n": 9199,
+          "rmse": 0.050815738919879394,
+          "gap_score": 14.76
+        },
+        "target": {
+          "n": 2016,
+          "rmse": 0.053385186469169545,
+          "gap_score": 13.98
+        }
+      },
+      "calibrated": {
+        "all": {
+          "n": 9199,
+          "rmse": 0.04845989590597226,
+          "gap_score": 15.46
+        },
+        "target": {
+          "n": 2016,
+          "rmse": 0.042223152558239795,
+          "gap_score": 17.33
+        }
+      },
+      "predictions": "validation_999.csv",
+      "sha256": "490cb3e723890b5ff61bfdfce57b63b63dbb87c7da1f56295b7c96d34daf61a3"
+    },
+    {
+      "run": "posterior_blend2026",
+      "val_seed": 2026,
+      "args": {
+        "model": "artifacts/research/kriging30_2026/all/model.txt",
+        "nn": [
+          "nn_confirm2026"
+        ],
+        "val_seed": 2026,
+        "weights": [
+          0.6
+        ],
+        "sigma": 0.04,
+        "calibration": "posterior",
+        "out": "posterior_blend2026",
+        "final": false,
+        "uncertainty": "artifacts/research/uncertainty_kriging2026/model.txt"
+      },
+      "model_args": {
+        "model": "artifacts/research/kriging30_2026/all/model.txt",
+        "nn": [
+          "nn_confirm2026"
+        ],
+        "val_seed": 2026,
+        "weights": [
+          0.6
+        ],
+        "sigma": 0.04,
+        "calibration": "posterior",
+        "out": "posterior_blend2026",
+        "final": false,
+        "uncertainty": "artifacts/research/uncertainty_kriging2026/model.txt"
+      },
+      "calibration_method": "posterior",
+      "model_only": {
+        "all": {
+          "n": 9199,
+          "rmse": 0.051725447647075935,
+          "gap_score": 14.48
+        },
+        "target": {
+          "n": 2011,
+          "rmse": 0.05546048894325858,
+          "gap_score": 13.36
+        }
+      },
+      "calibrated": {
+        "all": {
+          "n": 9199,
+          "rmse": 0.04909877322895355,
+          "gap_score": 15.27
+        },
+        "target": {
+          "n": 2011,
+          "rmse": 0.04317907002008309,
+          "gap_score": 17.05
+        }
+      },
+      "predictions": "validation_2026.csv",
+      "sha256": "97658b40ecf30a0b7377c90fc239ad098cffdeae5359ca1442b5f9ac64dac6fb"
+    }
+  ],
+  "warning": "Калибровка использует опубликованные агрегаты, содержащие скрытые значения."
+}
