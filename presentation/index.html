@@ -19,7 +19,7 @@
   и объясняем их причину — в веб-сервисе, который сам собирает данные по любому полю на карте.</p>
   <div class="cols cols-3" style="flex:none; margin-top:8px">
     <div class="card"><div class="kpi"><span class="kpi-value">0.0437</span><span class="kpi-label">RMSE восстановления, отложенная выборка</span></div></div>
-    <div class="card"><div class="kpi"><span class="kpi-value">617</span><span class="kpi-label">аномальных эпизодов найдено и объяснено</span></div></div>
+    <div class="card"><div class="kpi"><span class="kpi-value">733</span><span class="kpi-label">аномальных эпизода найдено и объяснено</span></div></div>
     <div class="card"><div class="kpi"><span class="kpi-value">1<small> команда</small></span><span class="kpi-label">docker compose up --build</span></div></div>
   </div>
   <div class="slide-foot"><span>Задача 1 — восстановление · Задача 2 — аномалии · Веб-сервис</span><span class="mono">1</span></div>
@@ -227,8 +227,8 @@
         <line x1="466" y1="78" x2="498" y2="78" stroke="#7a7c71" stroke-width="2" marker-end="url(#arw)"></line>
         <rect x="506" y="30" width="205" height="96" rx="14" fill="#ffffff" stroke="#e4e1d8"></rect>
         <text x="608" y="62" text-anchor="middle" font-size="17" font-weight="700" fill="#1a1d16">Эпизоды</text>
-        <text x="608" y="86" text-anchor="middle" font-size="14" fill="#3d4136">Z &lt; −1 устойчиво 14 дней</text>
-        <text x="608" y="105" text-anchor="middle" font-size="14" fill="#3d4136">и/или сильно, Z &lt; −2</text>
+        <text x="608" y="86" text-anchor="middle" font-size="14" fill="#3d4136">Z &lt; −1: устойчиво, сильно</text>
+        <text x="608" y="105" text-anchor="middle" font-size="14" fill="#3d4136">или долго (≥ 30 дней)</text>
         <line x1="719" y1="78" x2="751" y2="78" stroke="#7a7c71" stroke-width="2" marker-end="url(#arw)"></line>
         <rect x="759" y="30" width="205" height="96" rx="14" fill="#ffffff" stroke="#e4e1d8"></rect>
         <text x="861" y="62" text-anchor="middle" font-size="17" font-weight="700" fill="#1a1d16">Причина</text>
@@ -253,8 +253,8 @@
       </div>
       <div class="card">
         <h3>Проверка без разметки</h3>
-        <p>1 248 сезонов: эпизод найден в <b>44 %</b>, precision к точечным статусам ТЗ <b>0.70</b>,
-        полнота по критическим <b>0.73</b>, устойчивость к скрытию 15 % наблюдений <b>91 %</b>.</p>
+        <p>1 248 сезонов: эпизод найден в <b>51 %</b>, precision к точечным статусам ТЗ <b>0.68</b>,
+        полнота по критическим <b>0.74</b>, устойчивость к скрытию 15 % наблюдений <b>91 %</b>.</p>
       </div>
     </div>
   </div>
@@ -474,7 +474,7 @@
   <div class="slide-body">
     <div class="cols cols-3" style="flex:none">
       <div class="card"><div class="kpi"><span class="kpi-value" style="color:var(--ok-ink)">16.88</span><span class="kpi-label">GapScore на отложенной выборке,<br>RMSE 0.0437 против 0.093 у baseline</span></div></div>
-      <div class="card"><div class="kpi"><span class="kpi-value">617</span><span class="kpi-label">эпизодов угнетения с причиной,<br>1 248 сезонов, 78 полей</span></div></div>
+      <div class="card"><div class="kpi"><span class="kpi-value">733</span><span class="kpi-label">эпизода угнетения с причиной,<br>1 248 сезонов, 78 полей</span></div></div>
       <div class="card"><div class="kpi"><span class="kpi-value">5</span><span class="kpi-label">экранов сервиса, поля пользователя<br>переживают перезапуск</span></div></div>
     </div>
     <div class="cols cols-2">
