@@ -192,7 +192,7 @@ def osm_fields(bbox: tuple[float, float, float, float]) -> list[dict]:
     for el in payload.get("elements", []):
         pts = [[p["lon"], p["lat"]] for p in el.get("geometry", [])]
         if len(pts) >= 4:
-            out.append({"id": el["id"], "name": el.get("tags", {}).get("name", f"поле OSM {el['id']}"),
+            out.append({"id": str(el["id"]), "name": el.get("tags", {}).get("name", f"поле OSM {el['id']}"),
                         "geometry": {"type": "Polygon", "coordinates": [pts]}})
     return out
 

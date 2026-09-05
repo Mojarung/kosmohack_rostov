@@ -1,0 +1,20 @@
+{
+  "note": "Валидация задачи 1 на второй версии test (exp-007): 15 % известных точек скрыты как контрольные, маска seed 777. Файл читает сервис (/api/meta), пересобирается командами gapfill.train / gapfill.nn_model / gapfill.ensemble.",
+  "val_seed": 777,
+  "n_val_points": 9199,
+  "train_points": 61325,
+  "train_examples": 275970,
+  "models": "0.5 · LightGBM (3 seeds, 30 масок, 5 500 итераций, 243 признака) + 0.5 · SeasonNet (5 seeds, 600 эпох)",
+  "rmse": 0.0541,
+  "rmse_testlike": 0.0557,
+  "rmse_trim": 0.0459,
+  "gap_score": 13.3,
+  "parts": {
+    "lightgbm": { "rmse": 0.0554, "rmse_testlike": 0.057, "rmse_trim": 0.0486 },
+    "seasonnet": { "rmse": 0.059, "rmse_testlike": 0.0606, "rmse_trim": 0.0489 }
+  },
+  "baselines": {
+    "neighbors_mean": { "rmse": 0.093, "gap_score": 2.1 },
+    "same_sensor_interp_oracle": { "rmse": 0.0856, "gap_score": 4.3 }
+  }
+}

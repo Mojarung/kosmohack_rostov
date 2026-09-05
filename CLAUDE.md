@@ -30,10 +30,13 @@
   статусы 99.7 %). Детектор: гармонизированная кривая → Z к норме по истории полигона → эпизоды «устойчиво и/или сильно»
   → причина по правилам (ERA5, фенология, региональный контекст «все поля или только это»). LLM-объяснение — `anomaly/llm.py`
   (Claude, ключ `ANTHROPIC_API_KEY`; без ключа текст по правилам).
-- **Веб-сервис** — `service/` (FastAPI `service.app:app`, UI `service/static/index.html`, сбор данных для новых полигонов
-  `service/collect.py`: Earth Search S2, Planetary Computer Landsat/MODIS, Open-Meteo ERA5, OSM Overpass; анализ `service/analyze_new.py`).
-  Запуск `uv run uvicorn service.app:app --port 8000`. Готовые веса в `models/` (инференс без обучения — `gapfill.predict_saved`),
-  `Dockerfile`, сводный отчёт `docs/14-research-report.md`. Набор полигонов пользователя — `service/polygons.py`
+- **Веб-сервис** — `service/` (FastAPI `service.app:app`, сбор данных для новых полигонов
+  `service/collect.py`: Earth Search S2, Planetary Computer Landsat/MODIS, Open-Meteo ERA5, OSM Overpass; анализ `service/analyze_new.py`)
+  плюс интерфейс `web/` (React 19 + Vite + MUI X Charts + AntV L7 на тайлах OSM + GSAP, exp-105).
+  Всё вместе поднимается `docker compose up --build` → http://localhost:8000/. Без сборки фронтенда сервис отдаёт
+  резервный HTML (`service/static/index.html`, он же `/legacy`). Локально без Docker: `cd web && npm ci && npm run build`,
+  затем `uv run uvicorn service.app:app --port 8000`. Готовые веса в `models/` (инференс без обучения — `gapfill.predict_saved`),
+  сводный отчёт `docs/14-research-report.md`. Набор полигонов пользователя — `service/polygons.py`
   (`artifacts/service/polygons/`, API `/api/user-polygons`, карточка «Мои поля», цвет контура на карте по тяжести).
 - Сверка с ТЗ по пунктам — `docs/07-submission-checklist.md` (статусы 2026-09-05); вопросы к экспертам и трекерам — `docs/15-consultation-questions.md`.
 - Не сделано: презентация; LLM-объяснения не проверены (нет ключа); сборка Docker не проверена (демон не запущен);

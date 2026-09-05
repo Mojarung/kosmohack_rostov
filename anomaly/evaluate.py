@@ -93,8 +93,13 @@ def evaluate(path: Path) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Прокси-метрики детекции аномалий")
     parser.add_argument("runs", nargs="+")
+    parser.add_argument("--save", action="store_true", help="сохранить метрики в <run>/quality.json (их читает сервис)")
     args = parser.parse_args()
     rows = [evaluate(Path(r)) for r in args.runs]
+    if args.save:
+        for run, row in zip(args.runs, rows):
+            (Path(run) / "quality.json").write_text(json.dumps(row, ensure_ascii=False, indent=2, default=str),
+                                                    encoding="utf-8")
     print(json.dumps(rows, ensure_ascii=False, indent=2, default=str))
 
 

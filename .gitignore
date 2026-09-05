@@ -21,3 +21,8 @@ Thumbs.db
 artifacts/
 catboost_info/
 reports/anomalies/organizer_norm.parquet
+
+# Фронтенд
+web/node_modules/
+web/dist/
+web/shot.mjs

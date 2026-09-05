@@ -1,0 +1,345 @@
+/* Дизайн-система: тёплый монохром, 1px-границы, редакционная типографика.
+   Цвет — только смысловой (тяжесть эпизода, сенсор). Анимации — только transform/opacity. */
+
+:root {
+  --canvas: #f7f6f3;
+  --surface: #ffffff;
+  --surface-sunk: #f9f9f8;
+  --ink: #1a1d16;
+  --ink-soft: #3d4136;
+  --muted: #7a7c71;
+  --line: #e4e1d8;
+  --line-strong: #d3cfc2;
+
+  /* Смысловые пастели: состояние сезона */
+  --ok-bg: #edf3ec;
+  --ok-ink: #346538;
+  --warn-bg: #fbf3db;
+  --warn-ink: #956400;
+  --crit-bg: #fdebec;
+  --crit-ink: #9f2f2d;
+  --info-bg: #e1f3fe;
+  --info-ink: #1f6c9f;
+
+  /* Сенсоры */
+  --s2: #3a6ea5;
+  --landsat: #6b5b95;
+  --modis: #c2703a;
+  --restored: #b03a76;
+
+  --radius: 12px;
+  --radius-sm: 6px;
+  --pad: clamp(18px, 2.2vw, 32px);
+  --shell-max: 1560px;
+
+  --font-sans: "Segoe UI Variable Display", "SF Pro Display", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", "SF Mono", ui-monospace, "Consolas", monospace;
+
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(30px, 3.6vw, 52px);
+}
+
+h2 {
+  font-size: clamp(21px, 2vw, 28px);
+}
+
+h3 {
+  font-size: 17px;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+::selection {
+  background: #dfe7d8;
+}
+
+/* --- примитивы --- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--pad);
+}
+
+.card--sunk {
+  background: var(--surface-sunk);
+}
+
+.card--flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.meta {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 9999px;
+  padding: 2px 10px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--surface-sunk);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.tag--ok {
+  background: var(--ok-bg);
+  color: var(--ok-ink);
+  border-color: transparent;
+}
+
+.tag--warn {
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  border-color: transparent;
+}
+
+.tag--crit {
+  background: var(--crit-bg);
+  color: var(--crit-ink);
+  border-color: transparent;
+}
+
+.tag--info {
+  background: var(--info-bg);
+  color: var(--info-ink);
+  border-color: transparent;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: #fff;
+  border-radius: var(--radius-sm);
+  padding: 9px 16px;
+  cursor: pointer;
+  transition: transform 0.18s var(--ease), background 0.18s var(--ease), opacity 0.18s var(--ease);
+}
+
+.btn:hover:not(:disabled) {
+  background: #313529;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.btn--ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--surface-sunk);
+}
+
+.btn--sm {
+  padding: 6px 11px;
+  font-size: 12.5px;
+}
+
+.input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px 11px;
+  transition: border-color 0.18s var(--ease);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--line-strong);
+}
+
+.divider {
+  height: 1px;
+  background: var(--line);
+  border: 0;
+  margin: 0;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+}
+
+.spread {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.scroll {
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scroll::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 8px;
+}
+
+/* --- появление блоков --- */
+
+.reveal {
+  opacity: 0;
+  transform: translate3d(0, 12px, 0);
+  will-change: transform, opacity;
+}
+
+.reveal.is-in {
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
+  transition-delay: calc(var(--i, 0) * 60ms);
+  will-change: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Всплывающие подсказки графиков MUI приводим к общему языку */
+.MuiChartsTooltip-root,
+.MuiChartsTooltip-paper {
+  font-family: var(--font-sans) !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--line) !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Карточка поля в списке: спокойная подсветка при наведении, без layout-свойств */
+.poly-card {
+  transition: box-shadow 0.2s var(--ease), transform 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+
+.poly-card:hover {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.045);
+  border-color: var(--line-strong);
+  transform: translate3d(0, -1px, 0);
+}
+
+details > summary {
+  list-style: none;
+}
+
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
+details > summary::before {
+  content: "+ ";
+  font-family: var(--font-mono);
+}
+
+details[open] > summary::before {
+  content: "− ";
+}

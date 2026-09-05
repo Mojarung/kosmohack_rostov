@@ -1,0 +1,19 @@
+# Запуск всего продукта одной командой: docker compose up --build
+# После сборки интерфейс и API доступны на http://localhost:8000/
+services:
+  app:
+    build: .
+    image: kosmohack-ndvi:latest
+    ports:
+      - "8000:8000"
+    environment:
+      # Ключ нужен только для связного объяснения аномалий языковой моделью;
+      # без него текст формируется по правилам.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      # Поля, добавленные пользователем через интерфейс, переживают перезапуск контейнера.
+      - user-polygons:/app/artifacts/service
+    restart: unless-stopped
+
+volumes:
+  user-polygons:

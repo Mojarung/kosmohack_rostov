@@ -1,0 +1,54 @@
+{
+  "run": "reports\\anomalies",
+  "seasons": 1248,
+  "episodes": 613,
+  "seasons_with_episode": 0.43509615384615385,
+  "episodes_per_season": 0.4911858974358974,
+  "share_short_lt14d": 0.03425774877650897,
+  "share_few_obs_le2": 0.08156606851549755,
+  "median_days": 44.0,
+  "recall_depressed_points": 0.5095774376744634,
+  "recall_critical_points": 0.7251838235294118,
+  "precision_points_in_episodes": 0.7016567263088138,
+  "base_rate_depressed": 0.16940888707704851,
+  "share_points_inside": 0.12303302079086832,
+  "corr_ours_vs_s2share": 0.05373669420100737,
+  "corr_org_vs_s2share": 0.18491325326607586,
+  "n_seasons": 702,
+  "rate_by_year": {
+    "2010": 0.526,
+    "2011": 0.359,
+    "2012": 0.538,
+    "2013": 0.397,
+    "2014": 0.462,
+    "2015": 0.436,
+    "2016": 0.09,
+    "2017": 0.321,
+    "2018": 0.564,
+    "2019": 0.474,
+    "2020": 0.692,
+    "2021": 0.423,
+    "2022": 0.372,
+    "2023": 0.269,
+    "2024": 0.59,
+    "2025": 0.449
+  },
+  "drought_years_rank": {
+    "2020": 1,
+    "2024": 2
+  },
+  "top3": [
+    2020,
+    2024,
+    2018
+  ],
+  "by_cause": {
+    "weather_drought": 231,
+    "crop_rotation": 125,
+    "early_decline": 85,
+    "unsown_or_changed": 66,
+    "weak_season": 56,
+    "late_start": 43,
+    "data_suspect": 7
+  }
+}

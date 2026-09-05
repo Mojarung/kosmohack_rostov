@@ -1,8 +1,10 @@
-"""Веб-сервис мониторинга вегетации: API + статический интерфейс.
+"""Веб-сервис мониторинга вегетации: API + интерфейс.
 
 Запуск: uv run uvicorn service.app:app --host 127.0.0.1 --port 8000
-Интерфейс: http://127.0.0.1:8000/  (полигоны из данных кейса — списком, координат у них нет;
-новая территория — рисуется на карте, данные собираются автоматически, см. service.collect).
+Интерфейс: http://127.0.0.1:8000/ — собранное приложение из web/dist (React + MUI X Charts + AntV L7).
+Если сборки нет (не запускали npm run build), отдаётся простой резервный интерфейс service/static/index.html;
+он же всегда доступен по адресу /legacy. Полигоны кейса анонимны и показываются списком, новая территория
+рисуется на карте, данные для неё собираются автоматически (см. service.collect).
 """
 
 from __future__ import annotations
@@ -11,16 +13,29 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from service import polygons as user_polygons
 from service.data import Store
+from service.meta import build_meta
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+WEB_DIST = Path(__file__).resolve().parents[1] / "web" / "dist"
+WEB_INDEX = WEB_DIST / "index.html"
 
-app = FastAPI(title="NDVI-мониторинг полей", version="0.1")
+app = FastAPI(title="NDVI-мониторинг полей", version="1.0")
+
+# Режим разработки: интерфейс поднимается отдельно на 5173 и ходит в этот API.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 _store: Store | None = None
 
 
@@ -41,6 +56,13 @@ class AnalyzeRequest(BaseModel):
 
 @app.get("/")
 def index() -> FileResponse:
+    """Главная страница: собранное приложение, иначе резервный интерфейс."""
+    return FileResponse(WEB_INDEX if WEB_INDEX.exists() else STATIC_DIR / "index.html")
+
+
+@app.get("/legacy")
+def legacy_index() -> FileResponse:
+    """Резервный интерфейс на одном HTML-файле: работает без сборки фронтенда."""
     return FileResponse(STATIC_DIR / "index.html")
 
 
@@ -82,6 +104,12 @@ def summary() -> dict:
         return {}
     return {"by_cause": df["cause"].value_counts().to_dict(), "by_year": df.groupby("year").size().to_dict(),
             "by_severity": df["severity"].value_counts().to_dict(), "n_polygons": int(df["pid"].nunique())}
+
+
+@app.get("/api/meta")
+def meta() -> dict:
+    """Сводка о решении: метрики обеих задач, состав данных, источники (для экрана «Как это работает»)."""
+    return build_meta(n_gaps=int(len(store().gaps)))
 
 
 @app.get("/api/fields")
@@ -152,3 +180,15 @@ def delete_user_polygon(uid: str) -> dict:
 
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+if WEB_INDEX.exists():
+    # Файлы сборки (assets/*.js, иконки) и клиентская маршрутизация: любой неизвестный путь,
+    # кроме /api и /static, отдаёт index.html, чтобы работали прямые ссылки вида /field/AOI-0005.
+    app.mount("/assets", StaticFiles(directory=str(WEB_DIST / "assets")), name="assets")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def spa(path: str) -> FileResponse:
+        candidate = WEB_DIST / path
+        if path and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(WEB_INDEX)

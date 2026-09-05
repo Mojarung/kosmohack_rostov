@@ -1,0 +1,205 @@
+/** Главный график сезона: норма ±1σ, восстановленная кривая, исходные наблюдения по сенсорам,
+ *  восстановленные контрольные точки и полосы эпизодов угнетения.
+ *
+ *  Собран композицией MUI X Charts: линии рисует библиотека, а слои нормы, наблюдений и эпизодов —
+ *  собственные SVG-оверлеи поверх тех же шкал (useXScale/useYScale), чтобы каждый сенсор имел свой
+ *  цвет и форму, а артефакты были видны отдельно. */
+
+import { useMemo } from "react";
+import { ChartsContainer } from "@mui/x-charts/ChartsContainer";
+import { ChartsXAxis } from "@mui/x-charts/ChartsXAxis";
+import { ChartsYAxis } from "@mui/x-charts/ChartsYAxis";
+import { ChartsGrid } from "@mui/x-charts/ChartsGrid";
+import { ChartsTooltip } from "@mui/x-charts/ChartsTooltip";
+import { ChartsAxisHighlight } from "@mui/x-charts/ChartsAxisHighlight";
+import { LinePlot } from "@mui/x-charts/LineChart";
+import { useDrawingArea, useXScale, useYScale } from "@mui/x-charts/hooks";
+
+import type { Episode, SeasonYear } from "../../api/types";
+import { SENSOR_COLOR, ms } from "../../lib/format";
+
+const X_AXIS = "season-x";
+const Y_AXIS = "ndvi-y";
+
+interface SeasonChartProps {
+  season: SeasonYear;
+  episodes: Episode[];
+  height?: number;
+}
+
+/** Ежедневная сетка дат сезона и значения кривой/нормы, выровненные по ней. */
+function useSeasonGrid(season: SeasonYear) {
+  return useMemo(() => {
+    const keys = new Set<string>();
+    season.curve.forEach((p) => keys.add(p.date));
+    season.norm_mean.forEach((p) => keys.add(p.date));
+    const dates = [...keys].sort();
+    const curveMap = new Map(season.curve.map((p) => [p.date, p.value]));
+    const normMap = new Map(season.norm_mean.map((p) => [p.date, p.value]));
+    const stdMap = new Map(season.norm_std.map((p) => [p.date, p.value]));
+    return {
+      dates: dates.map((d) => new Date(`${d}T00:00:00Z`)),
+      iso: dates,
+      curve: dates.map((d) => curveMap.get(d) ?? null),
+      norm: dates.map((d) => normMap.get(d) ?? null),
+      band: dates
+        .map((d) => {
+          const mean = normMap.get(d);
+          const std = stdMap.get(d);
+          return mean === undefined || std === undefined ? null : { date: d, low: mean - std, high: mean + std };
+        })
+        .filter((v): v is { date: string; low: number; high: number } => v !== null),
+    };
+  }, [season]);
+}
+
+/** Полупрозрачная лента нормы ±1σ. */
+function NormBand({ band }: { band: { date: string; low: number; high: number }[] }) {
+  const xScale = useXScale(X_AXIS);
+  const yScale = useYScale(Y_AXIS);
+  if (band.length < 2) return null;
+  const top = band.map((p) => `${xScale(ms(p.date))},${yScale(p.high)}`);
+  const bottom = [...band].reverse().map((p) => `${xScale(ms(p.date))},${yScale(p.low)}`);
+  return <polygon points={[...top, ...bottom].join(" ")} fill="#9aa091" opacity={0.16} />;
+}
+
+/** Вертикальные полосы найденных эпизодов: цвет — тяжесть. */
+function EpisodeBands({ episodes }: { episodes: Episode[] }) {
+  const xScale = useXScale(X_AXIS);
+  const { top, height } = useDrawingArea();
+  return (
+    <g>
+      {episodes.map((episode) => {
+        const x1 = xScale(ms(episode.start));
+        const x2 = xScale(ms(episode.end));
+        if (x1 === undefined || x2 === undefined) return null;
+        return (
+          <rect
+            key={`${episode.start}-${episode.end}`}
+            x={Math.min(x1, x2)}
+            y={top}
+            width={Math.max(2, Math.abs(x2 - x1))}
+            height={height}
+            fill={episode.severity === "критическая" ? "#c8423f" : "#e8a33d"}
+            opacity={0.13}
+          />
+        );
+      })}
+    </g>
+  );
+}
+
+/** Исходные наблюдения: круг по сенсору, крест — отбракованный артефакт. */
+function ObservationDots({ season }: { season: SeasonYear }) {
+  const xScale = useXScale(X_AXIS);
+  const yScale = useYScale(Y_AXIS);
+  return (
+    <g>
+      {season.observations.map((obs) => {
+        const x = xScale(ms(obs.date));
+        const y = yScale(obs.value);
+        if (x === undefined || y === undefined) return null;
+        const color = SENSOR_COLOR[obs.sensor] ?? "#666";
+        const label = `${obs.date} · ${obs.sensor} · ${obs.value.toFixed(3)}${
+          obs.artifact ? " · отбраковано как артефакт" : ` · в шкале S2 ${obs.harmonized.toFixed(3)}`
+        }`;
+        if (obs.artifact) {
+          return (
+            <g key={`a${obs.date}`} stroke="#c8423f" strokeWidth={1.5} opacity={0.85}>
+              <title>{label}</title>
+              <line x1={x - 4} y1={y - 4} x2={x + 4} y2={y + 4} />
+              <line x1={x - 4} y1={y + 4} x2={x + 4} y2={y - 4} />
+            </g>
+          );
+        }
+        return (
+          <circle key={`o${obs.date}`} cx={x} cy={y} r={3.4} fill={color} stroke="#fff" strokeWidth={1}>
+            <title>{label}</title>
+          </circle>
+        );
+      })}
+    </g>
+  );
+}
+
+/** Восстановленные контрольные точки (то, что уходит в submission). */
+function RestoredDots({ season }: { season: SeasonYear }) {
+  const xScale = useXScale(X_AXIS);
+  const yScale = useYScale(Y_AXIS);
+  return (
+    <g>
+      {season.restored.map((point) => {
+        const x = xScale(ms(point.date));
+        const y = yScale(point.value);
+        if (x === undefined || y === undefined) return null;
+        return (
+          <g key={`r${point.date}`} transform={`translate(${x} ${y}) rotate(45)`}>
+            <title>{`${point.date} · восстановлено моделью · ${point.value.toFixed(3)}`}</title>
+            <rect x={-4} y={-4} width={8} height={8} fill="#b03a76" stroke="#fff" strokeWidth={1.2} />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+export function SeasonChart({ season, episodes, height = 340 }: SeasonChartProps) {
+  const grid = useSeasonGrid(season);
+  if (grid.dates.length === 0) {
+    return <div className="meta">В этом сезоне нет наблюдений.</div>;
+  }
+
+  return (
+    <ChartsContainer<"line">
+      height={height}
+      margin={{ left: 8, right: 12, top: 12, bottom: 4 }}
+      dataset={undefined}
+      series={[
+        {
+          type: "line",
+          id: "norm",
+          label: `норма (${season.norm_source})`,
+          data: grid.norm,
+          color: "#9aa091",
+          showMark: false,
+          curve: "monotoneX",
+          valueFormatter: (v) => (v == null ? "нет" : v.toFixed(3)),
+        },
+        {
+          type: "line",
+          id: "curve",
+          label: "восстановленная кривая",
+          data: grid.curve,
+          color: "#1a1d16",
+          showMark: false,
+          curve: "monotoneX",
+          valueFormatter: (v) => (v == null ? "нет" : v.toFixed(3)),
+        },
+      ]}
+      xAxis={[
+        {
+          id: X_AXIS,
+          data: grid.dates,
+          scaleType: "time",
+          tickNumber: 6,
+          valueFormatter: (date: Date, context) =>
+            context.location === "tick"
+              ? date.toLocaleDateString("ru-RU", { month: "short", timeZone: "UTC" })
+              : date.toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" }),
+        },
+      ]}
+      yAxis={[{ id: Y_AXIS, min: 0, max: 1, width: 46, tickNumber: 5, valueFormatter: (v: number) => v.toFixed(1) }]}
+    >
+      <ChartsGrid horizontal />
+      <EpisodeBands episodes={episodes} />
+      <NormBand band={grid.band} />
+      <LinePlot />
+      <ObservationDots season={season} />
+      <RestoredDots season={season} />
+      <ChartsXAxis axisId={X_AXIS} />
+      <ChartsYAxis axisId={Y_AXIS} label="NDVI" />
+      <ChartsAxisHighlight x="line" />
+      <ChartsTooltip />
+    </ChartsContainer>
+  );
+}
