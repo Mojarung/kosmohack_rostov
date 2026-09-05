@@ -1,5 +1,5 @@
 /** Единая панель сезона: оформление main, погодные показатели и карты из field-insights. */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../api/client";
@@ -22,7 +22,7 @@ function Legend() {
   </div>;
 }
 
-function SeasonContent({ detail, year, onYear }: { detail: PolygonDetail; year: number; onYear: (year: number) => void }) {
+function SeasonContent({ detail, year, onYear, aside }: { detail: PolygonDetail; year: number; onYear: (year: number) => void; aside?: (year: number) => ReactNode }) {
   const season = detail.years[String(year)], weather = detail.weather?.[String(year)];
   const episodes = detail.episodes.filter(e => e.year === year);
   const shape = (detail.shape ?? []).filter(s => s.year === year);
@@ -94,6 +94,7 @@ function SeasonContent({ detail, year, onYear }: { detail: PolygonDetail; year: 
       </div>)}
       </div>
     </section>
+    {aside?.(year)}
   </>;
 }
 
@@ -116,12 +117,12 @@ function SeasonHeader({ detail, year, onYear }: { detail: PolygonDetail; year: n
   </div>;
 }
 
-export function SeasonPanel({ detail }: { detail: PolygonDetail }) {
+export function SeasonPanel({ detail, aside }: { detail: PolygonDetail; aside?: (year: number) => ReactNode }) {
   const years = Object.keys(detail.years).map(Number).sort((a, b) => a - b);
   const [params] = useSearchParams();
   const requested = Number(params.get("year"));
   const [year, setYear] = useState(() => years.includes(requested) ? requested : years.at(-1) ?? 0);
   return <div className="season-layout season-panel" data-testid="season-panel" data-pid={detail.pid} data-year={year}>
-    <SeasonContent key={`${detail.pid}:${year}`} detail={detail} year={year} onYear={setYear} />
+    <SeasonContent key={`${detail.pid}:${year}`} detail={detail} year={year} onYear={setYear} aside={aside} />
   </div>;
 }

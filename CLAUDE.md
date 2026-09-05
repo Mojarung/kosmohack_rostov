@@ -53,6 +53,13 @@
   все формулировки в `web/src/lib/plain.ts` (проценты зелени к ориентиру, дожди к норме, тепло в днях
   опережения, уверенность словами, советы по причине). Карточки показателей и эпизодов: крупно фраза,
   число мелко, техника под «подробности для агронома». Резервный `/legacy` не трогали.
+- **Агент, MCP и отчёт (2026-09-05)**: общий слой фактов `service/facts.py` — из него берут числа
+  и интерфейс, и модель, и отчёт. Агент `service/agent.py` (маршрут `POST /api/ask`, панель «Спросить про поле»
+  на экране поля): с ключом `ANTHROPIC_API_KEY` отвечает модель с тремя инструментами, без ключа — разбор
+  по правилам теми же фактами. MCP-сервер `mcp_server/` с шестью инструментами:
+  `claude mcp add vegetation -- uv run --no-sync python -m mcp_server`.
+  Отчёт `service/report_html.py` (`GET /api/report/{pid}`) — самодостаточный HTML без внешних ссылок,
+  график в SVG, свёрстан под печать в PDF из браузера.
 - Сверка с ТЗ по пунктам — `docs/07-submission-checklist.md` (статусы 2026-09-05); вопросы к экспертам и трекерам — `docs/15-consultation-questions.md`.
 - Docker проверен: `docker compose up --build` собирается, интерфейс и API отвечают, batch-инференс в контейнере
   воспроизводит submission (расхождение 7e-5, CPU против GPU). Образ 1.33 ГБ (группы infer + geo + service + torch CPU).
@@ -106,7 +113,7 @@ UV_TORCH_BACKEND=cu130 uv sync --group dl   # torch (CUDA 13.0 для RTX 5070),
 uv sync --group torch            # только torch (по умолчанию CPU-сборка) — хватает для инференса из models/
 uv sync --group serve            # только веб-слой: FastAPI, uvicorn, plotly, duckdb (эта группа идёт в образ)
 uv sync --group service          # всё для запуска сервиса на разработке: serve + geo + infer + ml
-uv sync --group agent            # pydantic-ai, anthropic, mcp
+uv sync --group agent            # anthropic и mcp: агент и MCP-сервер
 uv sync --group openeo           # отдельно: конфликтует с geo по xarray
 ```
 
