@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -97,17 +98,32 @@ def fields(bbox: str) -> list[dict]:
         raise HTTPException(502, f"Overpass API недоступен: {exc}") from exc
 
 
+_pool: ProcessPoolExecutor | None = None
+
+
+def _run_collect(geometry: dict, name: str, start_year: int, end_year: int) -> dict:
+    from service.collect import analyze_geometry
+    return analyze_geometry(geometry, name, start_year, end_year)
+
+
 @app.post("/api/analyze")
 def analyze(req: AnalyzeRequest) -> JSONResponse:
-    """Новая территория: сбор данных из открытых источников и анализ тем же пайплайном."""
+    """Новая территория: сбор данных из открытых источников и анализ тем же пайплайном.
+
+    Сбор идёт в отдельном процессе: GDAL/rasterio и dask внутри пула потоков сервера подвисают.
+    """
+    global _pool
     try:
-        from service.collect import analyze_geometry
-    except ImportError as exc:      # группа geo не установлена
+        import service.collect  # noqa: F401  проверка, что группа geo установлена
+    except ImportError as exc:
         raise HTTPException(501, f"сбор данных недоступен: {exc}") from exc
+    if _pool is None:
+        _pool = ProcessPoolExecutor(max_workers=1)
     try:
-        return JSONResponse(analyze_geometry(req.geometry, req.name, req.start_year, req.end_year))
+        result = _pool.submit(_run_collect, req.geometry, req.name, req.start_year, req.end_year).result(timeout=1200)
+        return JSONResponse(result)
     except Exception as exc:        # ошибки внешних API отдаём пользователю понятным текстом
-        raise HTTPException(502, f"не удалось собрать данные: {exc}") from exc
+        raise HTTPException(502, f"не удалось собрать данные: {type(exc).__name__}: {exc}") from exc
 
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

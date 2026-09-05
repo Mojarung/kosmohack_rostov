@@ -210,7 +210,9 @@ def assemble_observations(pid: str, s2: pd.DataFrame, ls: pd.DataFrame, md: pd.D
     df["sensor"] = np.select([df["s2_ndvi"].notna(), df["landsat_ndvi"].notna()], [0, 1], 2).astype("int8")
     df = df.assign(pid=pid, day_num=(df["date"] - pd.Timestamp("2000-01-01")).dt.days.astype("int32"),
                    year=df["date"].dt.year.astype("int16"), doy=df["date"].dt.dayofyear.astype("int16"), crop=-1)
-    return df.dropna(subset=["primary_ndvi"]).reset_index(drop=True)
+    # композиты MODIS, начинающиеся в марте, попадают в выборку по пересечению дат — оставляем только сезон
+    in_season = (df["doy"] >= 91) & (df["doy"] <= 304)
+    return df.loc[in_season].dropna(subset=["primary_ndvi"]).reset_index(drop=True)
 
 
 def analyze_geometry(geometry: dict, name: str, start_year: int, end_year: int) -> dict:
