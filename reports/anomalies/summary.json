@@ -1,24 +1,24 @@
 {
   "n_polygons": 78,
   "n_seasons": 1248,
-  "n_episodes": 613,
+  "n_episodes": 617,
   "episodes_by_cause": {
-    "weather_drought": 231,
-    "crop_rotation": 125,
-    "early_decline": 85,
-    "unsown_or_changed": 66,
-    "weak_season": 56,
-    "late_start": 43,
-    "data_suspect": 7
+    "weather_drought": 234,
+    "crop_rotation": 128,
+    "early_decline": 90,
+    "unsown_or_changed": 67,
+    "weak_season": 51,
+    "late_start": 44,
+    "data_suspect": 3
   },
   "episodes_by_severity": {
-    "умеренная": 444,
-    "критическая": 169
+    "умеренная": 451,
+    "критическая": 166
   },
   "org_check": {
     "n": 30520,
     "clim_mean_rmse": 0.0034957182389662544,
-    "z_corr": 0.9997514203569766,
+    "z_corr": 0.9997514203569781,
     "status_agreement": 0.9965268676277851
   }
 }

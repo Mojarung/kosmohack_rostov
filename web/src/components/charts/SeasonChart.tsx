@@ -15,7 +15,7 @@ import { LinePlot } from "@mui/x-charts/LineChart";
 import { useDrawingArea, useXScale, useYScale } from "@mui/x-charts/hooks";
 
 import type { Episode, SeasonYear } from "../../api/types";
-import { SENSOR_COLOR, ms } from "../../lib/format";
+import { SENSOR_COLOR, axisDate, localDate, ms } from "../../lib/format";
 import { BrushLayer } from "./BrushLayer";
 import { PlotClip } from "./PlotClip";
 import type { RangeControl } from "./range";
@@ -45,7 +45,7 @@ function useSeasonGrid(season: SeasonYear) {
     const normMap = new Map(season.norm_mean.map((p) => [p.date, p.value]));
     const stdMap = new Map(season.norm_std.map((p) => [p.date, p.value]));
     return {
-      dates: dates.map((d) => new Date(`${d}T00:00:00Z`)),
+      dates: dates.map(localDate),
       iso: dates,
       curve: dates.map((d) => curveMap.get(d) ?? null),
       norm: dates.map((d) => normMap.get(d) ?? null),
@@ -191,10 +191,7 @@ export function SeasonChart({ season, episodes, height = 300, control, hover, on
           min: new Date(control.view.from),
           max: new Date(control.view.to),
           tickNumber: 6,
-          valueFormatter: (date: Date, context) =>
-            context.location === "tick"
-              ? date.toLocaleDateString("ru-RU", { month: "short", timeZone: "UTC" })
-              : date.toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" }),
+          valueFormatter: (date: Date, context) => axisDate(date, context.location),
         },
       ]}
       yAxis={[{ id: Y_AXIS, min: 0, max: 1, width: 46, tickNumber: 5, valueFormatter: (v: number) => v.toFixed(1) }]}

@@ -84,3 +84,45 @@ def test_window_stats_counts_dry_and_hot_days():
     st = window_stats(w, dates[0], dates[-1])
     assert st["n_days"] == 10 and st["precip_mm"] == pytest.approx(7)
     assert st["dry_days"] == 8 and st["max_dry_spell"] == 4 and st["hot_days"] == 5
+
+
+def _flat_then_drop(doys: list[int], values: list[float], year: int = 2021) -> pd.DataFrame:
+    """Ряд одного сезона из заданных дней года и значений (все наблюдения S2, без шума)."""
+    days = season_days(year).set_index("doy")
+    rows = []
+    for doy, v in zip(doys, values, strict=True):
+        d = days.loc[doy]
+        rows.append({"pid": "T-2", "date": d["date"], "day_num": int(d["day_num"]), "year": year, "doy": doy,
+                     "primary_ndvi": v, "sensor": 0, "s2_ndvi": v, "landsat_ndvi": np.nan, "modis_ndvi": np.nan,
+                     "s2_ndwi": np.nan, "landsat_ndwi": np.nan})
+    return pd.DataFrame(rows)
+
+
+def test_harvest_drop_is_not_artifact_but_single_cloud_is():
+    # уборка: уровень 0.56 держится, затем падение до 0.27 и три подтверждающих наблюдения на новом уровне
+    doys = [140, 145, 150, 155, 160, 165, 174, 179, 184, 189]
+    harvest = _flat_then_drop(doys, [0.58, 0.57, 0.57, 0.56, 0.56, 0.56, 0.27, 0.28, 0.28, 0.30])
+    a = harmonized_series(harvest)
+    assert not a.loc[a["doy"] == 174, "artifact"].item()      # первая точка после уборки — не облако
+    assert not a["artifact"].any()
+    # облако: одиночный провал, соседи вернулись на прежний уровень
+    cloud = _flat_then_drop(doys, [0.58, 0.57, 0.57, 0.56, 0.27, 0.56, 0.56, 0.57, 0.56, 0.55])
+    b = harmonized_series(cloud)
+    assert b.loc[b["doy"] == 160, "artifact"].item()
+    assert int(b["artifact"].sum()) == 1
+
+
+def test_curve_is_empty_outside_observations_and_after_today():
+    rows = _flat_then_drop([140, 145, 150, 155, 160], [0.5, 0.55, 0.6, 0.58, 0.55])
+    curve = daily_curve(harmonized_series(rows), 2021)
+    inside = (curve["doy"] >= 138) & (curve["doy"] <= 162)     # наблюдения плюс допуск в 2 дня
+    assert curve.loc[inside, "value"].notna().all()
+    assert curve.loc[~inside, "value"].isna().all()
+    assert (curve.loc[~inside, "weight"] == 0).all()
+
+
+def test_curve_of_current_season_stops_at_today():
+    today = pd.Timestamp.now("UTC").tz_localize(None).normalize()
+    rows = _flat_then_drop([140, 145, 150], [0.5, 0.55, 0.6], year=today.year)
+    curve = daily_curve(harmonized_series(rows), today.year)
+    assert curve.loc[curve["date"] > today, "value"].isna().all()

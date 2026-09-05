@@ -29,8 +29,12 @@ def _grid_from_weather(pid: str, weather: pd.DataFrame) -> pd.DataFrame:
                     year=w["date"].dt.year, doy=w["date"].dt.dayofyear)
 
 
-def analyze_new_polygon(pid: str, obs: pd.DataFrame, weather: pd.DataFrame) -> dict:
-    """Кривые, нормы, Z, эпизоды с объяснениями и погода — JSON для интерфейса (как service.data.Store.polygon)."""
+def analyze_new_polygon(pid: str, obs: pd.DataFrame, weather: pd.DataFrame, display_name: str | None = None) -> dict:
+    """Кривые, нормы, Z, эпизоды с объяснениями и погода — JSON для интерфейса (как service.data.Store.polygon).
+
+    `display_name` — имя поля, введённое пользователем: подставляется в текст объяснений вместо `pid`.
+    """
+    display_name = (display_name or "").strip() or pid
     series = harmonized_series(obs)
     curves = curves_by_year(series)
     if len(curves) < MIN_YEARS_FOR_NORM + 1:
@@ -63,10 +67,11 @@ def analyze_new_polygon(pid: str, obs: pd.DataFrame, weather: pd.DataFrame) -> d
             cause, conf, reasons = classify(ep, dev, pheno, weather_facts, near, {"available": False})
             if (note := ndwi_note(ndwi_anomaly(series, year, ep["start"], ep["end"]))) is not None:
                 reasons = reasons + [note]
-            episodes.append({"pid": pid, "year": int(year), **ep, "severity": severity_label(ep), "cause": cause,
-                             "confidence": conf, "norm_source": source, "weather_source": weather_facts["source"],
-                             "artifacts_near": near, "weather": weather_facts, "reasons": " | ".join(reasons),
-                             "text": describe(pid, int(year), ep, cause, conf, reasons, source)})
+            episodes.append({"pid": pid, "name": display_name, "year": int(year), **ep, "severity": severity_label(ep),
+                             "cause": cause, "confidence": conf, "norm_source": source,
+                             "weather_source": weather_facts["source"], "artifacts_near": near, "weather": weather_facts,
+                             "reasons": " | ".join(reasons),
+                             "text": describe(pid, int(year), ep, cause, conf, reasons, source, display_name)})
     weather_json = {}
     if wx is not None:
         for year, g in wx.groupby("year"):

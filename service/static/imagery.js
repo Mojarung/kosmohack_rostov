@@ -75,7 +75,7 @@
     $("imagery-content").hidden=true;$("imagery-load").hidden=true;
     if(overlay&&map){map.removeLayer(overlay);overlay=null;}
     if(!data.geometry)return;
-    $("area-value").textContent="Нужны снимки";
+    $("area-value").textContent="Откройте карту поля";
     $("area-note").textContent="Загрузить в карте поля";
     $("area-evidence").textContent="Площадь считается по пикселям Sentinel-2. Среднего NDVI по полю недостаточно.";
     $("imagery-status").textContent="Проверяем сохранённые снимки…";

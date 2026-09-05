@@ -10,7 +10,7 @@ import { LinePlot } from "@mui/x-charts/LineChart";
 import { useDrawingArea, useXScale } from "@mui/x-charts/hooks";
 
 import type { Episode, SeasonYear } from "../../api/types";
-import { ms } from "../../lib/format";
+import { axisDate, localDate, ms } from "../../lib/format";
 import { BrushLayer } from "./BrushLayer";
 import { PlotClip } from "./PlotClip";
 import type { RangeControl } from "./range";
@@ -55,7 +55,7 @@ interface ZChartProps {
 export function ZChart({ season, episodes, height = 150, control, hover, onHover }: ZChartProps) {
   const data = useMemo(
     () => ({
-      dates: season.z.map((p) => new Date(`${p.date}T00:00:00Z`)),
+      dates: season.z.map((p) => localDate(p.date)),
       values: season.z.map((p) => p.value),
     }),
     [season],
@@ -86,10 +86,7 @@ export function ZChart({ season, episodes, height = 150, control, hover, onHover
           min: new Date(control.view.from),
           max: new Date(control.view.to),
           tickNumber: 6,
-          valueFormatter: (date: Date, context) =>
-            context.location === "tick"
-              ? date.toLocaleDateString("ru-RU", { month: "short", timeZone: "UTC" })
-              : date.toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" }),
+          valueFormatter: (date: Date, context) => axisDate(date, context.location),
         },
       ]}
       yAxis={[{ id: Y_AXIS, min: -4, max: 3, width: 42, tickNumber: 4 }]}

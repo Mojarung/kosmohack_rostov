@@ -49,6 +49,32 @@ export function plural(n: number, one: string, few: string, many: string): strin
   return many;
 }
 
+/** ISO-дата «2024-06-10» → полночь этого дня по местному времени браузера.
+ *
+ *  Все даты в графиках создаются только так. Причина: временная шкала MUI X Charts (d3 scaleTime)
+ *  расставляет деления по МЕСТНЫМ полуночам, поэтому и точки данных, и подписи должны жить
+ *  в одном поясе. Если данные хранить в UTC, а подписи форматировать с timeZone: "UTC",
+ *  то восточнее Гринвича 1 июля 00:00 МСК = 30 июня 21:00 UTC и месяц на оси уезжает назад. */
+export function localDate(iso: string): Date {
+  const [year, month, day] = iso.slice(0, 10).split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+/** Дата в миллисекундах (местная полночь) — общая единица шкал и окна просмотра. */
 export function ms(iso: string): number {
-  return new Date(`${iso}T00:00:00Z`).getTime();
+  return localDate(iso).getTime();
+}
+
+/** Обратное преобразование: Date → «2024-06-10» по местному времени (не через toISOString). */
+export function isoDay(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/** Подписи временной оси: на делениях месяц, во всплывающей подсказке день и месяц.
+ *  Без timeZone — форматируем в том же поясе, в котором построены даты и деления. */
+export function axisDate(date: Date, location: string): string {
+  return location === "tick"
+    ? date.toLocaleDateString("ru-RU", { month: "short" })
+    : date.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
 }

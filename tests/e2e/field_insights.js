@@ -34,7 +34,7 @@ async (page, base="http://127.0.0.1:8000") => {
   check((await page.locator("#area-value").innerText()).includes(fmt(latest.change.drop_area_ha)),"Неверная площадь снижения");
   check((await page.locator("#area-value").innerText()).includes(fmt(latest.change.drop_share*100)),"Неверная доля общей площади");
   await page.locator('#years [data-y="2024"]').click();
-  await page.waitForFunction(()=>S.year===2024&&document.getElementById("area-value").textContent==="Нужны снимки");
+  await page.waitForFunction(()=>S.year===2024&&document.getElementById("area-value").textContent==="Откройте карту поля");
   check(await page.locator("#imagery-content").evaluate(el=>el.hidden),"Карта прошлого сезона осталась после смены года");
   await page.locator('#years [data-y="2025"]').click();
   await page.waitForFunction(()=>document.getElementById("area-value").textContent.includes("га"));

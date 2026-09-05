@@ -13,6 +13,7 @@ import { LinePlot } from "@mui/x-charts/LineChart";
 import { useDrawingArea, useXScale, useYScale } from "@mui/x-charts/hooks";
 
 import type { WeatherYear } from "../../api/types";
+import { axisDate, isoDay, localDate } from "../../lib/format";
 import { BrushLayer } from "./BrushLayer";
 import { PlotClip } from "./PlotClip";
 import type { RangeControl } from "./range";
@@ -58,7 +59,7 @@ function RainBars({ dates, precip }: { dates: Date[]; precip: number[] }) {
             opacity={0.85}
             rx={barWidth > 3 ? 1.5 : 0}
           >
-            <title>{`${date.toISOString().slice(0, 10)} · осадки ${value.toFixed(1)} мм`}</title>
+            <title>{`${isoDay(date)} · осадки ${value.toFixed(1)} мм`}</title>
           </rect>
         );
       })}
@@ -69,7 +70,7 @@ function RainBars({ dates, precip }: { dates: Date[]; precip: number[] }) {
 export function WeatherChart({ weather, height = 160, control, hover, onHover }: WeatherChartProps) {
   const data = useMemo(
     () => ({
-      dates: weather.date.map((d) => new Date(`${d}T00:00:00Z`)),
+      dates: weather.date.map(localDate),
       precip: weather.precip,
       temp: weather.temp,
       maxRain: Math.max(1, ...weather.precip.filter((v) => Number.isFinite(v))),
@@ -103,10 +104,7 @@ export function WeatherChart({ weather, height = 160, control, hover, onHover }:
           min: new Date(control.view.from),
           max: new Date(control.view.to),
           tickNumber: 6,
-          valueFormatter: (date: Date, context) =>
-            context.location === "tick"
-              ? date.toLocaleDateString("ru-RU", { month: "short", timeZone: "UTC" })
-              : date.toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" }),
+          valueFormatter: (date: Date, context) => axisDate(date, context.location),
         },
       ]}
       yAxis={[

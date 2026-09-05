@@ -15,7 +15,7 @@ import { PagePending } from "../components/ui/PagePending";
 
 const FieldMap = lazy(() => import("../components/map/FieldMap"));
 
-const YEARS = { start: 2019, end: new Date().getUTCFullYear() };
+const YEARS = { start: 2019, end: new Date().getFullYear() };
 
 /** Примерная площадь полигона в гектарах (сферическая аппроксимация, достаточно для подсказки). */
 function areaHa(polygon: GeoJSON.Polygon): number {
