@@ -31,8 +31,7 @@ def analyze_new_polygon(pid: str, obs: pd.DataFrame, weather: pd.DataFrame) -> d
     curves = curves_by_year(series)
     if len(curves) < MIN_YEARS_FOR_NORM + 1:
         raise ValueError(f"собрано только {len(curves)} сезонов, для нормы нужно не меньше {MIN_YEARS_FOR_NORM + 1}")
-    grid = _grid_from_weather(pid, weather)
-    wx = daily_weather(grid)
+    wx = daily_weather(_grid_from_weather(pid, weather)) if len(weather) else None
     years, episodes = {}, []
     for year, curve in curves.items():
         norm, source = norm_for_year(curves, year, None)

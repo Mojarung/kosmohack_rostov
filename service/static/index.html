@@ -58,10 +58,13 @@
       <h2>Новая территория</h2>
       <div id="map"></div>
       <div class="row" style="margin-top:8px">
+        <button class="primary" id="fields" style="background:#4a5568">Найти поля OSM в видимой области</button>
         <input id="name" type="search" placeholder="название поля" style="flex:1" value="новое поле">
+      </div>
+      <div class="row" style="margin-top:8px">
         <button class="primary" id="analyze" disabled>Собрать данные и проанализировать</button>
       </div>
-      <div id="status">Нарисуйте контур поля на карте (инструмент многоугольника слева вверху).</div>
+      <div id="status">Нарисуйте контур поля на карте или найдите готовые контуры OSM и кликните по полю.</div>
     </div>
     <div class="card">
       <h2>Полигоны кейса</h2>
@@ -199,6 +202,20 @@ const drawn = new L.FeatureGroup().addTo(map);
 map.addControl(new L.Control.Draw({ draw: { polygon: { allowIntersection: false, showArea: true }, polyline: false, circle: false, rectangle: true, marker: false, circlemarker: false }, edit: { featureGroup: drawn } }));
 map.on(L.Draw.Event.CREATED, e => { drawn.clearLayers(); drawn.addLayer(e.layer); S.drawn = e.layer.toGeoJSON().geometry;
   document.getElementById("analyze").disabled = false; document.getElementById("status").textContent = "Контур задан. Нажмите «Собрать данные»."; });
+const osmLayer = L.geoJSON(null, { style: { color: "#2f6f3e", weight: 1.5, fillOpacity: 0.12 },
+  onEachFeature: (f, layer) => layer.on("click", () => { drawn.clearLayers(); S.drawn = f.geometry;
+    document.getElementById("name").value = f.properties.name; document.getElementById("analyze").disabled = false;
+    L.geoJSON(f, { style: { color: "#e11d74", weight: 2.5, fillOpacity: 0.2 } }).addTo(drawn);
+    document.getElementById("status").textContent = "Выбрано: " + f.properties.name + ". Нажмите «Собрать данные»."; }) }).addTo(map);
+document.getElementById("fields").onclick = async () => {
+  const b = map.getBounds(); const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map(v => v.toFixed(4)).join(",");
+  document.getElementById("status").textContent = "Запрашиваем контуры полей OpenStreetMap…";
+  try {
+    const feats = await api("/api/fields?bbox=" + bbox);
+    osmLayer.clearLayers(); osmLayer.addData({ type: "FeatureCollection", features: feats.map(f => ({ type: "Feature", geometry: f.geometry, properties: { name: f.name } })) });
+    document.getElementById("status").textContent = feats.length ? `Найдено полей: ${feats.length}. Кликните по контуру.` : "В этой области контуров OSM нет — нарисуйте поле вручную.";
+  } catch (err) { document.getElementById("status").textContent = "Ошибка: " + err.message; }
+};
 document.getElementById("analyze").onclick = async () => {
   const btn = document.getElementById("analyze"); btn.disabled = true;
   document.getElementById("status").textContent = "Собираем Sentinel-2, Landsat, MODIS и ERA5… это занимает 1–3 минуты.";

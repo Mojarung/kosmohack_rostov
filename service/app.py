@@ -82,6 +82,21 @@ def summary() -> dict:
             "by_severity": df["severity"].value_counts().to_dict(), "n_polygons": int(df["pid"].nunique())}
 
 
+@app.get("/api/fields")
+def fields(bbox: str) -> list[dict]:
+    """Готовые контуры полей OpenStreetMap в рамке карты: bbox = юг,запад,север,восток."""
+    try:
+        from service.collect import osm_fields
+        s, w, n, e = (float(v) for v in bbox.split(","))
+        if (n - s) * (e - w) > 0.25:
+            raise HTTPException(400, "приблизьте карту: область слишком велика для запроса контуров")
+        return osm_fields((s, w, n, e))
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(502, f"Overpass API недоступен: {exc}") from exc
+
+
 @app.post("/api/analyze")
 def analyze(req: AnalyzeRequest) -> JSONResponse:
     """Новая территория: сбор данных из открытых источников и анализ тем же пайплайном."""

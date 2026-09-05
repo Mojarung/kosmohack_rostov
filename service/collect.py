@@ -46,6 +46,13 @@ def utm_crs(geom) -> str:
     return f"EPSG:{32600 + zone if c.y >= 0 else 32700 + zone}"
 
 
+def _load_parallel(items, bands: list[str], geom, resolution: int):
+    """Загрузка всех сцен по рамке полигона одним вызовом: dask читает COG параллельно, результат — в памяти."""
+    lazy = stac_load(items, bands=bands, geopolygon=geom.__geo_interface__, resolution=resolution,
+                     chunks={"time": 4}, groupby="solar_day", crs=utm_crs(geom))
+    return lazy.compute()
+
+
 def _polygon_mask(data, geom) -> np.ndarray:
     """Булева маска пикселей внутри полигона в системе координат загруженного массива."""
     from pyproj import Transformer
@@ -75,8 +82,7 @@ def collect_s2(geom, years: range) -> pd.DataFrame:
                                    datetime=_season_range(year), query={"eo:cloud_cover": {"lt": 80}}).items())
         if not items:
             continue
-        data = stac_load(items, bands=["red", "nir", "scl"], geopolygon=geom.__geo_interface__, resolution=10,
-                         chunks={}, groupby="solar_day", crs=utm_crs(geom))
+        data = _load_parallel(items, ["red", "nir", "scl"], geom, resolution=20)
         inside = _polygon_mask(data, geom)
         for t in data.time.values:
             frame = data.sel(time=t)
@@ -98,8 +104,7 @@ def collect_landsat(geom, years: range) -> pd.DataFrame:
                                                                         "platform": {"in": ["landsat-8", "landsat-9"]}}).items())
         if not items:
             continue
-        data = stac_load(items, bands=["red", "nir08", "qa_pixel"], geopolygon=geom.__geo_interface__, resolution=30,
-                         chunks={}, groupby="solar_day", crs=utm_crs(geom))
+        data = _load_parallel(items, ["red", "nir08", "qa_pixel"], geom, resolution=30)
         inside = _polygon_mask(data, geom)
         for t in data.time.values:
             frame = data.sel(time=t)
@@ -124,8 +129,7 @@ def collect_modis(geom, years: range) -> pd.DataFrame:
                                    datetime=_season_range(year)).items())
         if not items:
             continue
-        data = stac_load(items, bands=["250m_16_days_NDVI", "250m_16_days_pixel_reliability"],
-                         geopolygon=geom.__geo_interface__, resolution=250, chunks={}, groupby="solar_day", crs=utm_crs(geom))
+        data = _load_parallel(items, ["250m_16_days_NDVI", "250m_16_days_pixel_reliability"], geom, resolution=250)
         inside = _polygon_mask(data, geom)
         for t in data.time.values:
             frame = data.sel(time=t)
@@ -187,12 +191,25 @@ def analyze_geometry(geometry: dict, name: str, start_year: int, end_year: int) 
     from service.analyze_new import analyze_new_polygon
     geom = shape(geometry)
     years = range(start_year, end_year + 1)
-    s2, ls, md = collect_s2(geom, years), collect_landsat(geom, years), collect_modis(geom, years)
+    frames, notes = {}, []
+    # каждый источник независим: если один недоступен, ряд строится по остальным, а пользователь видит пометку
+    for label, fn in (("S2", collect_s2), ("Landsat", collect_landsat), ("MODIS", collect_modis)):
+        try:
+            frames[label] = fn(geom, years)
+            notes.append(f"{label} {len(frames[label])} сцен")
+        except Exception as exc:    # сетевые ошибки, недоступный каталог, пустой ответ
+            frames[label] = pd.DataFrame()
+            notes.append(f"{label} недоступен ({type(exc).__name__})")
     pid = f"NEW:{name}"
-    obs = assemble_observations(pid, s2, ls, md)
+    obs = assemble_observations(pid, frames["S2"], frames["Landsat"], frames["MODIS"])
     centroid = geom.centroid
-    weather = collect_weather(centroid.y, centroid.x, years).assign(pid=pid)
+    try:
+        weather = collect_weather(centroid.y, centroid.x, years).assign(pid=pid)
+        notes.append(f"ERA5 {len(weather)} дней")
+    except Exception as exc:
+        weather = pd.DataFrame(columns=["date", "era5_temp_c", "era5_precip_mm", "pid"])
+        notes.append(f"ERA5 недоступен ({type(exc).__name__})")
     result = analyze_new_polygon(pid, obs, weather)
-    result["collected"] = f"S2 {len(s2)} сцен, Landsat {len(ls)}, MODIS {len(md)}, ERA5 {len(weather)} дней"
+    result["collected"] = ", ".join(notes)
     result["geometry"] = geometry
     return result

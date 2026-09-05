@@ -41,6 +41,8 @@ uv run python -m gapfill.ensemble lgb_v3 nn_v2                               # �
 uv run python -m gapfill.predict --input data/test_dataset.csv --output submission.csv --n-masks 30 --rounds 5500 --seeds 0 1 2 --out final_lgb   # batch-инференс
 for s in 0 1 2 3 4; do uv run python -m gapfill.nn_model --final --epochs 600 --dropout 0.25 --seed $s --out final_nn; done
 uv run python -m gapfill.make_submission final_lgb:0.5 final_nn:0.5          # → submission.csv (3 112 строк)
+# без обучения, из сохранённых моделей models/ (LightGBM .txt.gz + SeasonNet .pt, ~60 МБ, в репозитории):
+uv run python -m gapfill.predict_saved --input data/test_dataset.csv --output submission.csv --models models
 uv run pytest tests -q
 ```
 
@@ -61,6 +63,33 @@ uv run python -m anomaly.run                                 # все полиг
 uv run python -m anomaly.evaluate reports/anomalies          # прокси-метрики детектора
 uv run python -m anomaly.plots AOI-0065:2024 AOI-0043:2019   # графики сезонов с эпизодами
 ```
+
+## Веб-сервис (обязательная точка запуска по ТЗ)
+
+```bash
+uv sync --group ml --group geo --group service        # FastAPI, STAC-клиенты, rasterio, Open-Meteo
+uv run python -m anomaly.run                         # один раз: эпизоды для полигонов кейса
+uv run uvicorn service.app:app --host 127.0.0.1 --port 8000
+```
+
+Открыть http://127.0.0.1:8000/. Два сценария из ТЗ:
+
+1. **Готовый полигон**: кнопка «Найти поля OSM в видимой области» запрашивает контуры `landuse=farmland` из
+   OpenStreetMap (Overpass API), клик по контуру выбирает поле.
+2. **Произвольный полигон**: контур рисуется на карте (Leaflet.draw).
+
+После выбора «Собрать данные и проанализировать» сервис сам получает Sentinel-2 L2A (Earth Search STAC,
+маска облаков по SCL), Landsat 8/9 C2 L2 и MODIS MOD13Q1 (Planetary Computer STAC), ERA5 (Open-Meteo,
+по центроиду поля), строит ряд `primary_ndvi` по приоритету S2 → Landsat → MODIS, восстановленную кривую,
+норму по собственной истории поля, находит эпизоды угнетения и объясняет их. Ключи и регистрация не нужны;
+нужен доступ в интернет. Полигоны кейса (78 анонимных `AOI-xxxx`, координат нет) показываются списком слева:
+исходные наблюдения по сенсорам, восстановленные контрольные точки из `submission.csv`, кривая, норма ±1σ,
+Z-score, погода ERA5 и эпизоды с причинами.
+
+API: `GET /api/polygons`, `GET /api/polygon/{pid}`, `GET /api/episodes?year=&cause=&severity=`, `GET /api/summary`,
+`GET /api/fields?bbox=юг,запад,север,восток`, `POST /api/analyze` (`{"geometry": <GeoJSON Polygon>, "name": "...",
+"start_year": 2019, "end_year": 2025}`). Объяснение эпизодов языковой моделью включается переменной окружения
+`ANTHROPIC_API_KEY` (`uv sync --group agent`); без неё текст формируется по правилам.
 
 ## Зависимости
 
@@ -92,8 +121,11 @@ uv run python -m anomaly.plots AOI-0065:2024 AOI-0043:2019   # графики с
 │   └── v1/                 # скрипты первого прохода EDA и сборка дашборда
 ├── gapfill/                # восстановление primary_ndvi: признаки, LightGBM, SeasonNet, смесь, submission
 ├── anomaly/                # детекция и интерпретация аномалий: кривые, нормы, эпизоды, погода, причины
+├── service/                # веб-сервис: FastAPI (app.py), данные (data.py), сбор для новых полигонов (collect.py), UI (static/)
 ├── experiments/            # журнал экспериментов по задаче 1 (exp-000…005)
 ├── tests/                  # pytest для ядра gapfill
+├── models/                 # готовые веса: 3 LightGBM (gzip) + 5 SeasonNet (.pt) для инференса без обучения
+├── Dockerfile              # образ сервиса и batch-инференса (uv, CPU)
 ├── submission.csv          # предсказания контрольных точек test (задача 1)
 ├── reports/
 │   ├── eda/                # графики и summary.json, генерируются EDA
