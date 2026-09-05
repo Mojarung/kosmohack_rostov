@@ -1,110 +1,131 @@
+/** Колобок катится по линии осадков. Физика — в kolobokPhysics.ts, здесь рельеф из графика,
+ *  цикл кадров и отрисовка: спрайт с поворотом и тень на линии, которая отстаёт и бледнеет,
+ *  когда колобок в воздухе. Докатившись до края, улетает, гаснет и начинает заново.
+ *  После зума и ресайза продолжает с той же даты, если она осталась на экране. */
+
 import { useEffect, useRef } from "react";
 import { useDrawingArea, useXScale, useYScale } from "@mui/x-charts/hooks";
 import type { WeatherMetric } from "../../api/analytics";
 import { ms } from "../../lib/format";
 import { finite } from "../../lib/metrics";
+import {
+  RADIUS, advance, buildSurface, heightAt, isGone, placeBall, timeAtX, xAtTime,
+  type Ball, type Terrain,
+} from "./kolobokPhysics";
 
-const RADIUS = 12;
-const CRUISE_SPEED = 80;
-const GRAVITY = 600;
-const RESTART_DELAY = 2000;
+const FADE_S = 0.35;          // появление и угасание
+const REST_S = 0.9;           // пауза перед новым заходом
+const SHADOW_REACH = 70;      // px высоты, на которой тень почти исчезает
+const SHADOW_OPACITY = 0.22;
 
-export function RollingKolobok({ metric }: { metric: WeatherMetric }) {
-  const x = useXScale("agro-x"), y = useYScale("agro-y");
-  const { left, width } = useDrawingArea();
-  const pathRef = useRef<SVGPathElement>(null);
-  const spriteRef = useRef<SVGGElement>(null);
+type Phase = "appear" | "roll" | "fade" | "rest";
+type Scale = (value: number) => number | undefined;
+interface Memory { time: number; v: number; angle: number }
 
-  // Первый видимый непрерывный участок той же линейной кривой, с учётом зума.
-  const points: string[] = [];
+/** Первый видимый непрерывный участок линии в пикселях, с датами для продолжения после зума. */
+function visibleTerrain(metric: WeatherMetric, x: Scale, y: Scale, left: number, right: number): Terrain | null {
+  const xs: number[] = [], ys: number[] = [], times: number[] = [];
+  const push = (px: number, py: number, time: number) => { xs.push(px); ys.push(py); times.push(time); };
   for (let i = 1; i < metric.date.length; i += 1) {
     const a = metric.value[i - 1], b = metric.value[i];
     if (!finite(a) || !finite(b)) {
-      if (points.length) break;
+      if (xs.length) break;
       continue;
     }
-    const x1 = x(ms(metric.date[i - 1])), x2 = x(ms(metric.date[i]));
-    const y1 = y(a), y2 = y(b);
+    const t1 = ms(metric.date[i - 1]), t2 = ms(metric.date[i]);
+    const x1 = x(t1), x2 = x(t2), y1 = y(a), y2 = y(b);
     if (x1 === undefined || x2 === undefined || y1 === undefined || y2 === undefined || x2 <= x1) continue;
-    const start = Math.max(left, x1), end = Math.min(left + width, x2);
+    const start = Math.max(left, x1), end = Math.min(right, x2);
     if (end <= start) continue;
-    const at = (px: number) => `${px},${y1 + (y2 - y1) * (px - x1) / (x2 - x1)}`;
-    if (!points.length) points.push(at(start));
-    points.push(at(end));
-    if (end >= left + width) break;
+    const fraction = (px: number) => (px - x1) / (x2 - x1);
+    if (!xs.length) push(start, y1 + (y2 - y1) * fraction(start), t1 + (t2 - t1) * fraction(start));
+    push(end, y1 + (y2 - y1) * fraction(end), t1 + (t2 - t1) * fraction(end));
+    if (end >= right) break;
   }
-  const path = points.length > 1 ? `M${points.join(" L")}` : "";
+  return xs.length > 1 ? { xs, ys, times } : null;
+}
+
+function nextPhase(phase: Phase, elapsed: number, gone: boolean): Phase {
+  if (gone && (phase === "roll" || phase === "appear")) return "fade";
+  if (phase === "appear" && elapsed >= FADE_S) return "roll";
+  if (phase === "fade" && elapsed >= FADE_S) return "rest";
+  if (phase === "rest" && elapsed >= REST_S) return "appear";
+  return phase;
+}
+
+function opacityFor(phase: Phase, elapsed: number): number {
+  if (phase === "appear") return Math.min(1, elapsed / FADE_S);
+  if (phase === "fade") return Math.max(0, 1 - elapsed / FADE_S);
+  return phase === "rest" ? 0 : 1;
+}
+
+/** Спрайт и тень: тень лежит на линии графика под центром шара и бледнеет с высотой полёта. */
+function draw(sprite: SVGGElement, shadow: SVGEllipseElement, terrain: Terrain, ball: Ball, opacity: number) {
+  const degrees = ball.angle * 180 / Math.PI;
+  sprite.setAttribute("transform", `translate(${ball.x.toFixed(2)},${ball.y.toFixed(2)}) rotate(${degrees.toFixed(1)})`);
+  sprite.setAttribute("opacity", opacity.toFixed(3));
+  const ground = heightAt(terrain, ball.x);
+  if (Number.isNaN(ground)) {
+    shadow.setAttribute("opacity", "0");
+    return;
+  }
+  const lift = Math.max(0, ground - ball.y - RADIUS);
+  const height = Math.min(1, lift / SHADOW_REACH);
+  shadow.setAttribute("transform", `translate(${ball.x.toFixed(2)},${ground.toFixed(2)}) scale(${(1 + height * 0.6).toFixed(3)},1)`);
+  shadow.setAttribute("opacity", (SHADOW_OPACITY * (1 - height) * opacity).toFixed(3));
+}
+
+export function RollingKolobok({ metric }: { metric: WeatherMetric }) {
+  const x = useXScale("agro-x"), y = useYScale("agro-y");
+  const { left, top, width, height } = useDrawingArea();
+  const spriteRef = useRef<SVGGElement>(null);
+  const shadowRef = useRef<SVGEllipseElement>(null);
+  const memoryRef = useRef<Memory | null>(null);
+
+  const terrain = visibleTerrain(metric, x as Scale, y as Scale, left, left + width);
+  const key = terrain ? `${terrain.xs.join()}|${terrain.ys.join()}` : "";
 
   useEffect(() => {
-    const track = pathRef.current, sprite = spriteRef.current;
-    if (!track || !sprite || !path) return;
-    const length = track.getTotalLength();
-    if (!length) return;
-    const poseAt = (distance: number) => {
-      const point = track.getPointAtLength(distance);
-      // Усредняем наклон на масштабе радиуса, чтобы не дёргаться на каждом узле линии.
-      const before = track.getPointAtLength(Math.max(0, distance - RADIUS / 2));
-      const after = track.getPointAtLength(Math.min(length, distance + RADIUS / 2));
-      const span = Math.hypot(after.x - before.x, after.y - before.y) || 1;
-      const tx = (after.x - before.x) / span, ty = (after.y - before.y) / span;
-      // Центр отстоит от поверхности по нормали, а не просто вверх по экрану.
-      return { x: point.x + ty * RADIUS, y: point.y - tx * RADIUS, tx, ty };
-    };
-    let distance = 0, speed = CRUISE_SPEED, rotation = 0;
-    let pose = poseAt(0);
-    let previous = performance.now();
-    let flight: { started: number; x: number; y: number; vx: number; vy: number; spin: number; rotation: number } | null = null;
-    let frame = 0;
-    const animate = (now: number) => {
-      // Малые шаги удерживают движение стабильным при разной частоте кадров.
-      let remaining = Math.min((now - previous) / 1000, 0.05);
-      previous = now;
-      if (flight && now - flight.started >= RESTART_DELAY) {
-        distance = 0;
-        speed = CRUISE_SPEED;
-        rotation = 0;
-        pose = poseAt(0);
-        flight = null;
-        remaining = 0;
-      }
-      while (!flight && remaining > 0) {
-        const dt = Math.min(remaining, 1 / 120);
-        remaining -= dt;
-        // Сила тяжести вдоль склона и инерция катящегося шара (5/7).
-        // Лёгкая тяга и нижний предел скорости помогают колобку преодолеть любой подъём.
-        const acceleration = GRAVITY * 5 / 7 * pose.ty + (CRUISE_SPEED - speed) * 0.8;
-        speed = Math.max(28, Math.min(220, speed + acceleration * dt));
-        const nextDistance = Math.min(length, distance + speed * dt);
-        const nextPose = poseAt(nextDistance);
-        rotation += Math.hypot(nextPose.x - pose.x, nextPose.y - pose.y) / RADIUS;
-        distance = nextDistance;
-        pose = nextPose;
-        if (distance >= length) {
-          flight = { started: now, x: pose.x, y: pose.y,
-            vx: pose.tx * speed, vy: pose.ty * speed, spin: speed / RADIUS, rotation };
-        }
-      }
-      let px = pose.x, py = pose.y, angle = rotation;
-      if (flight) {
-        const seconds = (now - flight.started) / 1000;
-        // С края вылетаем по касательной: инерция и вращение сохраняются в воздухе.
-        px = flight.x + flight.vx * seconds;
-        py = flight.y + flight.vy * seconds + GRAVITY * seconds * seconds / 2;
-        angle = flight.rotation + flight.spin * seconds;
-      }
-      sprite.setAttribute("transform",
-        `translate(${px},${py}) rotate(${angle * 180 / Math.PI})`);
-      sprite.setAttribute("visibility", "visible");
-      frame = requestAnimationFrame(animate);
-    };
-    frame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frame);
-  }, [path]);
+    const sprite = spriteRef.current, shadow = shadowRef.current;
+    if (!terrain || !sprite || !shadow) return;
+    const surface = buildSurface(terrain);
+    const right = left + width, bottom = top + height;
+    const startX = terrain.xs[0];
 
-  if (!path) return null;
+    const saved = memoryRef.current;
+    const restoredX = saved ? xAtTime(terrain, saved.time) : null;
+    let ball = restoredX !== null && saved
+      ? placeBall(surface, restoredX, saved.v, saved.angle)
+      : placeBall(surface, startX);
+    let phase: Phase = restoredX !== null ? "roll" : "appear";
+    let phaseStart = performance.now(), previous = phaseStart, frame = 0;
+
+    const tick = (now: number) => {
+      const seconds = (now - previous) / 1000;
+      previous = now;
+      const moving = phase === "roll" || phase === "appear";
+      if (moving) ball = advance(surface, ball, seconds);
+      const phaseBefore = phase;
+      phase = nextPhase(phase, (now - phaseStart) / 1000, moving && isGone(ball, right, bottom));
+      if (phase !== phaseBefore) {
+        phaseStart = now;
+        if (phase === "appear") ball = placeBall(surface, startX);
+      }
+      memoryRef.current = ball.airborne || !moving ? null
+        : { time: timeAtX(terrain, ball.x) ?? Number.NaN, v: ball.v, angle: ball.angle };
+      draw(sprite, shadow, terrain, ball, opacityFor(phase, (now - phaseStart) / 1000));
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+    // Рельеф пересобирается на каждом рендере; перезапуск нужен только когда он реально изменился.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  if (!terrain) return null;
   return <g aria-hidden="true" pointerEvents="none">
-    <path ref={pathRef} d={path} fill="none" stroke="none" />
-    <g ref={spriteRef} visibility="hidden">
+    <ellipse ref={shadowRef} rx={RADIUS * 0.8} ry={2.6} fill="#211d17" opacity={0} />
+    <g ref={spriteRef} opacity={0}>
       <image href={`${import.meta.env.BASE_URL}kolobok.png`} x={-RADIUS} y={-RADIUS}
         width={RADIUS * 2} height={RADIUS * 2} />
     </g>

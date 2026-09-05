@@ -359,6 +359,37 @@
   background: rgba(255, 255, 255, 0.85);
 }
 
+/* --- свой курсор: белый с blend-режимом difference, поэтому тёмный на светлом фоне
+   и светлый поверх видео --- */
+
+.cursor-dot,
+.cursor-ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 999;
+  pointer-events: none;
+  border-radius: 50%;
+  mix-blend-mode: difference;
+  will-change: transform;
+}
+
+.cursor-dot {
+  width: 6px;
+  height: 6px;
+  background: #fff;
+}
+
+.cursor-ring {
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+}
+
+body.has-custom-cursor,
+body.has-custom-cursor * {
+  cursor: none !important;
+}
 
 /* Шапка первого экрана */
 .landing-topbar {

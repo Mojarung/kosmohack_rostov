@@ -10,6 +10,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { api } from "../api/client";
 import { CurveArt, DroughtArt, GapArt, LayersArt, SatelliteArt, SproutArt } from "../components/art/Art";
 import { HeroVideo } from "../components/hero/HeroVideo";
+import { Cursor } from "../components/motion/Cursor";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -134,6 +135,7 @@ export function LandingPage() {
 
   return (
     <div ref={rootRef} className="landing">
+      <Cursor />
 
       <section ref={heroRef} className="hero">
         <HeroVideo src="/hero.mp4" poster="/hero-poster.jpg" />
