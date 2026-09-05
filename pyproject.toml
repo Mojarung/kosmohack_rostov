@@ -32,6 +32,11 @@ dl = [
     "pypots>=1.5",
     "torch>=2.14.0",
 ]
+# Только torch: этого хватает для инференса SeasonNet из models/ (образ Docker берёт эту группу,
+# полная dl нужна лишь для экспериментов с Chronos и PyPOTS)
+torch = [
+    "torch>=2.14.0",
+]
 geo = [
     "earthaccess>=0.19.0",
     "earthengine-api>=1.7.42",

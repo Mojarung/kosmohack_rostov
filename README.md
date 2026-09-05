@@ -92,7 +92,7 @@ docker compose up --build      # соберёт интерфейс и бэкен
 ### Запуск без Docker
 
 ```bash
-uv sync --group ml --group geo --group service --group dl   # FastAPI, STAC-клиенты, rasterio, Open-Meteo, torch (CPU)
+uv sync --group ml --group geo --group service --group torch   # FastAPI, STAC-клиенты, rasterio, Open-Meteo, torch (CPU)
 uv run python -m anomaly.run                                # один раз: эпизоды для полигонов кейса
 cd web && npm ci && npm run build && cd ..                  # интерфейс (Node 20+); без этого шага откроется резервный HTML
 uv run uvicorn service.app:app --host 127.0.0.1 --port 8000
@@ -148,7 +148,8 @@ API: `GET /api/polygons`, `GET /api/polygon/{pid}`, `GET /api/episodes?year=&cau
 | Группа | Что внутри | Команда |
 |---|---|---|
 | `ml` | scikit-learn, LightGBM, CatBoost, XGBoost, statsmodels, whittaker-eilers, optuna, shap | `uv sync --group ml` |
-| `dl` | torch, PyPOTS, pygrinder, chronos-forecasting | `uv sync --group dl` |
+| `dl` | torch, PyPOTS, pygrinder, chronos-forecasting (эксперименты) | `uv sync --group dl` |
+| `torch` | только torch — хватает для инференса SeasonNet из `models/`, эту группу берёт образ Docker | `uv sync --group torch` |
 | `geo` | pystac-client, odc-stac, stackstac, planetary-computer, rasterio, rioxarray, xarray, geopandas, shapely, earthengine-api, openmeteo-requests, osmnx, overpy | `uv sync --group geo` |
 | `openeo` | клиент Copernicus Data Space (конфликтует с `geo` по xarray) | `uv sync --group openeo` |
 | `service` | FastAPI, uvicorn, pydantic, httpx | `uv sync --group service` |

@@ -2066,6 +2066,10 @@ service = [
     { name = "python-dotenv" },
     { name = "uvicorn", extra = ["standard"] },
 ]
+torch = [
+    { name = "torch", version = "2.14.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "torch", version = "2.14.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -2139,6 +2143,10 @@ service = [
     { name = "pydantic-settings", specifier = ">=2.15.0" },
     { name = "python-dotenv", specifier = ">=1.2.3" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.4" },
+]
+torch = [
+    { name = "torch", marker = "sys_platform != 'linux' and sys_platform != 'win32'", specifier = ">=2.14.0" },
+    { name = "torch", marker = "sys_platform == 'linux' or sys_platform == 'win32'", specifier = ">=2.14.0", index = "https://download.pytorch.org/whl/cu130" },
 ]
 
 [[package]]

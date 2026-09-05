@@ -23,9 +23,10 @@ WORKDIR /app
 ENV UV_LINK_MODE=copy PYTHONIOENCODING=utf-8 UV_TORCH_BACKEND=cpu PYTHONUNBUFFERED=1
 
 # Зависимости отдельно от кода, чтобы слой кэшировался между сборками.
-# Группа dl (torch, CPU) нужна для инференса нейросети из models/; сервису самому она не требуется.
+# Группа torch (CPU) нужна для инференса нейросети из models/; сервису самому она не требуется.
+# Полная группа dl (Chronos, PyPOTS) — только для экспериментов, в образ не входит.
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --group ml --group geo --group service --group dl
+RUN uv sync --frozen --no-dev --group ml --group geo --group service --group torch
 
 COPY . .
 COPY --from=web /web/dist ./web/dist

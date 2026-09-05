@@ -188,7 +188,9 @@ if WEB_INDEX.exists():
 
     @app.get("/{path:path}", include_in_schema=False)
     def spa(path: str) -> FileResponse:
-        candidate = WEB_DIST / path
-        if path and candidate.is_file():
+        # Отдаём только файлы внутри web/dist: путь приходит от клиента, поэтому проверяем,
+        # что после разрешения он не вышел за пределы папки сборки (защита от «../»).
+        candidate = (WEB_DIST / path).resolve()
+        if path and candidate.is_file() and candidate.is_relative_to(WEB_DIST.resolve()):
             return FileResponse(candidate)
         return FileResponse(WEB_INDEX)
