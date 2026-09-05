@@ -50,7 +50,7 @@ export function AgroChart({ metric, color, units, year, control, hover, onHover 
       xAxis={[{ id: "agro-x", data: metric.date.map(d => new Date(ms(d))), scaleType: "utc",
         min: new Date(control.view.from), max: new Date(control.view.to), tickNumber: 6,
         valueFormatter: (d: Date, ctx) => d.toLocaleDateString("ru-RU", {
-          month: "short", ...(ctx.location === "tick" ? {} : { day: "numeric" }), timeZone: "UTC",
+          month: "short", ...(ctx.location === "tick" ? {} : { day: "numeric" }),
         }),
       }]}
       yAxis={[{ id: "agro-y", width: 54, tickNumber: 5, valueFormatter: (v: number) => number(v, 0) }]}>
