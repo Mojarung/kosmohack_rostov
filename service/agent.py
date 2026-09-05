@@ -6,7 +6,7 @@
 
 Без ключа модели (см. service.llm) работает разбор по правилам: он отвечает на частые вопросы
 теми же фактами, только без связного текста. Провайдер и модель настраиваются переменными
-окружения NVIDIA_API_KEY и NDVI_LLM_MODEL. Установка: uv sync --group agent.
+окружения OLLAMA_API_KEY и NDVI_LLM_MODEL. Установка: uv sync --group agent.
 """
 
 from __future__ import annotations

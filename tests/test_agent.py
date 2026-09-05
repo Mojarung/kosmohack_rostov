@@ -1,7 +1,7 @@
 """Тесты агента-агронома: ответы по правилам, инструменты и диалог с моделью без сети.
 
 Модель не вызывается ни разу: ветка с языковой моделью проверяется подменой
-service.llm.chat, ветка правил — снятой переменной NVIDIA_API_KEY.
+service.llm.chat, ветка правил — снятой переменной OLLAMA_API_KEY.
 """
 
 import pytest
@@ -70,7 +70,9 @@ def facts() -> dict:
 @pytest.fixture
 def no_key(monkeypatch):
     """Ключа модели нет: агент обязан отвечать по правилам и никуда не ходить."""
-    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    # ключ мог попасть в окружение из .env при импорте service.app — снимаем и его, и сам признак доступности
+    monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
+    monkeypatch.setattr(llm, "available", lambda: False)
     monkeypatch.setattr(llm, "chat", lambda *a, **k: pytest.fail("модель не должна вызываться"))
 
 
