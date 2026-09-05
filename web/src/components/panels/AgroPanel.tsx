@@ -2,7 +2,7 @@
 import { useState } from "react";
 import type { AgroContext } from "../../api/analytics";
 import { shortDate } from "../../lib/format";
-import { comparison, dayAt, finite, metricPoint, number } from "../../lib/metrics";
+import { comparison, dayAt, finite, historySpan, metricPoint, number } from "../../lib/metrics";
 import { AgroChart } from "../charts/AgroChart";
 import type { RangeControl } from "../charts/range";
 
@@ -39,10 +39,10 @@ export function AgroPanel({ context, loading, error, retry, year, control, hover
     <p className="meta weather-description">{spec.description} · {spec.units}</p>
     <p className="weather-readout num" data-testid="weather-readout" data-date={point.date}>
       {point.date ? shortDate(point.date) : "—"} · {number(point.value)} {spec.units}
-      {finite(point.mean) ? ` · ${comparison(point.value, point.mean, spec.units)}` : " · истории для сравнения мало"}
+      {finite(point.mean) ? ` · ${comparison(point.value, point.mean, spec.units)}${historySpan(metric)}` : " · истории для сравнения мало"}
     </p>
     <div className="metric-legend"><span style={{ color: spec.color }}>● {year}</span>
-      {history && <span>━ Среднее прошлых лет · полоса 10–90%</span>}</div>
+      {history && <span>━ Среднее{historySpan(metric) || " прошлых лет"} · полоса 10–90%</span>}</div>
     <AgroChart metric={metric} color={spec.color} units={spec.units} year={year}
       control={control} hover={hover} onHover={onHover} />
     <details className="metric-help"><summary>Как читать погодный график</summary><div className="stack">
