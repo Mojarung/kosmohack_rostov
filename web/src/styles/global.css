@@ -32,8 +32,10 @@
   --pad: clamp(18px, 2.2vw, 32px);
   --shell-max: 1560px;
 
-  --font-sans: "Segoe UI Variable Display", "SF Pro Display", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
-  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --font-sans: "Manrope", "Segoe UI Variable Display", "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
+  /* Noto Serif — заголовки (Google Fonts, файлы лежат локально в public/fonts) */
+  --font-display: "Noto Serif", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-serif: var(--font-display);
   --font-mono: "JetBrains Mono", "Cascadia Mono", "SF Mono", ui-monospace, "Consolas", monospace;
 
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
@@ -60,13 +62,19 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+.display {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
 h1,
 h2,
 h3 {
-  font-family: var(--font-serif);
-  font-weight: 400;
+  font-family: var(--font-display);
+  font-weight: 600;
   letter-spacing: -0.02em;
-  line-height: 1.12;
+  line-height: 1.14;
   margin: 0;
 }
 
@@ -342,4 +350,39 @@ details > summary::before {
 
 details[open] > summary::before {
   content: "− ";
+}
+
+/* Плавная реакция всех кнопок и ссылок на наведение */
+.btn {
+  transition:
+    transform 0.24s var(--ease),
+    background-color 0.24s var(--ease),
+    border-color 0.24s var(--ease),
+    color 0.24s var(--ease),
+    box-shadow 0.24s var(--ease),
+    opacity 0.24s var(--ease);
+}
+
+.btn:hover:not(:disabled) {
+  transform: translate3d(0, -1px, 0);
+  box-shadow: 0 6px 18px rgba(33, 29, 23, 0.12);
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.975);
+  box-shadow: none;
+}
+
+a,
+button,
+.tag,
+.poly,
+summary {
+  transition: color 0.22s var(--ease), background-color 0.22s var(--ease), border-color 0.22s var(--ease),
+    opacity 0.22s var(--ease), transform 0.22s var(--ease);
+}
+
+.years button:hover:not(.active),
+.poly:hover {
+  transform: translate3d(0, -1px, 0);
 }

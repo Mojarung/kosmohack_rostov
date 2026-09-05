@@ -80,7 +80,7 @@ function MetricTile({
 
 const PAGE = 24;   // сколько карточек полей показывать сразу
 
-export function OverviewPage() {
+export default function OverviewPage() {
   const meta = useQuery({ queryKey: ["meta"], queryFn: api.meta });
   const polygons = useQuery({ queryKey: ["polygons"], queryFn: api.polygons });
   const summary = useQuery({ queryKey: ["summary"], queryFn: api.summary });
