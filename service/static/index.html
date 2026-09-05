@@ -210,15 +210,26 @@ document.getElementById("fields").onclick = async () => {
     document.getElementById("status").textContent = feats.length ? `Найдено полей: ${feats.length}. ${feats.length >= 200 ? "Достигнут предел выдачи — приблизьте карту. " : ""}Кликните по контуру. В OSM есть не все поля.` : "В этой области контуров OSM нет — нарисуйте поле вручную.";
   } catch (err) { document.getElementById("status").textContent = "Ошибка: " + err.message; }
 };
+// Ход сбора: сервер пишет прогресс по заданию, идентификатор которого задаём заранее.
+function progressText(p) {
+  const rows = Object.values(p.sources || {}).map(s => s.status === "failed" ? `${s.title}: ${s.note}` : `${s.title} ${s.done}/${s.total}${s.scenes ? ` (${s.scenes} сцен)` : ""}`);
+  if (p.stage === "analysis") rows.push("разбираем сезоны…");
+  return rows.length ? "Собираем: " + rows.join(" · ") : "Запускаем сборщик, запрашиваем каталоги снимков…";
+}
 document.getElementById("analyze").onclick = async () => {
   const btn = document.getElementById("analyze"); btn.disabled = true;
+  const job = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-" + Math.random()).replace(/[^A-Za-z0-9-]/g, "").slice(0, 36).padEnd(8, "0");
   document.getElementById("status").textContent = "Собираем Sentinel-2, Landsat, MODIS и ERA5… для новой территории это может занять несколько минут.";
+  const poll = setInterval(async () => {
+    try { document.getElementById("status").textContent = progressText(await api("/api/analyze/progress/" + job)); } catch (err) { /* задание ещё не начато */ }
+  }, 2000);
   try {
     const data = await api("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ geometry: S.drawn, name: document.getElementById("name").value }) });
+      body: JSON.stringify({ geometry: S.drawn, name: document.getElementById("name").value, job }) });
+    clearInterval(poll);
     S.current = null; renderList(); showData(data, data.name || data.pid, data.crop || "");
     document.getElementById("status").textContent = "Готово: " + (data.collected || "");
-  } catch (err) { document.getElementById("status").textContent = "Ошибка: " + err.message; }
+  } catch (err) { clearInterval(poll); document.getElementById("status").textContent = "Ошибка: " + err.message; }
   btn.disabled = false;
 };
 } else document.getElementById("status").textContent = "Карта не загрузилась. Обновите страницу; графики доступны.";

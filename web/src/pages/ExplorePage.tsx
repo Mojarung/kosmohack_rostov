@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { api } from "../api/client";
-import type { OsmField, PolygonDetail } from "../api/types";
+import type { CollectSource, OsmField, PolygonDetail } from "../api/types";
 import { severityTone } from "../lib/format";
 import { FieldArt, SearchFieldsArt } from "../components/art/Art";
 import { SeasonPanel } from "../components/panels/SeasonPanel";
@@ -33,24 +33,65 @@ function areaHa(polygon: GeoJSON.Polygon): number {
   return Math.abs(sum / 2) / 10_000;
 }
 
-/** Пока API не передаёт прогресс, показываем объём запроса и время ожидания. */
-function CollectProgress({ startedAt }: { startedAt: number }) {
+/** Идентификатор задания сбора: клиент задаёт его заранее и опрашивает прогресс, пока POST ещё выполняется. */
+function newJobId(): string {
+  const raw = typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+  return raw.replace(/[^A-Za-z0-9-]/g, "").slice(0, 36).padEnd(8, "0");
+}
+
+const SOURCE_ORDER = ["S2", "Landsat", "MODIS", "ERA5"];
+
+/** Реальный ход сбора с сервера: сезоны и сцены по каждому источнику, затем разбор сезонов. */
+function CollectProgress({ startedAt, job }: { startedAt: number; job: string }) {
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
     const timer = window.setInterval(() => setElapsed(Math.round((Date.now() - startedAt) / 1000)), 1000);
     return () => window.clearInterval(timer);
   }, [startedAt]);
+  const progress = useQuery({
+    queryKey: ["collect-progress", job],
+    queryFn: () => api.analyzeProgress(job),
+    refetchInterval: 2000,
+    retry: false,
+  });
+  const state = progress.data;
+  const sources = SOURCE_ORDER.map((key) => state?.sources[key]).filter((s): s is CollectSource => Boolean(s));
+  const lastLine = state?.log.at(-1);
 
   return (
-    <div className="card card--sunk stack" style={{ gap: 10 }} data-testid="collect-progress">
+    <div className="card card--sunk stack" style={{ gap: 8 }} data-testid="collect-progress">
       <div className="spread">
         <span className="eyebrow">Собираем данные</span>
         <span className="num meta">{Math.floor(elapsed / 60)} мин {elapsed % 60} с</span>
       </div>
       <span className="meta">{YEARS.start}–{YEARS.end} · сезонов: {YEARS.end - YEARS.start + 1}</span>
-      <span className="meta">Sentinel-2 · Landsat · MODIS · ERA5</span>
+      {sources.length === 0 && <span className="meta">Запускаем сборщик, запрашиваем каталоги снимков…</span>}
+      {sources.map((source) => (
+        <div key={source.title} className="stack" style={{ gap: 3 }}>
+          <div className="spread" style={{ fontSize: 12 }}>
+            <span>{source.title}</span>
+            <span className="meta num">
+              {source.status === "failed"
+                ? source.note
+                : `${source.done} / ${source.total}${source.scenes ? ` · ${source.scenes} сцен` : ""}`}
+            </span>
+          </div>
+          <div style={{ height: 3, borderRadius: 2, background: "var(--line)", overflow: "hidden" }}>
+            <div
+              style={{
+                height: "100%",
+                width: `${source.total ? Math.round((100 * source.done) / source.total) : 0}%`,
+                background: source.status === "failed" ? "var(--crit-ink)" : "var(--ok-ink)",
+                transition: "width 0.4s",
+              }}
+            />
+          </div>
+        </div>
+      ))}
+      {state?.stage === "analysis" && <span className="meta">Спутники и погода собраны, разбираем сезоны…</span>}
+      {lastLine && state?.stage === "collect" && <span className="meta">{lastLine}</span>}
       <p className="meta">
-        Сбор нескольких лет может занять больше 5 минут — время зависит от скорости источников.
+        Источники грузятся одновременно; время зависит от скорости хранилищ снимков.
         Дождитесь завершения на этой странице: отчёт откроется автоматически.
       </p>
     </div>
@@ -71,6 +112,7 @@ export default function ExplorePage() {
   const bboxRef = useRef<[number, number, number, number] | null>(null);
   const [result, setResult] = useState<PolygonDetail | null>(null);
   const [startedAt, setStartedAt] = useState(0);
+  const [job, setJob] = useState("");
 
   const saved = useQuery({ queryKey: ["user-polygons"], queryFn: api.userPolygons });
   const opened = useQuery({
@@ -80,14 +122,18 @@ export default function ExplorePage() {
   });
 
   const analyze = useMutation({
-    mutationFn: () =>
+    mutationFn: (jobId: string) =>
       api.analyze({
         geometry: selection!,
         name: name.trim() || "новое поле",
         start_year: YEARS.start,
         end_year: YEARS.end,
+        job: jobId,
       }),
-    onMutate: () => setStartedAt(Date.now()),
+    onMutate: (jobId) => {
+      setStartedAt(Date.now());
+      setJob(jobId);
+    },
     onSuccess: async (data) => {
       setResult(data);
       await queryClient.invalidateQueries({ queryKey: ["user-polygons"] });
@@ -222,11 +268,11 @@ export default function ExplorePage() {
               type="button"
               className="btn btn--sm"
               disabled={!selection || analyze.isPending}
-              onClick={() => analyze.mutate()}
+              onClick={() => analyze.mutate(newJobId())}
             >
               {analyze.isPending ? "Собираем…" : `Собрать за ${YEARS.start}–${YEARS.end} и разобрать`}
             </button>
-            {analyze.isPending && <CollectProgress startedAt={startedAt} />}
+            {analyze.isPending && <CollectProgress startedAt={startedAt} job={job} />}
             {analyze.isError && <ErrorNote error={analyze.error} />}
           </div>
         </section>

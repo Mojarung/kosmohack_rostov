@@ -244,3 +244,69 @@ def test_collected_report_is_public_and_has_insights(service_client, monkeypatch
     assert reopened["insights"] == result["insights"] and "_weather" not in reopened
     assert service_client.get(f"/api/polygon/{result['pid']}/agro?year=2025").status_code == 200
     assert len(service_client.get("/api/user-polygons").json()) == 1
+
+
+def test_progress_endpoint_reports_collector_state(service_client, monkeypatch, tmp_path):
+    """Файл прогресса, который пишет процесс сборщика, отдаётся как есть; чужой или неверный id — 404."""
+    from service import progress as module
+
+    monkeypatch.setattr(module, "PROGRESS_DIR", tmp_path / "progress")
+    assert service_client.get("/api/analyze/progress/unknown-job").status_code == 404
+    assert service_client.get("/api/analyze/progress/short").status_code == 404   # неверный формат id
+
+    tracker = module.Progress("job-0123456789")
+    tracker.start("S2", 3)
+    tracker.year_done("S2", 2019, 40, 12.5)
+    tracker.year_done("S2", 2020, 0, 3.0, ok=False)
+    tracker.finish_source("ERA5", "ERA5 с 1989 г.")
+    tracker.stage("analysis", "разбираем сезоны")
+
+    state = service_client.get("/api/analyze/progress/job-0123456789").json()
+    assert state["stage"] == "analysis" and state["sources"]["S2"] == {
+        "title": "Sentinel-2", "total": 3, "done": 2, "scenes": 40, "status": "running", "note": ""}
+    assert state["sources"]["ERA5"]["status"] == "done"
+    assert state["log"][-2:] == ["Sentinel-2 2020: не загружен", "разбираем сезоны"]
+    assert module.Progress(None).path is None   # без задания прогресс никуда не пишется
+
+
+def test_sources_are_collected_in_parallel_and_failures_are_noted(monkeypatch, tmp_path):
+    """Четыре источника стартуют одновременно; отказ одного даёт пометку, а не ошибку всего сбора."""
+    import threading
+    import pandas as pd
+    collect = pytest.importorskip("service.collect")
+    from service import progress as module
+
+    monkeypatch.setattr(module, "PROGRESS_DIR", tmp_path / "progress")
+    monkeypatch.setattr(collect, "configure_gdal", lambda: None)
+    gate = threading.Barrier(4, timeout=5)      # все четыре потока должны встретиться, иначе сбор идёт по очереди
+
+    def satellite(label, dates):
+        def fn(geom, years, progress):
+            gate.wait()
+            return collect._by_years(lambda y: pd.DataFrame({"date": pd.to_datetime([f"{y}-06-01"]),
+                                                              f"{label}_ndvi": [0.5]}), years, label=label.upper()
+                                     if label != "s2" else "S2", progress=progress)
+        return fn
+
+    def landsat_fails(geom, years, progress):
+        gate.wait()
+        raise ConnectionError("нет сети")
+
+    def weather(lat, lon, years):
+        gate.wait()
+        return pd.DataFrame({"date": pd.to_datetime(["2020-06-01"]), "era5_temp_c": [20.0], "era5_precip_mm": [1.0]})
+
+    monkeypatch.setattr(collect, "collect_s2", satellite("s2", None))
+    monkeypatch.setattr(collect, "collect_landsat", landsat_fails)
+    monkeypatch.setattr(collect, "collect_modis", satellite("modis", None))
+    monkeypatch.setattr(collect, "collect_weather", weather)
+    monkeypatch.setattr("service.analyze_new.analyze_new_polygon",
+                        lambda pid, obs, weather, display_name: {"pid": pid, "n_obs": int(len(obs))})
+
+    geometry = {"type": "Polygon", "coordinates": [[[39, 47], [39.01, 47], [39.01, 47.01], [39, 47]]]}
+    result = collect.analyze_geometry(geometry, "поле", 2019, 2022, job="job-parallel-1")
+    assert result["n_obs"] == 4 and "Landsat недоступен: ConnectionError" in result["warnings"]
+    assert "S2 4 сцен" in result["collected"] and "ERA5 с 2020 г." in result["collected"]
+    state = module.read_progress("job-parallel-1")
+    assert state["stage"] == "done" and state["sources"]["Landsat"]["status"] == "failed"
+    assert state["sources"]["S2"]["done"] == 4 and state["sources"]["ERA5"]["status"] == "done"
