@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
 import urllib.request
 
@@ -46,11 +47,19 @@ def utm_crs(geom) -> str:
     return f"EPSG:{32600 + zone if c.y >= 0 else 32700 + zone}"
 
 
-def _load_parallel(items, bands: list[str], geom, resolution: int):
+def _load_parallel(items, bands: list[str], geom, resolution: int, dtype=None):
     """Загрузка всех сцен по рамке полигона одним вызовом: dask читает COG параллельно, результат — в памяти."""
     lazy = stac_load(items, bands=bands, geopolygon=geom.__geo_interface__, resolution=resolution,
-                     chunks={"time": 4}, groupby="solar_day", crs=utm_crs(geom))
+                     chunks={"time": 4}, groupby="solar_day", crs=utm_crs(geom), dtype=dtype)
     return lazy.compute()
+
+
+def _by_years(fn, years: range, max_workers: int = 4) -> pd.DataFrame:
+    """Сезоны собираются параллельно (каждый год — отдельный запрос к каталогу и своя загрузка)."""
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        frames = list(pool.map(fn, years))
+    frames = [f for f in frames if len(f)]
+    return pd.concat(frames, ignore_index=True).sort_values("date").reset_index(drop=True) if frames else pd.DataFrame()
 
 
 def _polygon_mask(data, geom) -> np.ndarray:
@@ -73,71 +82,80 @@ def _mean_index(num, den, clear, inside) -> tuple[float, float, float]:
     return float(np.clip(ndvi.mean(), -1, 1)), float(valid.sum() / n_inside), n_inside
 
 
+def _s2_year(geom, year: int) -> pd.DataFrame:
+    client = pystac_client.Client.open(EARTH_SEARCH)
+    items = list(client.search(collections=["sentinel-2-l2a"], intersects=geom.__geo_interface__,
+                               datetime=_season_range(year), query={"eo:cloud_cover": {"lt": 80}}).items())
+    if not items:
+        return pd.DataFrame()
+    data = _load_parallel(items, ["red", "nir", "scl"], geom, resolution=20)
+    inside = _polygon_mask(data, geom)
+    rows = []
+    for t in data.time.values:
+        frame = data.sel(time=t)
+        ndvi, share, _ = _mean_index(frame["nir"].values.astype(float), frame["red"].values.astype(float),
+                                     np.isin(frame["scl"].values, S2_CLEAR_SCL), inside)
+        if np.isfinite(ndvi):
+            rows.append({"date": pd.Timestamp(t).normalize(), "s2_ndvi": ndvi, "s2_clear_share": share})
+    return pd.DataFrame(rows)
+
+
 def collect_s2(geom, years: range) -> pd.DataFrame:
     """Sentinel-2 L2A: NDVI по чистым пикселям (SCL) на каждую сцену."""
-    client = pystac_client.Client.open(EARTH_SEARCH)
+    return _by_years(lambda y: _s2_year(geom, y), years)
+
+
+def _landsat_year(geom, year: int) -> pd.DataFrame:
+    client = pystac_client.Client.open(PLANETARY, modifier=planetary_computer.sign_inplace)
+    items = list(client.search(collections=["landsat-c2-l2"], intersects=geom.__geo_interface__,
+                               datetime=_season_range(year), query={"eo:cloud_cover": {"lt": 80},
+                                                                    "platform": {"in": ["landsat-8", "landsat-9"]}}).items())
+    if not items:
+        return pd.DataFrame()
+    data = _load_parallel(items, ["red", "nir08", "qa_pixel"], geom, resolution=30)
+    inside = _polygon_mask(data, geom)
     rows = []
-    for year in years:
-        items = list(client.search(collections=["sentinel-2-l2a"], intersects=geom.__geo_interface__,
-                                   datetime=_season_range(year), query={"eo:cloud_cover": {"lt": 80}}).items())
-        if not items:
-            continue
-        data = _load_parallel(items, ["red", "nir", "scl"], geom, resolution=20)
-        inside = _polygon_mask(data, geom)
-        for t in data.time.values:
-            frame = data.sel(time=t)
-            scl = frame["scl"].values
-            ndvi, share, n = _mean_index(frame["nir"].values.astype(float), frame["red"].values.astype(float),
-                                         np.isin(scl, S2_CLEAR_SCL), inside)
-            if np.isfinite(ndvi):
-                rows.append({"date": pd.Timestamp(t).normalize(), "s2_ndvi": ndvi, "s2_clear_share": share})
+    for t in data.time.values:
+        frame = data.sel(time=t)
+        qa = frame["qa_pixel"].values.astype(np.int64)
+        bad = np.zeros(qa.shape, dtype=bool)
+        for bit in LANDSAT_BAD_BITS:
+            bad |= (qa >> bit) & 1 == 1
+        red = frame["red"].values.astype(float) * 0.0000275 - 0.2
+        nir = frame["nir08"].values.astype(float) * 0.0000275 - 0.2
+        ndvi, share, _ = _mean_index(nir, red, ~bad & (qa != 0), inside)
+        if np.isfinite(ndvi):
+            rows.append({"date": pd.Timestamp(t).normalize(), "landsat_ndvi": ndvi, "landsat_clear_share": share})
     return pd.DataFrame(rows)
 
 
 def collect_landsat(geom, years: range) -> pd.DataFrame:
     """Landsat 8/9 C2 L2 (Planetary Computer): NDVI по пикселям без облаков/теней по qa_pixel."""
+    return _by_years(lambda y: _landsat_year(geom, y), years)
+
+
+def _modis_year(geom, year: int) -> pd.DataFrame:
     client = pystac_client.Client.open(PLANETARY, modifier=planetary_computer.sign_inplace)
+    items = list(client.search(collections=["modis-13Q1-061"], intersects=geom.__geo_interface__,
+                               datetime=_season_range(year)).items())
+    if not items:
+        return pd.DataFrame()
+    # надёжность хранится как int8 с nodata 255 — читаем в int16, иначе odc-stac падает на переполнении
+    data = _load_parallel(items, ["250m_16_days_NDVI", "250m_16_days_pixel_reliability"], geom, resolution=250, dtype="int16")
+    inside = _polygon_mask(data, geom)
     rows = []
-    for year in years:
-        items = list(client.search(collections=["landsat-c2-l2"], intersects=geom.__geo_interface__,
-                                   datetime=_season_range(year), query={"eo:cloud_cover": {"lt": 80},
-                                                                        "platform": {"in": ["landsat-8", "landsat-9"]}}).items())
-        if not items:
-            continue
-        data = _load_parallel(items, ["red", "nir08", "qa_pixel"], geom, resolution=30)
-        inside = _polygon_mask(data, geom)
-        for t in data.time.values:
-            frame = data.sel(time=t)
-            qa = frame["qa_pixel"].values.astype(np.int64)
-            bad = np.zeros(qa.shape, dtype=bool)
-            for bit in LANDSAT_BAD_BITS:
-                bad |= (qa >> bit) & 1 == 1
-            red = frame["red"].values.astype(float) * 0.0000275 - 0.2
-            nir = frame["nir08"].values.astype(float) * 0.0000275 - 0.2
-            ndvi, share, n = _mean_index(nir, red, ~bad & (qa != 0), inside)
-            if np.isfinite(ndvi):
-                rows.append({"date": pd.Timestamp(t).normalize(), "landsat_ndvi": ndvi, "landsat_clear_share": share})
+    for t in data.time.values:
+        frame = data.sel(time=t)
+        ndvi = frame["250m_16_days_NDVI"].values.astype(float) * 0.0001
+        good = np.isin(frame["250m_16_days_pixel_reliability"].values, (0, 1)) & inside & (ndvi > -1) & (ndvi < 1)
+        if good.sum() >= 1:
+            rows.append({"date": pd.Timestamp(t).normalize(), "modis_ndvi": float(np.clip(ndvi[good].mean(), -1, 1))})
     return pd.DataFrame(rows)
 
 
 def collect_modis(geom, years: range) -> pd.DataFrame:
     """MODIS MOD13Q1 (Planetary Computer): готовый NDVI композита с фильтром надёжности."""
-    client = pystac_client.Client.open(PLANETARY, modifier=planetary_computer.sign_inplace)
-    rows = []
-    for year in years:
-        items = list(client.search(collections=["modis-13Q1-061"], intersects=geom.__geo_interface__,
-                                   datetime=_season_range(year)).items())
-        if not items:
-            continue
-        data = _load_parallel(items, ["250m_16_days_NDVI", "250m_16_days_pixel_reliability"], geom, resolution=250)
-        inside = _polygon_mask(data, geom)
-        for t in data.time.values:
-            frame = data.sel(time=t)
-            ndvi = frame["250m_16_days_NDVI"].values.astype(float) * 0.0001
-            good = np.isin(frame["250m_16_days_pixel_reliability"].values, (0, 1)) & inside & (ndvi > -1)
-            if good.sum() >= 1:
-                rows.append({"date": pd.Timestamp(t).normalize(), "modis_ndvi": float(np.clip(ndvi[good].mean(), -1, 1))})
-    return pd.DataFrame(rows)
+    return _by_years(lambda y: _modis_year(geom, y), years)
 
 
 def collect_weather(lat: float, lon: float, years: range) -> pd.DataFrame:
