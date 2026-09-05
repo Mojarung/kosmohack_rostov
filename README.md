@@ -61,18 +61,54 @@ LightGBM + нейросеть по сезонной сетке (SeasonNet), см
 (параметр `--extra`; чтобы отключить — `--extra` без значений). Сравнение версий — [docs/03](docs/03-data.md).
 Выход — `submission.csv` (`anon_polygon_id,date,primary_ndvi_pred`, только строки `is_synthetic_gap = True`).
 
+**Инференс сданной модели** (ничего обучать не нужно, веса `models/improved/` лежат в репозитории):
+
 ```bash
-uv sync --group ml --group dl                                                # LightGBM, CatBoost, torch (CUDA 13.0)
+uv sync --frozen --no-default-groups --group infer --group torch
+uv run --no-sync python -m gapfill.predict_improved --output submission.csv --device cpu   # 2 323 строки
+uv run --no-sync python -m gapfill.metrics                                                 # RMSE и GapScore за 0.05 с
+```
+
+**Обучение финальной модели с нуля** (exp-008; на RTX 5060 Ti около полутора часов, подробности и промежуточные
+проверки — [docs/16](docs/16-model-improvement.md)):
+
+```bash
+UV_TORCH_BACKEND=cu130 uv sync --group ml --group dl
+# 1. подбор и проверка на отложенной маске 777
+uv run --no-sync python -m gapfill.research_train --val-seed 777 --n-masks 30 --modes all --kriging --rounds 8500 --threads 5 --out kriging30_777
+uv run --no-sync python -m gapfill.research_nn --kind residual --epochs 260 --schedule-epochs 400 --fixed-epoch 260 --hidden 96 --val-seed 777 --out nn_residual777
+uv run --no-sync python -m gapfill.research_uncertainty --model artifacts/research/kriging30_777/all/model.txt --n-masks 30 --val-seed 777 --kriging --out uncertainty_kriging777
+uv run --no-sync python -m gapfill.research_blend --model artifacts/research/kriging30_777/all/model.txt --nn nn_residual777 --val-seed 777 --weights 0.6 --sigma 0.04 --calibration posterior --uncertainty artifacts/research/uncertainty_kriging777/model.txt --out posterior_blend777
+# 2. обучение на всех известных точках и сборка пакета весов models/improved/
+uv run --no-sync python -m gapfill.research_final --source artifacts/research/kriging30_777/all/result.json --n-masks 30 --rounds 8500 --seeds 42 137 --threads 5 --out final_kriging --uncertainty
+uv run --no-sync python -m gapfill.research_nn --kind residual --epochs 260 --schedule-epochs 400 --hidden 96 --final --seed 0 --out final_nn_s0
+uv run --no-sync python -m gapfill.research_package --lgb final_kriging --nn final_nn_s0 --calibration posterior
+```
+
+Предыдущая конфигурация exp-007 (смесь LightGBM + SeasonNet 0.5/0.5, веса в `models/`) обучается так:
+
+```bash
 uv run python -m gapfill.train --n-masks 20 --clip -0.1 1.0 --out lgb_v4     # валидация LightGBM (RMSE 0.055)
 uv run python -m gapfill.nn_model --epochs 600 --dropout 0.25 --out nn_v4    # валидация SeasonNet (RMSE 0.059, GPU)
 uv run python -m gapfill.ensemble lgb_v4 nn_v4                               # смесь на валидации (RMSE 0.054)
-uv run python -m gapfill.predict --input data/test_features_new.csv --output submission.csv --n-masks 30 --rounds 5500 --seeds 0 1 2 --out final_lgb   # обучение LightGBM + предсказание
+uv run python -m gapfill.predict --input data/test_features_new.csv --output submission.csv --n-masks 30 --rounds 5500 --seeds 0 1 2 --out final_lgb
 for s in 0 1 2 3 4; do uv run python -m gapfill.nn_model --final --epochs 600 --dropout 0.25 --seed $s --out final_nn; done
-uv run python -m gapfill.make_submission final_lgb:0.5 final_nn:0.5          # → submission.csv (2 323 строки)
-# batch-инференс без обучения, из сохранённых моделей models/ (LightGBM .txt.gz + SeasonNet .pt, ~103 МБ, в репозитории):
-uv run --no-sync python -m gapfill.predict_improved --output submission.csv --device cpu
-uv run pytest tests -q
+uv run python -m gapfill.make_submission final_lgb:0.5 final_nn:0.5          # → submission.csv
 ```
+
+**Свой файл `private_features.csv`.** Калибровка привязана к опубликованным организаторами историческим
+агрегатам и проверяет контрольные суммы исходных `train`/`extra`, поэтому на другом наборе данных запускайте
+инференс без неё, иначе будет `ValueError`:
+
+```bash
+uv run --no-sync python -m gapfill.predict_improved --no-calibration --input <ваш_файл>.csv --output submission.csv --device cpu
+```
+
+Seed 42 (LightGBM — дополнительно 137), гиперпараметры финала: LightGBM l2, lr 0.03, 63 листа,
+`min_data_in_leaf` 40, `feature_fraction` 0.6, 8 500 итераций, 427 признаков; ResidualSeasonNet — 96 каналов,
+260 эпох, расписание на 400. Проверка окружения — `uv run pytest tests -q`; полный набор из 182 тестов проходит на окружении
+`uv sync --group infer --group serve --group geo --group agent --group torch` (без группы `geo` падают
+тесты сбора, без `agent` — тесты агента, без собранного `web/dist` — тест клиентских маршрутов).
 
 Готовый [`submission.csv`](submission.csv) лежит в корне — это предсказания финальной модели exp-008
 (для первой версии test — [`reports/gapfill/submission_v1_test_dataset.csv`](reports/gapfill/submission_v1_test_dataset.csv),
@@ -102,11 +138,19 @@ uv run --no-sync python -m gapfill.predict_improved --output submission.csv --mo
 uv run --no-sync python -m gapfill.predict_improved --no-calibration --output submission_model.csv
 ```
 
-**Важно:** `submission.csv` использует mean/std из первой версии `data/test_dataset.csv`,
-которые содержат информацию о скрытых значениях новой версии. Это специфичная для данного набора
-калибровка, не переносимая на новые поля. Перед конкурсной отправкой её допустимость нужно подтвердить
-у организаторов. `submission_model.csv` — тот же ансамбль **без этой калибровки**. Результат закрытой
-платформы неизвестен; локальные метрики и контрольные прогнозы — в
+**Какой файл сдаётся.** Конкурсный — `submission.csv` (с калибровкой, GapScore 16.88 на отложенной выборке).
+Рядом лежит `submission_model.csv` — тот же ансамбль без калибровки (13.41): его отправляем, если организаторы
+сочтут калибровку недопустимой. Калибровка использует опубликованные ими же исторические mean/std из первой
+версии `data/test_dataset.csv`; эти агрегаты несут информацию о скрытых значениях второй версии, поэтому
+приём калибровки — вопрос к организаторам ([docs/15](docs/15-consultation-questions.md)), а не техническое
+ограничение. На новые поля она не переносится: инференс на чужом файле запускается с `--no-calibration`.
+
+**Про «невозможные» значения.** В калиброванном файле есть два предсказания вне диапазона [−0.1, 1]
+(минимум −0.15, максимум 2.03). Это не ошибка формата: в самих данных кейса есть истинные `primary_ndvi`
+до 1.84 и до −2.13 (артефакты съёмки, попавшие в разметку), а калибровка по агрегатам как раз и восстанавливает
+такие выбросы. Обрезка проверена на отложенной выборке и только ухудшает метрику: [−0.5, 1.0] даёт 16.80,
+[−0.1, 1.0] — 16.67 против 16.88 без обрезки, потому что рядом с этими прогнозами стоят такие же
+выбросы в ответах. Локальные метрики и контрольные прогнозы — в
 [`reports/gapfill/improvement/`](reports/gapfill/improvement/).
 
 На macOS, если LightGBM не находит `libomp.dylib`, перед запуском:
