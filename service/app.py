@@ -133,7 +133,8 @@ def polygon(pid: str) -> dict:
         return field_store.public_report(saved)
     if pid not in set(store().obs["pid"]):
         raise HTTPException(404, f"полигон {pid} не найден")
-    return store().polygon(pid)
+    from service.insights import with_insights
+    return with_insights(store().polygon(pid))
 
 
 @app.get("/api/saved-fields")
@@ -219,7 +220,12 @@ def collect_imagery(pid: str, year: int) -> dict:
     report = field_store.read_report(pid)
     if not report or not report.get("geometry"):
         raise HTTPException(400, "У этого примера нет координат поля")
+    if str(year) not in {str(y) for y in report["years"]}:
+        raise HTTPException(400, "Выберите сезон из отчёта поля")
     from service.imagery import collect
+    from service.imagery import read
+    if (cached := read(pid, year)) is not None:
+        return {"available": True, "manifest": cached}
     if _pool is None:
         _pool = ProcessPoolExecutor(max_workers=1)
     try:

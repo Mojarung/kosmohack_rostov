@@ -47,6 +47,28 @@ main>section { min-width:0; display:flex; flex-direction:column; gap:12px; }
 .calculation-body p { color:#798477; font-size:12px; margin:6px 0; }
 #zplot { height:170px; } #raw-ndvi { height:250px; } #wx { height:190px; }
 [hidden] { display:none!important; }
+.insights { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin:12px 0; align-items:start; }
+.insight { border:1px solid #e2e8df; border-radius:8px; background:#fbfcf9; min-width:0; }
+.insight>summary { cursor:pointer; padding:10px 12px; list-style:none; }
+.insight>summary::after { content:"Подробнее ›"; display:block; font-size:10px; color:#7a857b; margin-top:5px; }
+.insight[open]>summary::after { content:"Свернуть ‹"; }
+.insight strong { display:block; font-size:17px; font-weight:600; margin:3px 0; line-height:1.25; }
+.insight[data-status=worsening] strong { color:#a34d37; }
+.insight[data-status=easing] strong,.insight[data-status=recovered] strong { color:#376e4e; }
+.insight-body { border-top:1px solid #edf0e8; padding:8px 12px 11px; font-size:12px; color:#68746a; }
+.insight-body p { margin:0 0 7px; }
+.imagery-card { margin-top:14px; border-top:1px solid #e8ede4; }
+.imagery-card>summary { padding:12px 0; cursor:pointer; font-weight:600; color:#304636; }
+.imagery-card>summary span { font-weight:400; font-size:11px; }
+.imagery-body { padding:0 0 8px; }
+#imagery-status { font-size:12px; color:#69756b; margin:0 0 8px; }
+.imagery-controls { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; margin:8px 0; }
+#imagery-date { width:auto; max-width:100%; font-size:12px; }
+#imagery-map { height:300px; border-radius:8px; background:#edf0e8; z-index:0; }
+#imagery-legend { max-width:400px; margin:9px auto 6px; }
+#imagery-scale { height:8px; border-radius:4px; }
+#imagery-labels { display:flex; justify-content:space-between; color:#69756b; font-size:10px; margin-top:3px; }
+@media(max-width:480px) { .insight strong { font-size:15px; } .insight>summary { padding:8px; } .insights { gap:6px; } }
 button:focus-visible,summary:focus-visible,.poly:focus-visible { outline:2px solid #638e6c; outline-offset:3px; }
 @media(max-width:1150px) { main { grid-template-columns:280px minmax(0,1fr); padding:14px; gap:12px; } .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } .metric-value { font-size:21px; } }
 @media(max-width:760px) { main { grid-template-columns:minmax(0,1fr); padding:10px; } header { padding:12px; } header .sub { display:none; } .chart-panel { padding:13px 10px; } .metrics { gap:6px; } .metric { padding:8px; } .metric-value { font-size:19px; } .weather-tabs button { padding:6px 8px; } .episode-level { float:none; display:block; margin:4px 0 0; } #ndvi { height:270px; } #list { max-height:210px; } }

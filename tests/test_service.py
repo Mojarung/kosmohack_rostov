@@ -179,6 +179,24 @@ def test_saved_field_and_season_settings_survive_reopening(service_client, monke
     assert service_client.post("/api/polygon/FIELD-A/agro", json=settings | {"sowing_date": "2024-04-01"}).status_code == 422
 
 
+def test_imagery_cache_and_year_validation(service_client, monkeypatch, tmp_path):
+    """Повторный сбор использует кэш; отсутствующий сезон не запускает сетевую работу."""
+    from service import field_store, imagery
+    monkeypatch.setattr(field_store, "ROOT", tmp_path / "fields")
+    monkeypatch.setattr(imagery, "ROOT", tmp_path / "imagery")
+    field_store.save_report({"pid": "FIELD-A", "years": {"2025": {}}, "episodes": [],
+                             "geometry": {"type": "Polygon", "coordinates": [[[39, 47], [39.01, 47], [39.01, 47.01], [39, 47]]]}})
+    assert not service_client.get("/api/polygon/FIELD-A/imagery?year=2025").json()["available"]
+    assert service_client.post("/api/polygon/FIELD-A/imagery?year=1900").status_code == 400
+    assert service_client.post("/api/polygon/AOI-0001/imagery?year=2025").status_code == 400
+    manifest = {"pid": "FIELD-A", "year": 2025, "generation": "test", "scenes": []}
+    field_store._write(imagery.directory("FIELD-A", 2025) / "manifest.json", manifest)
+    assert service_client.post("/api/polygon/FIELD-A/imagery?year=2025").json()["manifest"] == manifest
+    response = service_client.get("/api/polygon/FIELD-A")
+    assert response.json()["insights"]["2025"]["status"] == "insufficient"
+    assert service_client.get("/api/polygon/FIELD-A/imagery/2025/2025-10-01/invalid.png").status_code == 404
+
+
 @pytest.mark.parametrize("payload", [
     {"geometry": {"type": "Point", "coordinates": [39, 47]}},
     {"geometry": {"type": "Polygon", "coordinates": [[[39, 47], [40, 47], [40, 48], [39, 47]]]},
