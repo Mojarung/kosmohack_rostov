@@ -191,6 +191,44 @@ def refresh_weather(pid: str) -> dict:
     return {"status": "ok", "days": len(weather), "warnings": report["weather_warnings"]}
 
 
+@app.get("/api/polygon/{pid}/imagery")
+def imagery(pid: str, year: int) -> dict:
+    """Сохранённая карта пиксельных индексов Sentinel-2, если она уже собрана."""
+    from service.imagery import read, ndmi_context
+    manifest = read(pid, year)
+    if manifest is None:
+        return {"available": False, "year": year}
+    return {"available": True, "manifest": manifest, "ndmi": ndmi_context(pid, year)}
+
+
+@app.get("/api/polygon/{pid}/imagery/{year}/{date}/{index}.png")
+def imagery_file(pid: str, year: int, date: str, index: str) -> FileResponse:
+    from service.imagery import image_path, PALETTES
+    if index not in PALETTES:
+        raise HTTPException(404, "Неизвестный индекс")
+    path = image_path(pid, year, date, index)
+    if path is None:
+        raise HTTPException(404, "Снимок не найден")
+    return FileResponse(path, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.post("/api/polygon/{pid}/imagery")
+def collect_imagery(pid: str, year: int) -> dict:
+    """Собирает карту Sentinel-2 по запросу для поля с координатами."""
+    global _pool
+    report = field_store.read_report(pid)
+    if not report or not report.get("geometry"):
+        raise HTTPException(400, "У этого примера нет координат поля")
+    from service.imagery import collect
+    if _pool is None:
+        _pool = ProcessPoolExecutor(max_workers=1)
+    try:
+        manifest = _pool.submit(collect, pid, report["geometry"], year).result(timeout=1200)
+    except Exception as exc:
+        raise HTTPException(502, f"Не удалось собрать карту: {type(exc).__name__}: {exc}") from exc
+    return {"available": True, "manifest": manifest}
+
+
 @app.get("/api/episodes")
 def episodes(year: int | None = None, cause: str | None = None, severity: str | None = None) -> list[dict]:
     """Все эпизоды с фильтрами по году, причине и тяжести."""
