@@ -11,8 +11,96 @@
     <title>Вегетация · мониторинг полей по спутниковым снимкам</title>
     <link rel="icon" href="/leaf.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin />
+    <style>
+      /* Загрузчик первого захода. Стили и разметка лежат в index.html, поэтому экран
+         появляется сразу, ещё до загрузки скриптов. Убирает его src/boot.ts. */
+      #boot {
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(120% 90% at 50% 28%, #f4e8d5 0%, #f7f6f3 62%);
+        transition: opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      #boot[data-done] {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .boot-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+        color: #211d17;
+      }
+      .boot-mark {
+        width: 46px;
+        height: 46px;
+      }
+      .boot-mark .tone {
+        fill: currentColor;
+        opacity: 0.13;
+      }
+      .boot-mark .ink {
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-dasharray: 70;
+        stroke-dashoffset: 70;
+        animation: boot-draw 1.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      .boot-mark .ink:nth-of-type(2) { animation-delay: 0.12s; }
+      .boot-mark .ink:nth-of-type(3) { animation-delay: 0.24s; }
+      .boot-mark .ink:nth-of-type(4) { animation-delay: 0.36s; }
+      @keyframes boot-draw { to { stroke-dashoffset: 0; } }
+      .boot-word {
+        font-family: "Noto Serif", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+        font-size: 21px;
+        letter-spacing: 0.02em;
+      }
+      .boot-track {
+        position: relative;
+        width: 148px;
+        height: 1px;
+        overflow: hidden;
+        background: rgba(33, 29, 23, 0.16);
+      }
+      .boot-bar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 38%;
+        background: #211d17;
+        animation: boot-run 1.25s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+      }
+      @keyframes boot-run {
+        from { transform: translateX(-110%); }
+        to { transform: translateX(300%); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-mark .ink { animation: none; stroke-dashoffset: 0; }
+        .boot-bar { animation: none; width: 40%; }
+      }
+    </style>
   </head>
   <body>
+    <div id="boot" role="status" aria-label="Загрузка">
+      <div class="boot-inner">
+        <svg class="boot-mark" viewBox="0 0 48 48" aria-hidden="true">
+          <circle class="tone" cx="31" cy="17" r="9" />
+          <path class="ink" d="M24 42V20" />
+          <path class="ink" d="M24 26c-8 0-12-4-12-11 7 0 12 4 12 11z" />
+          <path class="ink" d="M24 22c7-1 11-5 11-12-7 1-11 5-11 12z" />
+          <path class="ink" d="M13 42h22" />
+        </svg>
+        <span class="boot-word">Вегетация</span>
+        <span class="boot-track"><span class="boot-bar"></span></span>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -1,22 +1,39 @@
 /** Каркас приложения: шапка с навигацией, фоновый слой пузырьков, ограниченная по ширине рабочая область. */
 
-import type { ReactNode } from "react";
-import { NavLink } from "react-router-dom";
+import { useEffect, useRef, type ReactNode } from "react";
+import { NavLink, useLocation } from "react-router-dom";
 
-import { BubbleField } from "../motion/BubbleField";
+import { BubbleLayer, burstBubbles } from "../motion/Bubbles";
 import { SproutArt } from "../art/Art";
 
 const NAV = [
-  { to: "/", label: "Обзор", end: true },
+  { to: "/fields", label: "Поля кейса" },
   { to: "/explore", label: "Новая территория" },
   { to: "/anomalies", label: "Аномалии" },
   { to: "/method", label: "Как это работает" },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  const previous = useRef(pathname);
+
+  // при каждом переходе между экранами пускаем всплеск пузырьков
+  useEffect(() => {
+    if (previous.current !== pathname) {
+      previous.current = pathname;
+      burstBubbles({ count: 14 });
+      window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+    }
+  }, [pathname]);
+
+  // главная сама рисует шапку поверх видео
+  if (pathname === "/") {
+    return <>{children}</>;
+  }
+
   return (
     <div style={{ minHeight: "100%", position: "relative", isolation: "isolate" }}>
-      <BubbleField count={18} opacity={0.55} />
+      <BubbleLayer count={14} opacity={0.5} intro={false} />
       <header
         style={{
           position: "sticky",
@@ -49,7 +66,6 @@ export function AppShell({ children }: { children: ReactNode }) {
               <NavLink
                 key={item.to}
                 to={item.to}
-                end={item.end}
                 style={({ isActive }) => ({
                   textDecoration: "none",
                   padding: "6px 12px",

@@ -1,0 +1,405 @@
+/* Главный экран: тёплый песочный фон из кадра видео, крупная антиква слева, видео без рамки —
+   кадр растворяется по своим краям в фон. Всё движение — только transform и opacity. */
+
+.landing {
+  position: relative;
+  z-index: 1;
+  --sand: #f2e7d5;
+  --sand-deep: #e7d9c2;
+  --ink-deep: #211d17;
+  --ink-mid: #4f4839;
+}
+
+.hero {
+  position: relative;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  isolation: isolate;
+  padding: 104px clamp(20px, 4vw, 56px) clamp(24px, 5vh, 54px);
+  background:
+    radial-gradient(70% 60% at 82% 18%, rgba(244, 230, 210, 0.9) 0%, rgba(244, 230, 210, 0) 60%),
+    radial-gradient(60% 50% at 10% 92%, rgba(190, 162, 132, 0.35) 0%, rgba(190, 162, 132, 0) 60%),
+    linear-gradient(100deg, #cbb096 0%, #d6bfa5 26%, #e3ceb6 56%, #ead7c1 100%);
+}
+
+.hero-grid {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  max-width: 1420px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 0.62fr);
+  align-items: center;
+}
+
+.hero-copy {
+  color: var(--ink-deep);
+  will-change: transform;
+  max-width: 640px;
+}
+
+.hero-eyebrow {
+  display: block;
+  color: #6f6250;
+  margin-bottom: 16px;
+}
+
+.hero-title {
+  font-size: clamp(38px, 5.1vw, 78px);
+  line-height: 1.04;
+  letter-spacing: -0.01em;
+  margin: 0;
+  color: var(--ink-deep);
+}
+
+.hero-mask {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.08em;
+}
+
+.hero-line {
+  display: block;
+  will-change: transform;
+}
+
+.hero-sub {
+  margin-top: 22px;
+  max-width: 46ch;
+  font-size: clamp(14.5px, 1.05vw, 16.5px);
+  line-height: 1.62;
+  color: #3f382c;
+}
+
+.hero-cta {
+  margin-top: 30px;
+}
+
+/* --- видео на фоне: кадр вписан целиком (contain, без растяжения), края растворяются в фоне --- */
+
+.hero-media {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+  color: rgba(120, 104, 74, 0.35);
+}
+
+.hero-media-inner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  will-change: transform, opacity;
+}
+
+/* Кадр вписан целиком с сохранением пропорций; размер элемента равен самому кадру,
+   поэтому маска растворяет именно его края, а не края экрана — рёбер ролика не видно. */
+.hero-media-inner video {
+  flex: none;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+  filter: blur(0.25px) saturate(1.02) brightness(0.76) contrast(1.06);
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, #000 20%, #000 80%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 24%, #000 78%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 0%, #000 20%, #000 80%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, #000 24%, #000 78%, transparent 100%);
+  mask-composite: intersect;
+}
+
+/* низ первого экрана переходит в фон страницы без шва */
+.hero::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 26%;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(247, 246, 243, 0) 0%, var(--canvas) 100%);
+}
+
+/* виньетка: слева и снизу — светлая вуаль под текст, по краям — тон кадра */
+.hero-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to right, rgba(236, 219, 196, 0.92) 0%, rgba(236, 219, 196, 0.78) 26%, rgba(236, 219, 196, 0.35) 44%, rgba(236, 219, 196, 0) 60%),
+    linear-gradient(to top, rgba(232, 214, 190, 0.94) 0%, rgba(232, 214, 190, 0.62) 16%, rgba(232, 214, 190, 0) 32%),
+    linear-gradient(to bottom, rgba(236, 221, 200, 0.7) 0%, rgba(236, 221, 200, 0) 16%),
+    radial-gradient(85% 90% at 50% 50%, rgba(220, 198, 170, 0) 55%, rgba(210, 186, 156, 0.35) 100%);
+}
+
+.hero-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.1;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+}
+
+/* --- нижняя строка первого экрана --- */
+
+.hero-features {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  max-width: 1420px;
+  margin: clamp(26px, 4vh, 52px) auto 0;
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(20px, 4vw, 64px);
+  flex-wrap: wrap;
+}
+
+.hero-feature {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  color: var(--ink-deep);
+  max-width: 250px;
+}
+
+.hero-feature svg {
+  flex: none;
+  opacity: 0.9;
+}
+
+.hero-feature-title {
+  font-family: var(--font-display);
+  font-size: 19px;
+  line-height: 1.2;
+}
+
+.hero-feature-text {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #857a66;
+  margin-top: 2px;
+}
+
+.hero-exhale {
+  margin-left: auto;
+  color: #a2977f;
+  align-self: flex-end;
+}
+
+.landing-nav a {
+  text-decoration: none;
+  color: #6b6152;
+  font-size: 13.5px;
+  transition: color 0.2s var(--ease);
+}
+
+.landing-nav a:hover {
+  color: var(--ink-deep);
+}
+
+@media (max-width: 980px) {
+  .landing-nav {
+    display: none;
+  }
+
+  .hero-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* на узком экране кадр остаётся подложкой в верхней части, текст читается через плотную вуаль */
+  .hero-media-inner {
+    align-items: flex-start;
+  }
+
+  .hero-media-inner video {
+    margin-top: 14vh;
+  }
+
+  .hero-vignette {
+    background: linear-gradient(to bottom, rgba(236, 221, 200, 0.4) 0%, rgba(236, 221, 200, 0.9) 42%, #ecddc8 100%);
+  }
+}
+
+/* --- разделы под первым экраном --- */
+
+.landing-section {
+  position: relative;
+  z-index: 1;
+  background: var(--canvas);
+  padding: clamp(56px, 9vh, 116px) clamp(20px, 4vw, 56px);
+}
+
+/* тёплая полоса начинается и заканчивается цветом фона, чтобы границ разделов не было видно */
+.landing-section--tint {
+  background: linear-gradient(180deg, var(--canvas) 0%, #f2ece1 35%, #f3ede2 65%, var(--canvas) 100%);
+}
+
+.landing-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 18px;
+  margin-top: 34px;
+}
+
+.step {
+  position: relative;
+  background: none;
+  border: 0;
+  border-radius: 18px;
+  padding: 26px 22px 28px;
+  transition: transform 0.35s var(--ease), background-color 0.35s var(--ease);
+}
+
+/* подложка появляется только под курсором — в покое шаги лежат прямо на фоне страницы */
+.step:hover {
+  transform: translate3d(0, -4px, 0);
+  background-color: rgba(255, 255, 255, 0.55);
+}
+
+.step p {
+  color: var(--ink-mid);
+  font-size: 13.5px;
+  margin-top: 8px;
+}
+
+.step-index {
+  position: absolute;
+  top: 20px;
+  right: 22px;
+  font-size: 11px;
+  color: var(--line-strong);
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 26px;
+  margin-top: 30px;
+}
+
+.metric-value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(34px, 4.1vw, 56px);
+  line-height: 1;
+  color: var(--ink-deep);
+}
+
+.metric-value .num {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+.metric-unit {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.metric-label {
+  margin-top: 10px;
+  font-size: 13.5px;
+}
+
+.metric-note {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+  max-width: 34ch;
+}
+
+.landing-cta {
+  text-align: center;
+  padding: clamp(30px, 5vw, 60px) 24px;
+  border: 0;
+  background: radial-gradient(120% 130% at 50% 0%, rgba(226, 236, 244, 0.55) 0%, rgba(226, 236, 244, 0) 62%);
+}
+
+.landing-cta p {
+  color: var(--ink-mid);
+}
+
+/* Крупные и скруглённые кнопки — только на главной */
+.btn--pill {
+  border-radius: 999px;
+  padding: 10px 20px;
+}
+
+.btn--lg {
+  padding: 13px 26px;
+  font-size: 14.5px;
+}
+
+.hero .btn--ghost {
+  border-color: rgba(33, 29, 23, 0.26);
+  background: rgba(255, 250, 240, 0.55);
+  backdrop-filter: blur(6px);
+}
+
+.hero .btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+/* --- свой курсор --- */
+
+.cursor-dot,
+.cursor-ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 999;
+  pointer-events: none;
+  border-radius: 50%;
+  will-change: transform;
+}
+
+.cursor-dot {
+  width: 6px;
+  height: 6px;
+  background: #211d17;
+}
+
+.cursor-ring {
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(33, 29, 23, 0.28);
+  backdrop-filter: invert(6%);
+}
+
+body.has-custom-cursor,
+body.has-custom-cursor * {
+  cursor: none !important;
+}
+
+/* Шапка первого экрана */
+.landing-topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px clamp(20px, 4vw, 56px);
+}
