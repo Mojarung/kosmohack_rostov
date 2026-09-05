@@ -1,0 +1,65 @@
+{
+  "evaluation_only": true,
+  "calibration": false,
+  "weights": {
+    "lgb": 0.6,
+    "nn": 0.4
+  },
+  "model_sha256": {
+    "lgb_seed42.txt.gz": "abb2de9670e222f04d84b50e854ba5e6914cc0b9f16e2605c8aca0bde2522836",
+    "lgb_seed137.txt.gz": "001315a905ae008825e48c75270d3247dc2674977f3cfcc72ce7748e7891ff7c",
+    "residual_seed0.pt": "bbe67e120ce81b8f02ab4efc8e11c1083ed412dd9a01aac98a8851c7d587a939"
+  },
+  "saved_lgb_predictions": [
+    {
+      "path": "artifacts/research/final_kriging/gap_pred_seed42.parquet",
+      "sha256": "43dea9d5756297a1a76f6e1bd3a925477b508ca881aaa9d3b585fa243e41f037"
+    },
+    {
+      "path": "artifacts/research/final_kriging/gap_pred_seed137.parquet",
+      "sha256": "9242d595438b22bc67affc6fc775605c76682eee5987d5ac93058a07c6f084f0"
+    }
+  ],
+  "truth_sha256": "50d694a92187b7e8a2fca8a2b72458d9a8042726bd9d85634eb7a85fa5174088",
+  "new_test_key_overlap": 0,
+  "notes": "LGB uses frozen final predictions created before this evaluation; NN uses original manifest-verified weights. This is v1, not the current 2323-point private test. No fitting or selection on ground truth.",
+  "metrics": {
+    "all_old_test": {
+      "n": 3112,
+      "rmse": 0.05433431730754102,
+      "mae": 0.03089462328677919,
+      "lgb_rmse": 0.05612887035845594,
+      "nn_rmse": 0.057624365985340195,
+      "gap_score": 13.7
+    },
+    "history_through_2024": {
+      "n": 2187,
+      "rmse": 0.05548230084713667,
+      "mae": 0.031987172879609546,
+      "lgb_rmse": 0.05778156312454745,
+      "nn_rmse": 0.05825665224697794
+    },
+    "year_2025": {
+      "n": 925,
+      "rmse": 0.05151847414809277,
+      "mae": 0.028311481708919742,
+      "lgb_rmse": 0.052012929876895826,
+      "nn_rmse": 0.05610110131856029
+    },
+    "current_20_fields_but_old_test_dates": {
+      "n": 228,
+      "rmse": 0.052950560534243594,
+      "mae": 0.030145107149844346,
+      "lgb_rmse": 0.0519171846302736,
+      "nn_rmse": 0.059482015430624355
+    }
+  },
+  "dataset": "First-version test ground truth, 3112 rows; evaluation only.",
+  "submission": {
+    "path": "submission_model.csv",
+    "target_column": "primary_ndvi_true",
+    "calibration": false,
+    "rows": 2323,
+    "note": "Current second-version test; not the 3112-point evaluation dataset."
+  }
+}
