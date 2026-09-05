@@ -105,7 +105,15 @@ def collect(pid: str, geometry: dict, year: int) -> dict:
     from rasterio.warp import calculate_default_transform
     from shapely.geometry import shape
 
-    from service.collect import EARTH_SEARCH, MIN_PIXELS, MIN_VALID_SHARE, S2_CLEAR_SCL, _polygon_mask, public_s2_items, utm_crs
+    from service.collect import (
+        EARTH_SEARCH,
+        MIN_PIXELS,
+        MIN_VALID_SHARE,
+        S2_CLEAR_SCL,
+        _polygon_mask,
+        public_s2_items,
+        utm_crs,
+    )
 
     logging.basicConfig(level=logging.INFO)
     logging.getLogger("rasterio.session").setLevel(logging.WARNING)

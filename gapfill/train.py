@@ -12,13 +12,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path
 
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
 
-from gapfill.config import ARTIFACTS_DIR, RANDOM_SEED, SENSOR_CODE, SENSOR_OFFSET, TARGET
+from gapfill.config import ARTIFACTS_DIR, RANDOM_SEED, SENSOR_CODE, TARGET
 from gapfill.data import gap_score, load_all, rmse, testlike_rmse
 from gapfill.dataset import groups_of, train_examples, val_examples
 

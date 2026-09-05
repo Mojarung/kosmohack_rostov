@@ -15,7 +15,14 @@
 
 from __future__ import annotations
 
-from anomaly.config import EARLY_DECLINE_DAYS, FLAT_PEAK_NDVI, LOW_PEAK_RATIO, PRECIP_DEFICIT_PCT, TEMP_ANOMALY_C
+from anomaly.config import (
+    EARLY_DECLINE_DAYS,
+    FLAT_PEAK_NDVI,
+    LOW_PEAK_RATIO,
+    MAIN_SEASON_DOY,
+    PRECIP_DEFICIT_PCT,
+    TEMP_ANOMALY_C,
+)
 
 
 def plural(n: int, one: str, few: str, many: str) -> str:
@@ -47,17 +54,23 @@ def severity_label(ep: dict) -> str:
 
 
 MIN_WEATHER_DAYS = 20   # решение о погодном стрессе принимается по окну не короче этого
-LONG_DRY_SPELL_DAYS = 20  # сухая серия (< 1 мм/день) такой длины считается погодным стрессом сама по себе
+LONG_DRY_SPELL_DAYS = 20  # сухая серия (< 1 мм/день) такой длины — стресс, но только при недоборе осадков за окно
+WET_DEFICIT_PCT = 0.0   # дефицит ниже нуля означает, что осадков выпало больше нормы
 
 
 def _weather_signal(weather: dict) -> tuple[bool, list[str]]:
-    """Есть ли погодный стресс: решение по объединённому окну (30 дней до + эпизод), детали — по частям."""
+    """Есть ли погодный стресс: решение по объединённому окну (30 дней до + эпизод), детали — по частям.
+
+    Сухая серия сама по себе засухой не считается: в дождливом сезоне 20 бездождевых дней подряд —
+    обычное дело, и раньше это давало «засуху» там, где осадков выпало вдвое больше нормы.
+    """
     notes, stress = [], False
     comb = weather.get("combined") or {}
     if "precip_deficit_pct" in comb and comb.get("n_days", 0) >= MIN_WEATHER_DAYS:
+        wet = comb["precip_deficit_pct"] <= WET_DEFICIT_PCT      # осадков не меньше нормы окна
         dry = comb["precip_deficit_pct"] >= PRECIP_DEFICIT_PCT
         hot = comb["temp_anomaly_c"] >= TEMP_ANOMALY_C and comb["hot_days"] >= 5
-        long_dry_spell = comb.get("max_dry_spell", 0) >= LONG_DRY_SPELL_DAYS   # затяжная сухая серия — тоже стресс
+        long_dry_spell = comb.get("max_dry_spell", 0) >= LONG_DRY_SPELL_DAYS and not wet
         stress = dry or hot or long_dry_spell
         if dry:
             notes.append(f"за 30 дней до и во время эпизода осадков {comb['precip_mm']:.0f} мм при норме "
@@ -65,7 +78,7 @@ def _weather_signal(weather: dict) -> tuple[bool, list[str]]:
         if hot:
             notes.append(f"температура выше нормы на {comb['temp_anomaly_c']:.1f} °C ({comb['temp_c']:.1f} против "
                          f"{comb['temp_norm_c']:.1f} °C), {days(comb['hot_days'])} с жарой")
-        if comb.get("max_dry_spell", 0) >= 15:
+        if comb.get("max_dry_spell", 0) >= 15 and not wet:
             notes.append(f"сухая серия {days(comb['max_dry_spell'])} подряд")
     for name, label in (("before", "за 30 дней до эпизода"), ("during", "во время эпизода")):
         b = weather.get(name)
@@ -109,7 +122,10 @@ def classify(ep: dict, pheno_dev: dict, pheno: dict, weather: dict, artifacts_ne
         norm_peak = pheno["peak"] / max(peak_ratio, 1e-6) if peak_ratio else float("nan")
         return "unsown_or_changed", 0.8, [f"пик главного сезона всего {pheno['peak']:.2f} при норме {norm_peak:.2f}: "
                                           "кривая плоская с весны — поле не засеяно, под паром или занято другой культурой"] + context
-    if peak_ratio is not None and peak_ratio >= 0.85 and pheno_dev.get("decline_shift_days", 0) <= -EARLY_DECLINE_DAYS:
+    # Ранний спад объясняет только эпизоды самого сезона: у октябрьского эпизода аргумент «спад начался
+    # раньше обычного» относится к другой, весенней фазе и вводит в заблуждение.
+    if (peak_ratio is not None and peak_ratio >= 0.85 and pheno_dev.get("decline_shift_days", 0) <= -EARLY_DECLINE_DAYS
+            and ep["start_doy"] <= MAIN_SEASON_DOY[1]):
         cause = "weather_drought" if stress else "early_decline"
         main = [f"пик на уровне нормы ({peak_ratio:.0%}), но спад начался на {days(-pheno_dev['decline_shift_days'])} раньше обычного"]
         return cause, 0.75 if stress else 0.6, (notes + main + rnotes) if stress else (main + context)

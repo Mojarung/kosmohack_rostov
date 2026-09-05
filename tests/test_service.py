@@ -221,8 +221,9 @@ def test_cors_survives_app_initialization(service_client):
 def test_collected_report_is_public_and_has_insights(service_client, monkeypatch, tmp_path):
     """Новый сбор сразу даёт те же показатели, что повторное открытие поля."""
     from concurrent.futures import Future
-    from service import field_store, polygons
+
     import service.app as module
+    from service import field_store, polygons
 
     monkeypatch.setattr(field_store, "ROOT", tmp_path / "fields")
     monkeypatch.setattr(polygons, "POLYGONS_DIR", tmp_path / "polygons")
@@ -272,6 +273,7 @@ def test_progress_endpoint_reports_collector_state(service_client, monkeypatch, 
 def test_sources_are_collected_in_parallel_and_failures_are_noted(monkeypatch, tmp_path):
     """Четыре источника стартуют одновременно; отказ одного даёт пометку, а не ошибку всего сбора."""
     import threading
+
     import pandas as pd
     collect = pytest.importorskip("service.collect")
     from service import progress as module

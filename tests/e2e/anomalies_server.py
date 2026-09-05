@@ -1,7 +1,9 @@
 """Настоящий API и данные кейса; только набор пользовательских отчётов изолирован фикстурой."""
 import tempfile
 from pathlib import Path
+
 import uvicorn
+
 from service import field_store, polygons
 from tests.e2e.anomalies_fixtures import seed_saved
 

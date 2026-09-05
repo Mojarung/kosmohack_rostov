@@ -13,7 +13,6 @@ import json
 import re
 import threading
 import time
-from pathlib import Path
 
 from gapfill.config import ARTIFACTS_DIR
 from service.field_store import _write

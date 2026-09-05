@@ -13,7 +13,8 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from service import llm
 from service.facts import _by_year, episode_facts, field_brief, field_facts, method_facts, season_facts

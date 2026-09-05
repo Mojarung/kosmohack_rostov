@@ -9,10 +9,10 @@ import matplotlib
 # Только запись файлов, без GUI-бэкенда
 matplotlib.use("Agg")
 
-import matplotlib.pyplot as plt  # noqa: E402
-import seaborn as sns  # noqa: E402
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-from eda.config import FIG_DIR  # noqa: E402
+from eda.config import FIG_DIR
 
 DPI = 130
 

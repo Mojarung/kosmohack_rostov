@@ -123,3 +123,26 @@ conflicts = [[{ group = "geo" }, { group = "openeo" }], [{ group = "service" }, 
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
 explicit = true
+
+[tool.ruff]
+# Единый контракт линтера для всего репозитория: без него у каждого разработчика
+# свои правила и «131 предупреждение» в чужом окружении.
+line-length = 120
+target-version = "py313"
+extend-exclude = ["eda/v1", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "ISC", "PERF", "RUF"]
+ignore = [
+    "E501",     # длину строк держим настройкой line-length, а не запретом
+    "RUF046",   # int(...) вокруг numpy-чисел ставим намеренно: нужен питоновский int для JSON
+    "RUF001",   # кириллица в строках — это язык проекта, а не опечатка
+    "RUF002",
+    "RUF003",
+    "B008",     # Depends(...) в аргументах FastAPI — обычная практика фреймворка
+    "B905",     # zip(...) без strict: длины проверяем по смыслу задачи, не флагом
+    "RUF005",   # [a] + list(b) читается не хуже распаковки
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]

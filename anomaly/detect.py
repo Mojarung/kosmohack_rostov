@@ -9,8 +9,21 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from anomaly.config import (EPISODE_MERGE_GAP, EPISODE_MIN_DAYS, EPISODE_MIN_OBS, MAIN_SEASON_DOY, MIN_CURVE_WEIGHT,
-                            PHASES, STRONG_Z, SUSTAINED_DAYS, SUSTAINED_MEAN_Z, Z_CRITICAL, Z_DEPRESSION)
+from anomaly.config import (
+    EPISODE_MERGE_GAP,
+    EPISODE_MIN_DAYS,
+    EPISODE_MIN_OBS,
+    MAIN_SEASON_DOY,
+    MIN_CURVE_WEIGHT,
+    PHASES,
+    PROLONGED_DAYS,
+    PROLONGED_MEAN_Z,
+    STRONG_Z,
+    SUSTAINED_DAYS,
+    SUSTAINED_MEAN_Z,
+    Z_CRITICAL,
+    Z_DEPRESSION,
+)
 
 
 def z_series(curve: pd.DataFrame, norm: pd.DataFrame) -> pd.DataFrame:
@@ -62,7 +75,8 @@ def is_episode(days: int, mean_z: float, min_z: float, n_obs: int, strict: bool 
         return True
     sustained = days >= SUSTAINED_DAYS and mean_z <= SUSTAINED_MEAN_Z
     strong = min_z <= STRONG_Z
-    return sustained or strong
+    prolonged = days >= PROLONGED_DAYS and mean_z <= PROLONGED_MEAN_Z   # долгое мягкое угнетение целого сезона
+    return sustained or strong or prolonged
 
 
 def find_episodes(zs: pd.DataFrame, obs_days: np.ndarray, strict: bool = True) -> list[dict]:
