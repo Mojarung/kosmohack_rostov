@@ -359,36 +359,6 @@
   background: rgba(255, 255, 255, 0.85);
 }
 
-/* --- свой курсор --- */
-
-.cursor-dot,
-.cursor-ring {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 999;
-  pointer-events: none;
-  border-radius: 50%;
-  will-change: transform;
-}
-
-.cursor-dot {
-  width: 6px;
-  height: 6px;
-  background: #211d17;
-}
-
-.cursor-ring {
-  width: 30px;
-  height: 30px;
-  border: 1px solid rgba(33, 29, 23, 0.28);
-  backdrop-filter: invert(6%);
-}
-
-body.has-custom-cursor,
-body.has-custom-cursor * {
-  cursor: none !important;
-}
 
 /* Шапка первого экрана */
 .landing-topbar {
