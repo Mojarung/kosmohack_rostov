@@ -337,7 +337,7 @@ API: `GET /api/health`, `GET /api/polygons`, `GET /api/polygon/{pid}`, `GET /api
 `GET /api/meta`, `GET /api/fields?bbox=юг,запад,север,восток`, `POST /api/analyze` (`{"geometry": <GeoJSON Polygon>,
 "name": "...", "start_year": 2019, "end_year": 2025}`), набор пользователя `GET /api/user-polygons`,
 `GET|DELETE /api/user-polygons/{uid}`. Объяснение эпизодов языковой моделью включается переменной окружения
-`ANTHROPIC_API_KEY` (`uv sync --group agent`); без неё текст формируется по правилам.
+`OLLAMA_API_KEY` (`uv sync --group agent`); без неё текст формируется по правилам.
 
 ### Простой язык для фермера
 
@@ -430,7 +430,7 @@ Docker torch ставится из индекса CPU отдельной стр�
 `rasterio`/`pyproj`, отдельная установка не нужна. GPU не обязателен: инференс `gapfill.predict_saved`, сервис и
 детекция аномалий работают на CPU; обучение SeasonNet на GPU (CUDA 13.0) занимает ~8 минут на seed, на CPU — дольше.
 Внешние сервисы (Planetary Computer, Earth Search, Open-Meteo, Overpass) — без ключей; единственная необязательная
-переменная окружения — `ANTHROPIC_API_KEY`.
+переменная окружения — `OLLAMA_API_KEY`.
 
 ## Структура репозитория
 
