@@ -224,14 +224,14 @@ export function LandingPage() {
             <div className="metrics">
               <div className="metric spring-in">
                 <div className="metric-value">
-                  <span className="count-up num" data-value={task1.rmse_val} data-digits="3">
-                    0,000
+                  <span className="count-up num" data-value={task1.rmse_val} data-digits="4">
+                    0,0000
                   </span>
                 </div>
                 <div className="metric-label">RMSE восстановления</div>
                 <p className="metric-note">
                   У простого способа «среднее двух соседних дат» — {task1.baseline_rmse.toFixed(3)}. Метрика
-                  считается на скрытых точках, которые модель не видела.
+                  считается на отложенной выборке, которую модель не видела: среднее по {task1.val_seeds} разбиениям.
                 </p>
               </div>
               <div className="metric spring-in">

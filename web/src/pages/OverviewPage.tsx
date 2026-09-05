@@ -150,15 +150,18 @@ export default function OverviewPage() {
           <div className="kpi-grid">
             <div className="kpi">
               <span className="eyebrow">RMSE восстановления</span>
-              <span className="kpi-value">{task1 ? task1.rmse_val.toFixed(3) : "—"}</span>
+              <span className="kpi-value">{task1 ? task1.rmse_val.toFixed(4) : "—"}</span>
               <span className="kpi-note">
-                у baseline «среднее соседей» {task1 ? task1.baseline_rmse.toFixed(3) : "—"}
+                без калибровки {task1 ? task1.rmse_model_only.toFixed(4) : "—"}, у baseline «среднее соседей»{" "}
+                {task1 ? task1.baseline_rmse.toFixed(3) : "—"}
               </span>
             </div>
             <div className="kpi">
               <span className="eyebrow">GapScore</span>
               <span className="kpi-value">{task1 ? task1.gap_score.toFixed(1) : "—"}</span>
-              <span className="kpi-note">из 30 возможных</span>
+              <span className="kpi-note">
+                из 30; среднее по {task1?.val_seeds ?? 0} сидам отложенной выборки
+              </span>
             </div>
             <div className="kpi">
               <span className="eyebrow">Контрольных точек</span>

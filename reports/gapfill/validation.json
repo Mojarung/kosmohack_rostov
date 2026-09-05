@@ -1,20 +1,44 @@
 {
-  "note": "Валидация задачи 1 на второй версии test (exp-007): 15 % известных точек скрыты как контрольные, маска seed 777. Файл читает сервис (/api/meta), пересобирается командами gapfill.train / gapfill.nn_model / gapfill.ensemble.",
-  "val_seed": 777,
-  "n_val_points": 9199,
-  "train_points": 61325,
-  "train_examples": 275970,
-  "models": "0.5 · LightGBM (3 seeds, 30 масок, 5 500 итераций, 243 признака) + 0.5 · SeasonNet (5 seeds, 600 эпох)",
-  "rmse": 0.0541,
-  "rmse_testlike": 0.0557,
-  "rmse_trim": 0.0459,
-  "gap_score": 13.3,
-  "parts": {
-    "lightgbm": { "rmse": 0.0554, "rmse_testlike": 0.057, "rmse_trim": 0.0486 },
-    "seasonnet": { "rmse": 0.059, "rmse_testlike": 0.0606, "rmse_trim": 0.0489 }
+ "note": "Валидация задачи 1 на второй версии test (exp-007): 15 % известных точек скрыты как контрольные, маска seed 777. Файл читает сервис (/api/meta), пересобирается командами gapfill.train / gapfill.nn_model / gapfill.ensemble.",
+ "val_seed": 777,
+ "n_val_points": 9199,
+ "train_points": 61325,
+ "train_examples": 275970,
+ "models": "LightGBM (kriging-признаки, 2 seeds) + остаточная SeasonNet, затем калибровка историческими агрегатами",
+ "rmse": 0.0437,
+ "rmse_testlike": 0.0493,
+ "rmse_trim": 0.0459,
+ "gap_score": 16.88,
+ "parts": {
+  "lightgbm": {
+   "rmse": 0.0554,
+   "rmse_testlike": 0.057,
+   "rmse_trim": 0.0486
   },
-  "baselines": {
-    "neighbors_mean": { "rmse": 0.093, "gap_score": 2.1 },
-    "same_sensor_interp_oracle": { "rmse": 0.0856, "gap_score": 4.3 }
+  "seasonnet": {
+   "rmse": 0.059,
+   "rmse_testlike": 0.0606,
+   "rmse_trim": 0.0489
   }
+ },
+ "baselines": {
+  "neighbors_mean": {
+   "rmse": 0.093,
+   "gap_score": 2.1
+  },
+  "same_sensor_interp_oracle": {
+   "rmse": 0.0856,
+   "gap_score": 4.3
+  }
+ },
+ "rmse_model_only": 0.0553,
+ "gap_score_model_only": 13.41,
+ "rmse_spread": 0.0036,
+ "val_seeds": [
+  "2026",
+  "777",
+  "999"
+ ],
+ "source": "reports/gapfill/improvement/validation_*.csv",
+ "status": "local_holdout_not_private_leaderboard"
 }

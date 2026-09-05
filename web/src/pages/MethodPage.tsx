@@ -50,8 +50,9 @@ export default function MethodPage() {
   const data = meta.data;
 
   const facts = [
-    { label: "RMSE восстановления", value: data.task1.rmse_val.toFixed(3), note: `baseline ${data.task1.baseline_rmse.toFixed(3)}` },
-    { label: "GapScore", value: data.task1.gap_score.toFixed(1), note: "из 30" },
+    { label: "RMSE восстановления", value: data.task1.rmse_val.toFixed(4), note: `разброс по сидам ${data.task1.rmse_spread.toFixed(4)}` },
+    { label: "RMSE без калибровки", value: data.task1.rmse_model_only.toFixed(4), note: `baseline ${data.task1.baseline_rmse.toFixed(3)}` },
+    { label: "GapScore", value: data.task1.gap_score.toFixed(1), note: `из 30; без калибровки ${data.task1.gap_score_model_only.toFixed(1)}` },
     { label: "Контрольных точек", value: data.task1.n_gaps.toLocaleString("ru-RU"), note: data.data.test_file },
     { label: "Наблюдений в обучении", value: data.task1.train_points.toLocaleString("ru-RU"), note: "снимки трёх спутников" },
     { label: "Эпизодов найдено", value: data.task2.n_episodes.toLocaleString("ru-RU"), note: `в ${data.task2.n_seasons} сезонах` },
