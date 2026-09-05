@@ -29,12 +29,19 @@
   (Claude, ключ `ANTHROPIC_API_KEY`; без ключа текст по правилам).
 - **Веб-сервис** — `service/` (FastAPI `service.app:app`, UI `service/static/index.html`, сбор данных для новых полигонов
   `service/collect.py`: Earth Search S2, Planetary Computer Landsat/MODIS, Open-Meteo ERA5, OSM Overpass; анализ `service/analyze_new.py`).
-  Запуск `uv run uvicorn service.app:app --port 8000`. Готовые веса в `models/` (инференс без обучения — `gapfill.predict_saved`),
+  Запуск `uv run --locked --group service python -m service` (включает группы `geo` и `ml`). Готовые веса в `models/` (инференс без обучения — `gapfill.predict_saved`),
   `Dockerfile`, сводный отчёт `docs/14-research-report.md`.
 - Не сделано: презентация; LLM-объяснения не проверены (нет ключа); сборка Docker не проверена (демон не запущен).
   Сбор данных для нового поля проверен: 7 сезонов за ~3 мин (exp-104).
+- Исправлен запуск на Windows: зависимости сборщика проверяются до старта API (`/api/health`), OSM вынесен в `service/osm.py`,
+  Plotly отдаётся локально из установленного пакета. В S2 используются HTTPS COG; приватные S3/JP2 исключаются.
 
 ## Неочевидное про данные
+
+- Погодное дополнение 2026-09-05: осадки за 30 дней, тепло по Tср от 1 апреля и сухой период (`service/static/weather-charts.js`). Без обязательной формы; B30 доступен переключателем только при наличии ET₀. Пояснения свёрнуты.
+- Пользователь явно запретил переделку интерфейса и сценария: сохранять карту, список, NDVI, Z, погоду и эпизоды на прежних местах.
+- Переделка навигации и карточек отменена; исходные расчёты NDVI/аномалий восстановлены. Исправления запуска и сбора сохранены.
+- ERA5 с ET₀/Tmin/Tmax: `service/weather_source.py`; формулы: `service/weather_metrics.py`; параметры и собранные данные: `artifacts/fields/`.
 
 - Тестовый файл у нас называется `data/test_dataset.csv`, а в ТЗ он `private_features.csv` — это один и тот же файл (см. `docs/03-data.md`).
 - **Координат полей в данных нет**, только анонимные `AOI-xxxx`. Контуры из OSM/WorldCereal не с чем связать; карта в сервисе — для новых территорий.

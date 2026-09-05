@@ -54,7 +54,7 @@ uv run pytest tests -q
 
 Пакет [`anomaly/`](anomaly/): гармонизированная кривая сезона, норма по истории полигона (или по культуре),
 эпизоды «устойчивого и/или сильного» отклонения (Z < −1), причина по правилам с погодой ERA5, фенологией и
-региональным контекстом, текст на русском (при `ANTHROPIC_API_KEY` — связное объяснение от Claude).
+региональным контекстом, текст на русском по правилам. Интерфейс показывает эпизоды и объяснения по правилам.
 Метод и проверка — в [docs/13-anomaly-detection.md](docs/13-anomaly-detection.md), результаты — в
 [`reports/anomalies/`](reports/anomalies/) (`episodes.csv`, `seasons.csv`, `figures/`).
 
@@ -67,14 +67,27 @@ uv run python -m anomaly.plots AOI-0065:2024 AOI-0043:2019   # графики с
 ## Веб-сервис (обязательная точка запуска по ТЗ)
 
 ```bash
-uv sync --group ml --group geo --group service        # FastAPI, STAC-клиенты, rasterio, Open-Meteo
-uv run python -m anomaly.run                         # один раз: эпизоды для полигонов кейса
-uv run uvicorn service.app:app --host 127.0.0.1 --port 8000
+uv run --locked --group service python -m service
 ```
+
+Команда устанавливает все зависимости сервиса из `uv.lock` в `.venv` и запускает API на порту 8000.
+Группа `service` включает `geo` и `ml`, поэтому отдельная установка `planetary_computer` не требуется.
+Подходит для PowerShell и Linux/macOS; другой порт — `--port 8001`, внешний доступ — `--host 0.0.0.0`.
+При старте проверяются зависимости автосбора, готовность — `GET /api/health`.
+Эпизоды полигонов кейса уже включены в репозиторий; пересчёт при необходимости:
+`uv run --no-sync python -m anomaly.run`. После установки повторный запуск без синхронизации:
+`uv run --no-sync python -m service`.
+
+Графики используют JS из установленного пакета Plotly через `/vendor/plotly.min.js`.
+Поиск контуров OSM не импортирует спутниковый сборщик. Для Sentinel-2 выбираются публичные HTTPS COG;
+JP2-дубликаты и сцены, доступные только через S3 с авторизацией, исключаются до чтения.
+При отказе Overpass поиск переключается между публичными серверами VK Maps, Private.coffee и overpass-api.de;
+успешные ответы по рамке карты кэшируются до пяти минут. При слишком широком обзоре кнопка поиска
+сама приближает карту вокруг её центра до допустимого размера области.
 
 Открыть http://127.0.0.1:8000/. Два сценария из ТЗ:
 
-1. **Готовый полигон**: кнопка «Найти поля OSM в видимой области» запрашивает контуры `landuse=farmland` из
+1. **Готовый полигон**: в «Новая территория» кнопка «Найти поля OSM в видимой области» запрашивает `landuse=farmland` из
    OpenStreetMap (Overpass API), клик по контуру выбирает поле.
 2. **Произвольный полигон**: контур рисуется на карте (Leaflet.draw).
 
@@ -82,15 +95,43 @@ uv run uvicorn service.app:app --host 127.0.0.1 --port 8000
 маска облаков по SCL), Landsat 8/9 C2 L2 и MODIS MOD13Q1 (Planetary Computer STAC), ERA5 (Open-Meteo,
 по центроиду поля), строит ряд `primary_ndvi` по приоритету S2 → Landsat → MODIS, восстановленную кривую,
 норму по собственной истории поля, находит эпизоды угнетения и объясняет их. Ключи и регистрация не нужны;
-нужен доступ в интернет. Семь сезонов (2019–2025) для поля ~1.5 км² собираются примерно за 3 минуты; если источник
+нужен доступ в интернет. Семь сезонов (2019–2025) для поля ~1.5 км² в проверке на Windows собраны за 225 секунд; если источник
 недоступен, ряд строится по остальным, а в интерфейсе выводится, что именно собрано. Полигоны кейса (78 анонимных `AOI-xxxx`, координат нет) показываются списком слева:
 исходные наблюдения по сенсорам, восстановленные контрольные точки из `submission.csv`, кривая, норма ±1σ,
 Z-score, погода ERA5 и эпизоды с причинами.
 
-API: `GET /api/polygons`, `GET /api/polygon/{pid}`, `GET /api/episodes?year=&cause=&severity=`, `GET /api/summary`,
+API: `GET /api/health`, `GET /api/polygons`, `GET /api/polygon/{pid}`, `GET /api/episodes?year=&cause=&severity=`, `GET /api/summary`,
 `GET /api/fields?bbox=юг,запад,север,восток`, `POST /api/analyze` (`{"geometry": <GeoJSON Polygon>, "name": "...",
-"start_year": 2019, "end_year": 2025}`). Объяснение эпизодов языковой моделью включается переменной окружения
-`ANTHROPIC_API_KEY` (`uv sync --group agent`); без неё текст формируется по правилам.
+"start_year": 2019, "end_year": 2025}`). Функция LLM в репозитории не подключена к основному маршруту анализа;
+интерфейс использует проверяемые численные факты и формулировки по правилам.
+
+### Дополнительные погодные графики
+
+Сохранён исходный экран: карта и список слева, NDVI, Z-score, температура/осадки и эпизоды справа.
+Под ними добавлены только два погодных графика:
+
+- **Осадки за 30 дней**, мм, со сравнением по прошлым годам. Под графиком — самый длинный сухой период сезона.
+- **Накопленное тепло**: сумма `max(Tср − 10 °C, 0)` от 1 апреля, °C·дни. Это общий показатель тепла сезона,
+  без автоматического определения культуры или даты посева. Форма не требуется.
+
+Сухой период — дни подряд с осадками менее 1 мм; пропуски разрывают серию.
+Если собрана ET₀, первый график можно переключить на **осадки минус испарение за 30 дней**.
+
+Серая линия — среднее предыдущих лет (до 30), диапазон — 10–90-й процентили.
+Текущий год исключён, сравнение идёт по календарным датам. Показатели не изменяют детектор аномалий и модель NDVI.
+ET₀ учитывает температуру, радиацию, влажность и ветер; водный баланс не равен влажности почвы или потребности в поливе.
+
+Источник: [ERA5 через Open-Meteo](https://open-meteo.com/en/docs/historical-weather-api), полные годы,
+средняя/минимальная/максимальная температура, осадки и ET₀. Пропуски остаются неизвестными.
+Для анонимных AOI используются имеющиеся средняя температура и осадки. ET₀ и Tmin/Tmax не выдумываются.
+Если погоды нет вообще, дополнительная панель скрывается. Подробные пояснения свёрнуты в «Как считается».
+Собранные поля доступны в прежнем списке по названию; отчёты и параметры графиков сохранены в
+`artifacts/fields/`, погодный кэш — в `artifacts/weather/`.
+
+API графиков: `GET /api/polygon/{pid}/agro?year=2025`, `POST /api/polygon/{pid}/agro`
+(`year`, `profile`, `sowing_date`, `base`), `POST /api/polygon/{pid}/weather-refresh`.
+Формулы и границы изменений — в [плане дополнения графиков](docs/18-farmer-report-implementation.md).
+E2E-проверки через Playwright: [tests/e2e/README.md](tests/e2e/README.md).
 
 Контейнер: `docker build -t kosmohack . && docker run -p 8000:8000 kosmohack` (`Dockerfile` на образе
 `ghcr.io/astral-sh/uv:python3.14-bookworm-slim`; на машине разработки демон Docker не был запущен, сборка не проверена).
@@ -105,7 +146,7 @@ API: `GET /api/polygons`, `GET /api/polygon/{pid}`, `GET /api/episodes?year=&cau
 | `dl` | torch, PyPOTS, pygrinder, chronos-forecasting | `uv sync --group dl` |
 | `geo` | pystac-client, odc-stac, stackstac, planetary-computer, rasterio, rioxarray, xarray, geopandas, shapely, earthengine-api, openmeteo-requests, osmnx, overpy | `uv sync --group geo` |
 | `openeo` | клиент Copernicus Data Space (конфликтует с `geo` по xarray) | `uv sync --group openeo` |
-| `service` | FastAPI, uvicorn, pydantic, httpx | `uv sync --group service` |
+| `service` | FastAPI, uvicorn, pydantic, httpx, Plotly + группы `geo` и `ml` | `uv sync --group service` |
 | `agent` | pydantic-ai, anthropic, mcp | `uv sync --group agent` |
 | `dev` | ruff, pytest, pytest-cov, mypy | ставится по умолчанию |
 
