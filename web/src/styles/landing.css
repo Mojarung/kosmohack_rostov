@@ -331,7 +331,7 @@
   text-align: center;
   padding: clamp(30px, 5vw, 60px) 24px;
   border: 0;
-  background: radial-gradient(120% 130% at 50% 0%, rgba(226, 236, 244, 0.55) 0%, rgba(226, 236, 244, 0) 62%);
+  background: none;
 }
 
 .landing-cta p {

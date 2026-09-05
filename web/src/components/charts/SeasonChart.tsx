@@ -11,12 +11,13 @@ import { ChartsXAxis } from "@mui/x-charts/ChartsXAxis";
 import { ChartsYAxis } from "@mui/x-charts/ChartsYAxis";
 import { ChartsGrid } from "@mui/x-charts/ChartsGrid";
 import { ChartsTooltip } from "@mui/x-charts/ChartsTooltip";
-import { ChartsAxisHighlight } from "@mui/x-charts/ChartsAxisHighlight";
 import { LinePlot } from "@mui/x-charts/LineChart";
 import { useDrawingArea, useXScale, useYScale } from "@mui/x-charts/hooks";
 
 import type { Episode, SeasonYear } from "../../api/types";
 import { SENSOR_COLOR, ms } from "../../lib/format";
+import { BrushLayer } from "./BrushLayer";
+import type { RangeControl } from "./range";
 
 const X_AXIS = "season-x";
 const Y_AXIS = "ndvi-y";
@@ -25,6 +26,10 @@ interface SeasonChartProps {
   season: SeasonYear;
   episodes: Episode[];
   height?: number;
+  /** Общее окно просмотра трёх графиков сезона. */
+  control: RangeControl;
+  hover: number | null;
+  onHover: (value: number | null) => void;
 }
 
 /** Ежедневная сетка дат сезона и значения кривой/нормы, выровненные по ней. */
@@ -143,7 +148,7 @@ function RestoredDots({ season }: { season: SeasonYear }) {
   );
 }
 
-export function SeasonChart({ season, episodes, height = 340 }: SeasonChartProps) {
+export function SeasonChart({ season, episodes, height = 340, control, hover, onHover }: SeasonChartProps) {
   const grid = useSeasonGrid(season);
   if (grid.dates.length === 0) {
     return <div className="meta">В этом сезоне нет наблюдений.</div>;
@@ -181,6 +186,8 @@ export function SeasonChart({ season, episodes, height = 340 }: SeasonChartProps
           id: X_AXIS,
           data: grid.dates,
           scaleType: "time",
+          min: new Date(control.view.from),
+          max: new Date(control.view.to),
           tickNumber: 6,
           valueFormatter: (date: Date, context) =>
             context.location === "tick"
@@ -198,8 +205,8 @@ export function SeasonChart({ season, episodes, height = 340 }: SeasonChartProps
       <RestoredDots season={season} />
       <ChartsXAxis axisId={X_AXIS} />
       <ChartsYAxis axisId={Y_AXIS} label="NDVI" />
-      <ChartsAxisHighlight x="line" />
       <ChartsTooltip />
+      <BrushLayer axisId={X_AXIS} control={control} hover={hover} onHover={onHover} />
     </ChartsContainer>
   );
 }

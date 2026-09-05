@@ -1,5 +1,8 @@
-/** Карта на AntV L7 (WebGL): подложка OpenStreetMap, контуры полей пользователя с окраской по
+/** Карта на AntV L7 (WebGL): две подложки на выбор, контуры полей пользователя с окраской по
  *  состоянию последнего сезона, найденные контуры OSM и рисование произвольного полигона.
+ *
+ *  Подложки: спутниковый снимок Esri World Imagery (по умолчанию — по нему видно сами поля,
+ *  а не дороги) с прозрачным слоем названий и обычная схема OpenStreetMap.
  *
  *  Компонент тяжёлый (WebGL + тайлы), поэтому подключается через React.lazy и монтируется
  *  только на экранах, где карта действительно нужна. */
@@ -11,7 +14,38 @@ import { DrawEvent, DrawPolygon } from "@antv/l7-draw";
 
 import type { OsmField, UserPolygon } from "../../api/types";
 
-const OSM_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+type Basemap = "satellite" | "scheme";
+
+const BASEMAPS: Record<Basemap, { label: string; url: string; labels?: string; credit: string; maxZoom: number }> = {
+  satellite: {
+    label: "Спутник",
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    // подписи берём у CARTO: они по данным OSM, то есть на русском, у Esri — латиницей
+    labels: "https://basemaps.cartocdn.com/rastertiles/light_only_labels/{z}/{x}/{y}.png",
+    credit: "© Esri, Maxar · подписи © OpenStreetMap, CARTO",
+    maxZoom: 18,
+  },
+  scheme: {
+    label: "Схема",
+    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    credit: "© OpenStreetMap contributors",
+    maxZoom: 19,
+  },
+};
+
+/** Подсказки рисования на русском: библиотека по умолчанию показывает их по-китайски. */
+const DRAW_HELPER = {
+  draw: "кликните, чтобы поставить первую точку",
+  drawContinue: "кликните, чтобы продолжить",
+  drawFinish: "кликните, чтобы продолжить; двойной клик — завершить",
+  pointHover: "точку можно перетащить",
+  pointDrag: null,
+  lineHover: "сторону можно перетащить",
+  lineDrag: null,
+  midPointHover: "кликните, чтобы добавить точку",
+  polygonHover: "контур можно перетащить",
+  polygonDrag: null,
+};
 
 const STATUS_COLOR: Record<string, string> = {
   критическая: "#c8423f",
@@ -75,6 +109,8 @@ export default function FieldMap({
   const osmFieldsRef = useRef(osmFields);
   osmFieldsRef.current = osmFields;
   const [ready, setReady] = useState(false);
+  const [basemap, setBasemap] = useState<Basemap>("satellite");
+  const baseRef = useRef<{ tiles?: RasterLayer; labels?: RasterLayer }>({});
 
   // --- инициализация сцены (один раз) ---
   useEffect(() => {
@@ -87,15 +123,11 @@ export default function FieldMap({
     sceneRef.current = scene;
 
     scene.on("loaded", () => {
-      const basemap = new RasterLayer({ zIndex: 0 }).source(OSM_TILES, {
-        parser: { type: "rasterTile", tileSize: 256, minZoom: 1, maxZoom: 19 },
-      });
-      scene.addLayer(basemap);
-
       const draw = new DrawPolygon(scene, {
         liveUpdate: true,
         editable: true,
         multiple: false,
+        helper: DRAW_HELPER,
       });
       draw.disable();
       draw.on(DrawEvent.Add, () => {
@@ -128,6 +160,32 @@ export default function FieldMap({
     // центр задаётся при монтировании: дальнейшее перемещение — это уже состояние карты
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // --- подложка: пересобирается при переключении «Спутник» / «Схема» ---
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene || !ready) return;
+    const config = BASEMAPS[basemap];
+    const previous = baseRef.current;
+    if (previous.tiles) scene.removeLayer(previous.tiles);
+    if (previous.labels) scene.removeLayer(previous.labels);
+
+    const tiles = new RasterLayer({ zIndex: 0 });
+    tiles.source(config.url, {
+      parser: { type: "rasterTile", tileSize: 256, minZoom: 1, maxZoom: config.maxZoom },
+    });
+    scene.addLayer(tiles);
+
+    let labels: RasterLayer | undefined;
+    if (config.labels) {
+      labels = new RasterLayer({ zIndex: 0 });
+      labels.source(config.labels, {
+        parser: { type: "rasterTile", tileSize: 256, minZoom: 1, maxZoom: config.maxZoom },
+      });
+      scene.addLayer(labels);
+    }
+    baseRef.current = { tiles, labels };
+  }, [basemap, ready]);
 
   // --- сохранённые поля пользователя ---
   useEffect(() => {
@@ -232,22 +290,23 @@ export default function FieldMap({
   }, [drawing, ready]);
 
   return (
-    <div style={{ position: "relative", height, borderRadius: 12, overflow: "hidden", background: "#e8e6df" }}>
+    <div className="field-map" style={{ height }}>
       <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
-      <div
-        style={{
-          position: "absolute",
-          right: 8,
-          bottom: 6,
-          fontSize: 10,
-          background: "rgba(255,255,255,.78)",
-          padding: "2px 6px",
-          borderRadius: 4,
-          color: "#5c5f54",
-        }}
-      >
-        © OpenStreetMap contributors
+
+      <div className="map-switch" role="group" aria-label="Подложка карты">
+        {(Object.keys(BASEMAPS) as Basemap[]).map((key) => (
+          <button
+            key={key}
+            type="button"
+            className={"map-switch-item" + (basemap === key ? " is-active" : "")}
+            onClick={() => setBasemap(key)}
+          >
+            {BASEMAPS[key].label}
+          </button>
+        ))}
       </div>
+
+      <div className="map-credit">{BASEMAPS[basemap].credit}</div>
     </div>
   );
 }

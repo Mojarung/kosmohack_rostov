@@ -11,6 +11,8 @@ import { useDrawingArea, useXScale } from "@mui/x-charts/hooks";
 
 import type { Episode, SeasonYear } from "../../api/types";
 import { ms } from "../../lib/format";
+import { BrushLayer } from "./BrushLayer";
+import type { RangeControl } from "./range";
 
 const X_AXIS = "z-x";
 const Y_AXIS = "z-y";
@@ -40,7 +42,16 @@ function Bands({ episodes }: { episodes: Episode[] }) {
   );
 }
 
-export function ZChart({ season, episodes, height = 150 }: { season: SeasonYear; episodes: Episode[]; height?: number }) {
+interface ZChartProps {
+  season: SeasonYear;
+  episodes: Episode[];
+  height?: number;
+  control: RangeControl;
+  hover: number | null;
+  onHover: (value: number | null) => void;
+}
+
+export function ZChart({ season, episodes, height = 150, control, hover, onHover }: ZChartProps) {
   const data = useMemo(
     () => ({
       dates: season.z.map((p) => new Date(`${p.date}T00:00:00Z`)),
@@ -71,6 +82,8 @@ export function ZChart({ season, episodes, height = 150 }: { season: SeasonYear;
           id: X_AXIS,
           data: data.dates,
           scaleType: "time",
+          min: new Date(control.view.from),
+          max: new Date(control.view.to),
           tickNumber: 6,
           valueFormatter: (date: Date, context) =>
             context.location === "tick"
@@ -87,6 +100,7 @@ export function ZChart({ season, episodes, height = 150 }: { season: SeasonYear;
       <ChartsXAxis axisId={X_AXIS} />
       <ChartsYAxis axisId={Y_AXIS} label="σ" />
       <ChartsTooltip />
+      <BrushLayer axisId={X_AXIS} control={control} hover={hover} onHover={onHover} />
     </ChartsContainer>
   );
 }

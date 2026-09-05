@@ -205,3 +205,121 @@
 @media (prefers-reduced-motion: reduce) {
   .shell-progress::after { animation: none; width: 100%; opacity: 0.4; }
 }
+
+/* --- сезон: строка показателей под курсором и управление масштабом --- */
+
+.season-readout {
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 2.4vw, 34px);
+  flex-wrap: wrap;
+  padding: 12px var(--pad) 10px;
+}
+
+.season-readout-date {
+  font-size: 12.5px;
+  color: var(--muted);
+  min-width: 15ch;
+}
+
+.season-readout-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 8ch;
+}
+
+.season-readout-cell .num {
+  font-size: 17px;
+  line-height: 1.1;
+}
+
+.season-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 0 var(--pad) 8px;
+}
+
+/* период эпизода кликабелен: приближает его на графиках */
+.episode-zoom {
+  border: 0;
+  background: rgba(33, 29, 23, 0.06);
+  border-radius: 999px;
+  padding: 3px 11px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s var(--ease);
+}
+
+.episode-zoom:hover {
+  background: rgba(33, 29, 23, 0.12);
+}
+
+/* --- карта --- */
+
+.field-map {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #dfe0da;
+}
+
+/* переключатель подложки в пластике вкладок шапки */
+.map-switch {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 5;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(255, 253, 249, 0.88);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 10px rgba(33, 29, 23, 0.14);
+}
+
+.map-switch-item {
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+  padding: 5px 13px;
+  font-size: 12.5px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.22s var(--ease), color 0.22s var(--ease);
+}
+
+.map-switch-item:hover {
+  color: var(--ink);
+}
+
+.map-switch-item.is-active {
+  background: var(--ink);
+  color: #fff;
+}
+
+.map-credit {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  z-index: 5;
+  font-size: 10px;
+  color: #4a4d43;
+  background: rgba(255, 255, 255, 0.78);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+/* подсказка рисования от библиотеки: приводим к оформлению интерфейса */
+.l7-draw-helper,
+.l7-popup-content {
+  font-family: var(--font-sans) !important;
+  font-size: 12.5px !important;
+  border-radius: 999px !important;
+  padding: 4px 12px !important;
+  box-shadow: 0 2px 10px rgba(33, 29, 23, 0.16) !important;
+}

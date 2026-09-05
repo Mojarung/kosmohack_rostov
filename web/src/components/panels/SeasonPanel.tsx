@@ -3,12 +3,82 @@
 
 import { useMemo, useState } from "react";
 
-import type { PolygonDetail } from "../../api/types";
-import { SENSOR_COLOR, plural } from "../../lib/format";
+import type { PolygonDetail, SeasonYear, WeatherYear } from "../../api/types";
+import { SENSOR_COLOR, ms, plural } from "../../lib/format";
 import { SeasonChart } from "../charts/SeasonChart";
 import { WeatherChart } from "../charts/WeatherChart";
 import { ZChart } from "../charts/ZChart";
+import { useDateRange, type DateRange } from "../charts/range";
 import { EpisodeCard } from "./EpisodeCard";
+
+/** Границы сезона по всем рядам: кривая, наблюдения и погода на одной шкале. */
+function seasonBounds(season: SeasonYear | undefined, weather: WeatherYear | undefined): DateRange {
+  const times: number[] = [];
+  season?.curve.forEach((p) => times.push(ms(p.date)));
+  season?.observations.forEach((p) => times.push(ms(p.date)));
+  weather?.date.forEach((d) => times.push(ms(d)));
+  if (!times.length) {
+    const now = Date.now();
+    return { from: now, to: now + 1 };
+  }
+  return { from: Math.min(...times), to: Math.max(...times) };
+}
+
+/** Значение ряда в ближайшей к курсору дате. */
+function nearest(points: { date: string; value: number }[] | undefined, at: number | null) {
+  if (!points?.length || at === null) return null;
+  let best = points[0];
+  let bestGap = Math.abs(ms(best.date) - at);
+  for (const point of points) {
+    const gap = Math.abs(ms(point.date) - at);
+    if (gap < bestGap) {
+      best = point;
+      bestGap = gap;
+    }
+  }
+  return bestGap > 5 * 24 * 3600 * 1000 ? null : best;
+}
+
+/** Строка показателей под курсором: то же, что видно на графиках, но числами. */
+function Readout({
+  season,
+  weather,
+  at,
+}: {
+  season: SeasonYear;
+  weather: WeatherYear | undefined;
+  at: number | null;
+}) {
+  const curve = nearest(season.curve, at);
+  const norm = nearest(season.norm_mean, at);
+  const z = nearest(season.z, at);
+  const rain = weather ? nearest(weather.date.map((d, i) => ({ date: d, value: weather.precip[i] })), at) : null;
+  const temp = weather ? nearest(weather.date.map((d, i) => ({ date: d, value: weather.temp[i] })), at) : null;
+
+  const cells = [
+    { label: "NDVI", value: curve ? curve.value.toFixed(3) : "—" },
+    { label: "норма", value: norm ? norm.value.toFixed(3) : "—" },
+    { label: "отклонение", value: z ? `${z.value.toFixed(1)} σ` : "—" },
+    { label: "осадки", value: rain ? `${rain.value.toFixed(1)} мм` : "—" },
+    { label: "температура", value: temp ? `${temp.value.toFixed(1)} °C` : "—" },
+  ];
+
+  return (
+    <div className="season-readout">
+      <span className="season-readout-date mono">
+        {at === null
+          ? "наведите на график"
+          : new Date(at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}
+      </span>
+      {cells.map((cell) => (
+        <span key={cell.label} className="season-readout-cell">
+          <span className="eyebrow">{cell.label}</span>
+          <span className="num">{cell.value}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
 
 function Legend() {
   const items = [
@@ -61,6 +131,11 @@ export function SeasonPanel({ detail }: { detail: PolygonDetail }) {
   const episodes = detail.episodes.filter((e) => e.year === year);
   const weather = detail.weather?.[String(year)];
   const shape = (detail.shape ?? []).filter((s) => s.year === year);
+
+  // общее окно просмотра и общий курсор трёх графиков
+  const bounds = useMemo(() => seasonBounds(season, weather), [season, weather]);
+  const control = useDateRange(bounds);
+  const [hover, setHover] = useState<number | null>(null);
 
   return (
     <div className="stack" style={{ gap: 16 }}>
@@ -130,16 +205,32 @@ export function SeasonPanel({ detail }: { detail: PolygonDetail }) {
 
         {season ? (
           <>
+            <Readout season={season} weather={weather} at={hover} />
+
+            <div className="season-toolbar">
+              <span className="meta">
+                Выделите период мышью, чтобы приблизить. Колесо — масштаб, двойной клик — весь сезон.
+              </span>
+              <button
+                type="button"
+                className="btn btn--sm btn--ghost"
+                onClick={control.reset}
+                disabled={!control.zoomed}
+              >
+                Весь сезон
+              </button>
+            </div>
+
             <div style={{ padding: "0 8px" }}>
-              <SeasonChart season={season} episodes={episodes} />
+              <SeasonChart season={season} episodes={episodes} control={control} hover={hover} onHover={setHover} />
             </div>
             <div style={{ padding: "0 8px 8px" }}>
-              <ZChart season={season} episodes={episodes} />
+              <ZChart season={season} episodes={episodes} control={control} hover={hover} onHover={setHover} />
             </div>
-            <div style={{ padding: "8px var(--pad)", borderTop: "1px solid var(--line)" }}>
+            <div style={{ padding: "8px var(--pad) 14px" }}>
               <div className="eyebrow">Погода ERA5</div>
               {weather ? (
-                <WeatherChart weather={weather} />
+                <WeatherChart weather={weather} control={control} hover={hover} onHover={setHover} />
               ) : (
                 <p className="meta" style={{ marginTop: 6 }}>
                   Для этого поля метеоряда нет: погода в объяснениях берётся по соседним полям региона.
@@ -175,7 +266,11 @@ export function SeasonPanel({ detail }: { detail: PolygonDetail }) {
           .slice()
           .sort((a, b) => a.min_z - b.min_z)
           .map((episode) => (
-            <EpisodeCard key={`${episode.start}-${episode.end}`} episode={episode} />
+            <EpisodeCard
+              key={`${episode.start}-${episode.end}`}
+              episode={episode}
+              onZoom={() => control.select(ms(episode.start), ms(episode.end))}
+            />
           ))}
         {shape.map((item) => (
           <div key={`${item.year}-${item.shape_direction}`} className="card card--sunk">

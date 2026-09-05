@@ -11,7 +11,14 @@ const CAUSE_ART: Record<string, typeof DroughtArt> = {
   data_suspect: GapArt,
 };
 
-export function EpisodeCard({ episode, compact = false }: { episode: Episode; compact?: boolean }) {
+interface EpisodeCardProps {
+  episode: Episode;
+  compact?: boolean;
+  /** Приблизить период эпизода на графиках сезона. */
+  onZoom?: () => void;
+}
+
+export function EpisodeCard({ episode, compact = false, onZoom }: EpisodeCardProps) {
   const tone = severityTone(episode.severity);
   const Art = CAUSE_ART[episode.cause] ?? CurveArt;
   const reasons = episode.reasons ? episode.reasons.split(" | ").filter(Boolean) : [];
@@ -32,9 +39,15 @@ export function EpisodeCard({ episode, compact = false }: { episode: Episode; co
       <div className="stack" style={{ gap: 8, minWidth: 0 }}>
         <div className="spread" style={{ flexWrap: "wrap", gap: 8 }}>
           <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-            <strong className="mono" style={{ fontSize: 13 }}>
-              {dateRange(episode.start, episode.end)}
-            </strong>
+            {onZoom ? (
+              <button type="button" className="episode-zoom mono" onClick={onZoom} title="приблизить период на графиках">
+                {dateRange(episode.start, episode.end)}
+              </button>
+            ) : (
+              <strong className="mono" style={{ fontSize: 13 }}>
+                {dateRange(episode.start, episode.end)}
+              </strong>
+            )}
             <span className="meta">
               {episode.days} {plural(episode.days, "день", "дня", "дней")} · {episode.n_obs}{" "}
               {plural(episode.n_obs, "наблюдение", "наблюдения", "наблюдений")}
