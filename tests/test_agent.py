@@ -6,14 +6,22 @@ service.agent._call_model, ветка правил — снятой переме
 
 import pytest
 
-import service.agent as agent
-from service.agent import MAX_TOOL_STEPS, ask, make_tools, rule_based_answer, year_in_question
+from service import agent
+from service.agent import (
+    MAX_TOOL_STEPS,
+    ask,
+    make_tools,
+    rule_based_answer,
+    year_in_question,
+)
 from service.facts import field_facts
 
 
 def _season(year: int) -> dict:
     """Сезон в том же виде, что отдаёт service.data.Store."""
-    points = lambda vals: [{"date": f"{year}-06-{1 + 2 * i:02d}", "value": v} for i, v in enumerate(vals)]
+    def points(values: tuple[float, ...]) -> list[dict]:
+        return [{"date": f"{year}-06-{1 + 2 * i:02d}", "value": v} for i, v in enumerate(values)]
+
     return {"norm_source": "история поля",
             "observations": [{"date": f"{year}-06-01", "value": 0.31, "sensor": "Sentinel-2", "artifact": False}],
             "restored": [], "curve": points((0.30, 0.60, 0.50)),
