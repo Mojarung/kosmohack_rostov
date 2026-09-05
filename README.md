@@ -97,12 +97,12 @@ uv run pytest tests -q
 
 ```bash
 uv sync --frozen --no-default-groups --group infer --group torch
-uv run --no-sync python -m gapfill.predict_improved --output submission_improved.csv --model-only-output submission_model.csv
+uv run --no-sync python -m gapfill.predict_improved --output submission.csv --model-only-output submission_model.csv
 # Только обычный ML, без опубликованных исторических агрегатов:
 uv run --no-sync python -m gapfill.predict_improved --no-calibration --output submission_model.csv
 ```
 
-**Важно:** `submission_improved.csv` использует mean/std из первой версии `data/test_dataset.csv`,
+**Важно:** `submission.csv` использует mean/std из первой версии `data/test_dataset.csv`,
 которые содержат информацию о скрытых значениях новой версии. Это специфичная для данного набора
 калибровка, не переносимая на новые поля. Перед конкурсной отправкой её допустимость нужно подтвердить
 у организаторов. `submission_model.csv` — тот же ансамбль **без этой калибровки**. Результат закрытой

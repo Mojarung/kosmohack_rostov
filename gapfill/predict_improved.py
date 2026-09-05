@@ -1,6 +1,6 @@
 """Воспроизводимый инференс улучшенной модели и отдельная калибровка историческими агрегатами.
 
-Запуск: uv run --no-sync python -m gapfill.predict_improved --output submission_improved.csv
+Запуск: uv run --no-sync python -m gapfill.predict_improved --output submission.csv
 Для прогнозирования без агрегатов предыдущей версии данных используйте --no-calibration.
 """
 
@@ -126,7 +126,7 @@ def main():
     p.add_argument("--input", default=str(TEST_PATH))
     p.add_argument("--train", default=str(TRAIN_PATH))
     p.add_argument("--extra", nargs="*", default=[str(path) for path in EXTRA_PATHS])
-    p.add_argument("--output", default=str(ROOT / "submission_improved.csv"))
+    p.add_argument("--output", default=str(ROOT / "submission.csv"))
     p.add_argument("--device", default="auto", choices=["auto", "cpu", "mps", "cuda"])
     p.add_argument("--no-calibration", action="store_true")
     p.add_argument("--calibration-mode", choices=["robust", "posterior"])

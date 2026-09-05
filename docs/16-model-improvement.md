@@ -201,13 +201,13 @@ bagging fraction 0.8 с обновлением на каждом шаге, L2=2.
 
 Выходные файлы отдельного инференса:
 
-- [`submission_improved.csv`](../submission_improved.csv) — ансамбль с устойчивой калибровкой агрегатами;
+- [`submission.csv`](../submission.csv) — конкурсный файл: ансамбль с устойчивой калибровкой агрегатами;
 - [`submission_model.csv`](../submission_model.csv) — тот же ансамбль без калибровки;
 - [`validation.json`](../reports/gapfill/improvement/validation.json) и `validation_*.csv` — метрики
   и все контрольные ответы/прогнозы для независимого пересчёта.
 
 ```bash
-uv run --no-sync python -m gapfill.predict_improved --device cpu --output submission_improved.csv --model-only-output submission_model.csv --diagnostics reports/gapfill/improvement/submission_summary.json
+uv run --no-sync python -m gapfill.predict_improved --device cpu --output submission.csv --model-only-output submission_model.csv --diagnostics reports/gapfill/improvement/submission_summary.json
 ```
 
 Калибровка с 64 цепями занимает несколько минут на CPU; режим `--no-calibration` существенно быстрее.
