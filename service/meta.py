@@ -59,6 +59,12 @@ def build_meta(n_gaps: int) -> dict:
             "baseline_gap_score": baselines.get("gap_score", 2.1),
             "models": validation.get("models", ""),
             "train_points": validation.get("train_points", 0),
+            # чистый ансамбль без калибровки историческими агрегатами: видно вклад калибровки
+            "rmse_model_only": validation.get("rmse_model_only", 0.0),
+            "gap_score_model_only": validation.get("gap_score_model_only", 0.0),
+            "rmse_spread": validation.get("rmse_spread", 0.0),
+            "val_seeds": len(validation.get("val_seeds", [])),
+            "status": validation.get("status", ""),
         },
         "task2": {
             "n_polygons": summary.get("n_polygons", 0),

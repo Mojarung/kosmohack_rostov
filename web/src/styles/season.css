@@ -1,5 +1,6 @@
 /* Дополнения панели поля в тёплой палитре и типографике основного интерфейса. */
 .season-panel, .season-content, .season-weather { min-width: 0; }
+.season-panel > .pane { min-width: 0; }
 .season-heading { padding: 14px var(--pad); gap: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
 .season-year { font: 22px var(--font-display); }
 .season-years { display: flex; gap: 4px; flex-wrap: wrap; }
@@ -44,7 +45,8 @@
 .season-calculation { border-top: 1px solid var(--line); }
 .season-calculation > summary { padding: 14px 0; cursor: pointer; color: var(--muted); font-size: 13px; }
 .season-calculation > .stack { padding-bottom: 16px; }
-.season-episodes { padding: 18px var(--pad); border-top: 1px solid var(--line); gap: 10px; }
+.season-episodes { padding: 0; }
+.season-episodes .pane-title { margin: 0; }
 .season-imagery { margin-top: 12px; scroll-margin-top: 140px; }
 .imagery-heading { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 10px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; font-weight: 600; padding: 14px 0; cursor: pointer; text-align: left; }
 .imagery-heading .meta { font-weight: 400; font-size: 11px; }
@@ -60,7 +62,7 @@
 @media (max-width: 1050px) { .season-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) {
   .season-content { padding: 12px 10px 0; }
-  .season-heading, .season-episodes { padding: 14px 12px; }
+  .season-heading { padding: 14px 12px; }
   .season-metrics, .insight-grid { gap: 6px; }
   .season-metric { padding: 9px; }
   .field-insight > summary { padding: 9px; }

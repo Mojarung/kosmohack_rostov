@@ -20,7 +20,7 @@ function Legend() {
   </div>;
 }
 
-function SeasonContent({ detail, year }: { detail: PolygonDetail; year: number }) {
+function SeasonContent({ detail, year, onYear }: { detail: PolygonDetail; year: number; onYear: (year: number) => void }) {
   const season = detail.years[String(year)], weather = detail.weather?.[String(year)];
   const episodes = detail.episodes.filter(e => e.year === year);
   const shape = (detail.shape ?? []).filter(s => s.year === year);
@@ -31,7 +31,9 @@ function SeasonContent({ detail, year }: { detail: PolygonDetail; year: number }
     queryFn: ({ signal }) => api.agro(detail.pid, year, signal), retry: false });
   if (!season) return <p className="meta">Нет наблюдений за этот сезон.</p>;
   return <>
-    <div className="season-content">
+    <section className="pane season-main">
+    <SeasonHeader detail={detail} year={year} onYear={onYear} />
+    <div className="pane-body season-content">
       <SeasonMetrics season={season} weather={agro.data} hover={hover} />
       <div className="season-toolbar">
         <h3>Развитие растительности</h3>
@@ -59,44 +61,52 @@ function SeasonContent({ detail, year }: { detail: PolygonDetail; year: number }
         </div>}
       </details>
     </div>
-    <div className="season-episodes stack">
-      <div className="spread" style={{ gap: 8, flexWrap: "wrap" }}>
-        <h2>Эпизоды угнетения</h2><span className="meta">{episodes.length
+    </section>
+    <section className="pane season-episodes">
+      <div className="pane-head" style={{ gap: 8, flexWrap: "wrap" }}>
+        <h2 className="pane-title">Эпизоды угнетения</h2><span className="meta">{episodes.length
           ? `${episodes.length} ${plural(episodes.length, "эпизод", "эпизода", "эпизодов")} в ${year} году` : `в ${year} году не найдено`}</span>
       </div>
+      <div className="pane-body pane-body--pad stack" style={{ gap: 10 }}>
       {!episodes.length && <p className="meta">{season.z.some(p => Number.isFinite(p.value))
         ? "Устойчивых или сильных отклонений по правилам детектора не обнаружено." : "Недостаточно данных для оценки отклонений."}</p>}
       {[...episodes].sort((a, b) => a.min_z - b.min_z).map(e =>
-        <EpisodeCard key={`${e.start}-${e.end}`} episode={e} onZoom={() => {
+        <EpisodeCard compact key={`${e.start}-${e.end}`} episode={e} onZoom={() => {
           control.select(ms(e.start) - 30 * 86400000, ms(e.end) + 10 * 86400000);
+          document.querySelector('[data-testid="ndvi-chart"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
         }} />)}
       {shape.map(item => <div key={`${item.year}-${item.shape_direction}`} className="card card--sunk">
         <div className="eyebrow">Нетипичная форма сезона · {item.shape_direction}</div>
         <p className="meta">{item.shape_reasons}</p>
       </div>)}
-    </div>
+      </div>
+    </section>
   </>;
+}
+
+function SeasonHeader({ detail, year, onYear }: { detail: PolygonDetail; year: number; onYear: (year: number) => void }) {
+  const years = Object.keys(detail.years).map(Number).sort((a, b) => a - b);
+  const season = detail.years[String(year)];
+  return <div className="pane-head season-heading">
+      <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+        <span className="pane-title">Сезон {year}</span>
+        <span className="meta">{season ? `${season.observations.length} наблюдений · ${season.norm_source}` : "Нет данных"}</span>
+      </div>
+      <div className="season-years" role="group" aria-label="Сезон">
+        {years.map(y => {
+          const episodes = detail.episodes.filter(e => e.year === y);
+          const critical = episodes.some(e => e.severity === "критическая");
+          return <button key={y} type="button" className="chip chip--year" aria-label={String(y)} data-year={y} aria-pressed={y === year}
+            data-level={critical ? "critical" : episodes.length ? "moderate" : "none"} onClick={() => onYear(y)}>{String(y).slice(2)}</button>;
+        })}
+      </div>
+  </div>;
 }
 
 export function SeasonPanel({ detail }: { detail: PolygonDetail }) {
   const years = Object.keys(detail.years).map(Number).sort((a, b) => a - b);
   const [year, setYear] = useState(() => years.at(-1) ?? 0);
-  const season = detail.years[String(year)];
-  return <div className="card card--flush season-panel" data-testid="season-panel" data-pid={detail.pid} data-year={year}>
-    <div className="season-heading spread">
-      <div><div className="eyebrow">Сезон</div><div className="row" style={{ gap: 8 }}>
-        <span className="season-year">{year}</span>
-        <span className="meta">{season ? `${season.observations.length} наблюдений · ${season.norm_source}` : "Нет данных"}</span>
-      </div></div>
-      <div className="season-years" role="group" aria-label="Сезон">
-        {years.map(y => {
-          const episodes = detail.episodes.filter(e => e.year === y);
-          const critical = episodes.some(e => e.severity === "критическая");
-          return <button key={y} type="button" className="mono" data-year={y} aria-pressed={y === year}
-            data-level={critical ? "critical" : episodes.length ? "moderate" : "none"} onClick={() => setYear(y)}>{y}</button>;
-        })}
-      </div>
-    </div>
-    <SeasonContent key={`${detail.pid}:${year}`} detail={detail} year={year} />
+  return <div className="season-layout season-panel" data-testid="season-panel" data-pid={detail.pid} data-year={year}>
+    <SeasonContent key={`${detail.pid}:${year}`} detail={detail} year={year} onYear={setYear} />
   </div>;
 }

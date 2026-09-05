@@ -10,12 +10,9 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { api } from "../api/client";
 import { CurveArt, DroughtArt, GapArt, LayersArt, SatelliteArt, SproutArt } from "../components/art/Art";
 import { HeroVideo } from "../components/hero/HeroVideo";
-import { BubbleLayer, burstBubbles } from "../components/motion/Bubbles";
 import { Cursor } from "../components/motion/Cursor";
 
 gsap.registerPlugin(ScrollTrigger);
-
-const HERO_PALETTE = ["#f6ead6", "#f0e2cc", "#e7eee0", "#e4ecf4", "#fbf4e8"];
 
 const STEPS = [
   {
@@ -139,7 +136,6 @@ export function LandingPage() {
   return (
     <div ref={rootRef} className="landing">
       <Cursor />
-      <BubbleLayer count={12} palette={HERO_PALETTE} opacity={0.5} scale={1.1} />
 
       <section ref={heroRef} className="hero">
         <HeroVideo src="/hero.mp4" poster="/hero-poster.jpg" />
@@ -164,10 +160,7 @@ export function LandingPage() {
               <button
                 type="button"
                 className="btn btn--pill btn--lg"
-                onClick={() => {
-                  burstBubbles({ palette: HERO_PALETTE, count: 22 });
-                  window.setTimeout(() => navigate("/explore"), 260);
-                }}
+                onClick={() => navigate("/explore")}
               >
                 Выбрать поле на карте
               </button>
@@ -231,14 +224,14 @@ export function LandingPage() {
             <div className="metrics">
               <div className="metric spring-in">
                 <div className="metric-value">
-                  <span className="count-up num" data-value={task1.rmse_val} data-digits="3">
-                    0,000
+                  <span className="count-up num" data-value={task1.rmse_val} data-digits="4">
+                    0,0000
                   </span>
                 </div>
                 <div className="metric-label">RMSE восстановления</div>
                 <p className="metric-note">
                   У простого способа «среднее двух соседних дат» — {task1.baseline_rmse.toFixed(3)}. Метрика
-                  считается на скрытых точках, которые модель не видела.
+                  считается на отложенной выборке, которую модель не видела: среднее по {task1.val_seeds} разбиениям.
                 </p>
               </div>
               <div className="metric spring-in">

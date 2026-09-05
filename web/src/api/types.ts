@@ -127,6 +127,11 @@ export interface Meta {
     baseline_gap_score: number;
     models: string;
     train_points: number;
+    rmse_model_only: number;
+    gap_score_model_only: number;
+    rmse_spread: number;
+    val_seeds: number;
+    status: string;
   };
   task2: {
     n_polygons: number;

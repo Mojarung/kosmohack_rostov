@@ -23,9 +23,12 @@ async (page, base = "http://127.0.0.1:8000") => {
   check(await page.locator("video").count() > 0, "Главная main потеряла видео");
   await page.getByRole("link", { name: "Поля кейса", exact: true }).click();
   await page.waitForURL("**/fields");
-  await page.locator('a[href="/field/AOI-0001"]').first().waitFor({ timeout: 60000 });
+  await page.locator('.rows tbody tr').filter({ hasText: "AOI-0001" }).waitFor({ timeout: 60000 });
   check(await page.locator(".shell-header").isVisible(), "Потеряна навигация main");
   await open("AOI-0001");
+  check(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight), "Экран main не помещается по высоте");
+  const mainBox = await page.locator(".season-main").boundingBox(), episodesBox = await page.locator(".season-episodes").boundingBox();
+  check(episodesBox.x >= mainBox.x + mainBox.width, "Эпизоды должны быть справа от графиков на широком экране");
   check(await panel.getAttribute("data-year") === "2025", "Не открыт последний сезон");
   check(await page.getByTestId("z-chart").count() === 0, "Подробности не свёрнуты");
   check(await panel.locator("svg.MuiChartsSvgLayer-root").count() === 2, "Должны быть два основных графика");
@@ -86,7 +89,7 @@ async (page, base = "http://127.0.0.1:8000") => {
   await page.goto(`${base}/explore/${saved.uid}`);
   await page.getByTestId("area-card").waitFor();
   await page.getByTestId("weather-chart").waitFor();
-  check(await page.getByRole("heading", { name: saved.name, exact: true }).isVisible(), "Поле не открылось по имени");
+  check(await page.locator(".screen-title").filter({ hasText: saved.name }).isVisible(), "Поле не открылось по имени");
   const imagery = await api(`/api/polygon/${saved.uid}/imagery?year=2025`);
   check(imagery.available && imagery.manifest.scenes.length > 1, "Нужны реальные снимки");
   const latest = imagery.manifest.scenes.at(-1), first = imagery.manifest.scenes[0];
@@ -163,10 +166,10 @@ async (page, base = "http://127.0.0.1:8000") => {
   await page.unroute(delayed);
   await page.getByTestId("season-panel").screenshot({ path: "artifacts/e2e/main-desktop.png" });
   // Все вкладки main доступны из той же шапки.
-  for (const [name, url] of [["Аномалии", "/anomalies"], ["Как это работает", "/method"], ["Новая территория", "/explore"]]) {
+  for (const [name, url, title] of [["Аномалии", "/anomalies", "Периоды угнетения"], ["Как это работает", "/method", "Как это работает"], ["Новая территория", "/explore", "Мои поля"]]) {
     await page.getByRole("link", { name, exact: true }).click(); await page.waitForURL("**" + url);
-    await page.getByRole("heading", { name: name === "Аномалии" ? "Периоды угнетения" : name, exact: true }).waitFor();
-    check(await page.locator("h1").count() === 1, `Экран ${name} не открылся`);
+    await page.locator(".pane-title").filter({ hasText: title }).first().waitFor();
+    check(await page.locator(".workspace").isVisible(), `Экран ${name} не открылся`);
   }
   check(errors.length === 0, "Ошибки JavaScript: " + errors.join("; "));
   page.off("pageerror", onError);
