@@ -102,8 +102,7 @@ def evaluate(pred: np.ndarray, meta: pd.DataFrame, X: pd.DataFrame) -> dict:
     out["gap_score_testlike"] = gap_score(out["rmse_testlike"])
     for name, code in SENSOR_CODE.items():
         out[f"rmse_{name}"] = rmse(y[meta["sensor"].to_numpy() == code], pred[meta["sensor"].to_numpy() == code])
-    for (k, y25), n in [(("old", False), 0), (("old", True), 0), (("new_hist", False), 0),
-                        (("new_hist", True), 0), (("new_2025only", True), 0)]:
+    for k, y25 in [("old", False), ("old", True), ("new_hist", False), ("new_hist", True), ("new_2025only", True)]:
         sel = (kind == k) & (is_2025 == y25)
         out[f"rmse_{k}_{'2025' if y25 else 'hist'}"] = rmse(y[sel], pred[sel]) if sel.any() else None
     for name, p in baselines(X, meta).items():

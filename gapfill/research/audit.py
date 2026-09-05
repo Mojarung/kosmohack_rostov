@@ -13,7 +13,7 @@ from gapfill.data import load_all, make_mask
 
 def main():
     """Сохраняет состав выборки, пересечения файлов и доступность дополнительных сенсоров."""
-    obs, grid, gaps = load_all()
+    obs, _grid, gaps = load_all()
     report = {"n_obs": len(obs), "n_gaps": len(gaps), "cpu_count": os.cpu_count()}
     report["files"] = {}
     for path in [*sorted((ROOT / "data").glob("*.csv")), ROOT / "test_features (1) (2).csv"]:

@@ -57,7 +57,7 @@ def diagnostic(obs, grid, held=None):
     report, checked = {}, []
     for pid, group in rows.groupby("pid"):
         ng = norms.loc[norms.pid.eq(pid)]
-        a, b, c, count = system(group, ng, group.unknown.to_numpy())
+        a, b, _c, count = system(group, ng, group.unknown.to_numpy())
         exact = a.sum(1) == 0
         if exact.any():
             checked.extend((b[exact] / count[exact]).tolist())

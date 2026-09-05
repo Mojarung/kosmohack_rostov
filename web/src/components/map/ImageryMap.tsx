@@ -4,7 +4,7 @@ import { ImageLayer, LineLayer, RasterLayer, Scene, type ILayer } from "@antv/l7
 import { Map as L7Map } from "@antv/l7-maps";
 import type { ImageManifest } from "../../api/analytics";
 
-export default function ImageryMap({ manifest, url }: { manifest: ImageManifest; url: string }) {
+export default function ImageryMap({ manifest, url }: { manifest: Pick<ImageManifest, "geometry" | "bounds">; url?: string }) {
   const container = useRef<HTMLDivElement>(null);
   const [scene, setScene] = useState<Scene | null>(null);
   const [loadedUrl, setLoadedUrl] = useState("");
@@ -33,7 +33,7 @@ export default function ImageryMap({ manifest, url }: { manifest: ImageManifest;
   }, [manifest, west, south, east, north]);
 
   useEffect(() => {
-    if (!scene) return;
+    if (!scene || !url) return;
     setLoadedUrl(""); setErrorUrl("");
     let disposed = false;
     let layer: ILayer | undefined;
@@ -52,9 +52,9 @@ export default function ImageryMap({ manifest, url }: { manifest: ImageManifest;
   }, [scene, url, west, south, east, north, attempt]);
 
   return <div className="field-map imagery-map" data-testid="imagery-map" data-image-url={url}
-    data-state={errorUrl === url ? "error" : loadedUrl === url ? "ready" : "loading"}>
+    data-state={!url ? (scene ? "outline" : "loading") : errorUrl === url ? "error" : loadedUrl === url ? "ready" : "loading"}>
     <div ref={container} style={{ position: "absolute", inset: 0 }} />
-    {loadedUrl !== url && <div className="imagery-map-status" role="status">
+    {url && loadedUrl !== url && <div className="imagery-map-status" role="status">
       {errorUrl === url ? "Снимок не загрузился." : "Загружаем снимок…"}
       {errorUrl === url && <button className="btn btn--sm btn--ghost" onClick={() => setAttempt(v => v + 1)}>Повторить загрузку карты</button>}
     </div>}
@@ -63,6 +63,6 @@ export default function ImageryMap({ manifest, url }: { manifest: ImageManifest;
       <button className="map-switch-item" aria-label="Отдалить карту поля" onClick={() => scene?.zoomOut()}>−</button>
       <button className="map-switch-item" onClick={() => scene?.fitBounds([[west, south], [east, north]], { padding: 28 })}>Всё поле</button>
     </div>
-    <div className="map-credit">Фон © Esri, Maxar · индекс Sentinel-2</div>
+    <div className="map-credit">Фон © Esri, Maxar{url ? " · индекс Sentinel-2" : " · контур поля"}</div>
   </div>;
 }

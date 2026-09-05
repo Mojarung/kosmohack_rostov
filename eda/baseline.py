@@ -76,7 +76,7 @@ def predict_climatology(g: pd.DataFrame) -> pd.Series:
 
 def own_climatology(known: pd.DataFrame, g: pd.DataFrame, window: int = DOY_WINDOW) -> pd.Series:
     """Среднее известных значений того же полигона в окне ±window дней doy по другим годам."""
-    known_by_poly = {k: v for k, v in known.groupby("anon_polygon_id", observed=True)}
+    known_by_poly = dict(known.groupby("anon_polygon_id", observed=True))
     pieces = []
     for poly, gg in g.groupby("anon_polygon_id", observed=True):
         kk = known_by_poly.get(poly)

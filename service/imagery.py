@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 from service.field_store import _write
+from service.imagery_progress import Progress, tracked
 
 ROOT = Path(__file__).resolve().parents[1] / "artifacts" / "field-imagery"
 COLLECTION = "sentinel-2-c1-l2a"
@@ -94,6 +95,7 @@ def _save_map(values, index, path, geobox, target):
     imsave(path, rgba(destination, index))
 
 
+@tracked
 def collect(pid: str, geometry: dict, year: int) -> dict:
     """Один сезон, ограниченные партии; полный результат публикуется атомарно."""
     if (cached := read(pid, year)) is not None:
@@ -131,6 +133,10 @@ def collect(pid: str, geometry: dict, year: int) -> dict:
     items = [item for item in items if all(key in item.assets for key in bands)]
     if not items:
         raise ValueError("Sentinel-2 не вернул снимки этого сезона")
+    progress = Progress(pid, year)
+    total_dates = len({item.datetime.date() for item in items})
+    processed_dates = set()
+    progress.update("download", processed=0, total=total_dates, suitable=0)
     log.info("Карта %s %s: %s сцен в каталоге", pid, year, len(items))
     # C1 хранит исходные DN. Применяем scale/offset из STAC; старую коллекцию с уже
     # изменёнными DN не смешиваем с C1. Разные калибровки читаются отдельными партиями.
@@ -150,6 +156,8 @@ def collect(pid: str, geometry: dict, year: int) -> dict:
                 days.setdefault(item.datetime.date(), []).append(item)
             dates = sorted(days)
             for first in range(0, len(dates), 8):
+                progress.update("download", period_start=dates[first].isoformat(),
+                                period_end=dates[min(first + 7, len(dates) - 1)].isoformat())
                 batch = [item for day in dates[first:first + 8] for item in days[day]]
                 location = {"geobox": geobox} if geobox is not None else {
                     "geopolygon": geometry, "crs": utm_crs(geom), "resolution": RESOLUTION}
@@ -184,6 +192,8 @@ def collect(pid: str, geometry: dict, year: int) -> dict:
                         continue
                     arrays[day] = (ndvi, ndmi)
                     scenes[day] = {"date": day, "ndvi": scene_stats(ndvi, total), "ndmi": scene_stats(ndmi, total)}
+                processed_dates.update(dates[first:first + 8])
+                progress.update("download", processed=len(processed_dates), suitable=len(scenes))
     if not scenes:
         raise ValueError("В этом сезоне нет снимков с чистым покрытием поля от 60%")
     transform, width, height = calculate_default_transform(str(geobox.crs), "EPSG:4326", geobox.width, geobox.height,
@@ -191,7 +201,8 @@ def collect(pid: str, geometry: dict, year: int) -> dict:
     west, south, east, north = array_bounds(height, width, transform)
     target = (transform, width, height)
     previous, previous_date = None, None
-    for day in sorted(scenes):
+    progress.update("render", processed=0, total=len(scenes), suitable=len(scenes))
+    for count, day in enumerate(sorted(scenes), 1):
         ndvi, ndmi = arrays[day]
         # Сохраняем численные значения для воспроизводимости и проверки карты.
         np.savez_compressed(folder / f"{day}.npz", ndvi=ndvi, ndmi=ndmi)
@@ -203,6 +214,7 @@ def collect(pid: str, geometry: dict, year: int) -> dict:
                 scenes[day]["change"] = stats | {"previous_date": previous_date}
                 _save_map(delta, "change", folder / f"{day}-change.png", geobox, target)
         previous, previous_date = ndvi, day
+        progress.update("render", processed=count)
     manifest = {"status": "ready", "pid": pid, "year": year, "generation": generation,
         "source": "Sentinel-2 L2A C1 · Earth Search · 20 м", "geometry": geometry,
         "bounds": [[south, west], [north, east]], "area_ha": round(int(inside.sum()) * .04, 2),

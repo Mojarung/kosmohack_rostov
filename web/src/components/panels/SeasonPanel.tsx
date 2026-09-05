@@ -17,10 +17,12 @@ import { SeasonMetrics, type MetricZoom } from "./SeasonMetrics";
 import { AgroPanel, type WeatherMode } from "./AgroPanel";
 import { FieldInsights } from "./FieldInsights";
 
-function Legend() {
+function Legend({ restored }: { restored: boolean }) {
   return <div className="metric-legend">
     <span style={{ color: "var(--ink)" }}>━ Зелень поля в этом году</span><span>━ Как обычно (коридор нормы)</span>
     {Object.entries(SENSOR_COLOR).map(([label, color]) => <span key={label} style={{ color }}>● {label}</span>)}
+    {/* Ромбы показываются только там, где модель действительно что-то восстанавливала. */}
+    {restored && <span style={{ color: "var(--restored)" }}>◆ Восстановлено моделью</span>}
   </div>;
 }
 
@@ -68,7 +70,7 @@ function SeasonContent({ detail, year, onYear, aside }: { detail: PolygonDetail;
         <h3>Как росло поле по снимкам</h3>
         <RangeToolbar control={control} />
       </div>
-      <Legend />
+      <Legend restored={season.restored.length > 0} />
       <div data-testid="ndvi-chart" data-from={control.view.from} data-to={control.view.to}>
         <SeasonChart season={season} episodes={episodes} control={control} hover={hover} onHover={setHover} />
       </div>

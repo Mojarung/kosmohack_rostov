@@ -222,7 +222,9 @@ export function SeasonChart({ season, episodes, height = 300, control, hover, on
       <NormBand band={grid.band} />
       <LinePlot />
       <ObservationDots season={season} raw={raw} />
-      {raw && <RestoredDots season={season} />}</PlotClip>
+      {/* Восстановленные моделью точки видны и на главном графике: по ТЗ эксперт должен видеть
+          исходный и восстановленный ряд рядом, а не открывать для этого «подробности». */}
+      <RestoredDots season={season} /></PlotClip>
       <ChartsXAxis axisId={X_AXIS} />
       <ChartsYAxis axisId={Y_AXIS} label="NDVI" />
       <ChartsTooltip />

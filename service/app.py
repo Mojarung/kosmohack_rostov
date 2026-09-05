@@ -60,19 +60,21 @@ def area_hectares(geom) -> float:
     return max(geom.area * km2_per_deg2, 0.0) * 100
 
 
-def run_in_collector(fn, *args, timeout: int = 1200):
+def run_in_collector(fn, *args, timeout: int = 1200, submitter=None):
     """Выполняет задачу сборщика в отдельном процессе.
 
     GDAL/rasterio и dask в пуле потоков сервера подвисают, поэтому сбор идёт процессом.
     Если дочерний процесс убит (например, не хватило памяти), пул остаётся сломанным навсегда
     и каждый следующий сбор мгновенно падает — поэтому здесь он сбрасывается, а пользователь
     получает понятную причину вместо BrokenProcessPool.
+    submitter(pool, *args) позволяет присоединиться к уже запущенному сбору снимков.
     """
     global _pool
     if _pool is None:
         _pool = ProcessPoolExecutor(max_workers=1)
     try:
-        return _pool.submit(fn, *args).result(timeout=timeout)
+        future = submitter(_pool, *args) if submitter else _pool.submit(fn, *args)
+        return future.result(timeout=timeout)
     except BrokenProcessPool as exc:
         _pool.shutdown(wait=False, cancel_futures=True)
         _pool = None                 # следующий запрос получит новый пул
@@ -140,6 +142,12 @@ class AnalyzeRequest(BaseModel):
             raise ValueError("Нужен корректный замкнутый контур поля GeoJSON Polygon") from exc
         if not valid:
             raise ValueError("Нужен корректный контур поля, площадь рамки не более 0.25 квадратных градусов")
+        if geom.centroid.y < 0:
+            # Сезон и фазы в anomaly/config.py заданы для северного полушария (1 апреля — 30 октября).
+            # Южный участок формально проанализируется, но выводы будут неверными: пик там приходится
+            # на «зиму» нашей сетки, и поле получит вердикт «не засеяно». Честный отказ лучше неверного ответа.
+            raise ValueError("Сервис пока считает сезон по северному полушарию (1 апреля — 30 октября). "
+                             "Для участка южнее экватора нужна своя сезонная сетка — такой контур не анализируем")
         if (area := area_hectares(geom)) > MAX_FIELD_HA:
             raise ValueError(f"Участок слишком большой: {area / 100:.0f} км² при пределе "
                              f"{MAX_FIELD_HA / 100:.0f} км². Снимки Sentinel-2 такой площади не помещаются "
@@ -266,9 +274,10 @@ def refresh_weather(pid: str) -> dict:
 def imagery(pid: str, year: int) -> dict:
     """Сохранённая карта пиксельных индексов Sentinel-2, если она уже собрана."""
     from service.imagery import ndmi_context, read
+    from service.imagery_progress import read as read_imagery_progress
     manifest = read(pid, year)
     if manifest is None:
-        return {"available": False, "year": year}
+        return {"available": False, "year": year, "progress": read_imagery_progress(pid, year)}
     return {"available": True, "manifest": manifest, "ndmi": ndmi_context(pid, year)}
 
 
@@ -292,10 +301,13 @@ def collect_imagery(pid: str, year: int) -> dict:
     if str(year) not in {str(y) for y in report["years"]}:
         raise HTTPException(400, "Выберите сезон из отчёта поля")
     from service.imagery import collect, read
+    from service.imagery_progress import submit
     if (cached := read(pid, year)) is not None:
         return {"available": True, "manifest": cached}
     try:
-        manifest = run_in_collector(collect, pid, report["geometry"], year)
+        manifest = run_in_collector(collect, pid, report["geometry"], year, submitter=submit)
+    except TimeoutError as exc:
+        raise HTTPException(504, "Сбор занимает больше 20 минут. Проверяем его состояние через прогресс загрузки.") from exc
     except HTTPException:
         raise
     except Exception as exc:

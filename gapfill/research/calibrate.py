@@ -177,7 +177,7 @@ def calibrate(priors, grid, norms, mode, weight, density=None):
         unknown_keys = pd.MultiIndex.from_frame(out.loc[sel, ["pid", "date"]])
         mask = pd.MultiIndex.from_frame(group[["pid", "date"]]).isin(unknown_keys)
         unknown = group.loc[mask, ["pid", "date"]].merge(out.loc[sel], on=["pid", "date"], how="left")
-        a, b, c, count = system(group, norms.loc[norms.pid.eq(pid)], mask)
+        a, b, c, _count = system(group, norms.loc[norms.pid.eq(pid)], mask)
         active = a.sum(0) > 0
         prior = unknown.prior.to_numpy()
         scale = unknown["sigma"].to_numpy() if "sigma" in unknown else None

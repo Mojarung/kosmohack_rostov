@@ -47,7 +47,7 @@ def annotate_context(context: pd.DataFrame) -> pd.DataFrame:
     ctx = ctx.assign(h=harmonize(ctx[TARGET].to_numpy(), ctx["sensor"].to_numpy()),
                      evi=_source_index(ctx, "evi"), ndwi=_source_index(ctx, "ndwi"))
     res = np.full(len(ctx), np.nan)
-    for _, idx in ctx.groupby("pid").indices.items():
+    for idx in ctx.groupby("pid").indices.values():
         res[idx] = loo_residuals(polygon_context(ctx.iloc[idx]))
     return ctx.assign(res=res)
 
@@ -73,8 +73,8 @@ def build_features(targets: pd.DataFrame, context: pd.DataFrame, grid: pd.DataFr
     """Матрица признаков для targets по контексту context; индекс совпадает с targets.index."""
     ctx_df = annotate_context(context)
     tables = day_tables(ctx_df)
-    ctx_by = {pid: g for pid, g in ctx_df.groupby("pid")}
-    grid_by = {pid: g for pid, g in grid.groupby("pid")}
+    ctx_by = dict(ctx_df.groupby("pid"))
+    grid_by = dict(grid.groupby("pid"))
     empty = ctx_df.iloc[0:0]
     pieces = [_polygon_features(tg, ctx_by.get(pid, empty), grid_by[pid])
               for pid, tg in targets.groupby("pid", sort=False)]
