@@ -1,0 +1,53 @@
+/* Оформление только панели графиков; карта и выбор полей сохраняют прежний сценарий. */
+main { grid-template-columns:320px minmax(0,1fr); }
+main>section { min-width:0; display:flex; flex-direction:column; gap:12px; }
+.chart-panel { padding:18px 20px; border-color:#dde4da; border-radius:12px; }
+.field-heading { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+.field-heading #title { font-size:21px; letter-spacing:-.4px; }
+.field-heading #subtitle { font-size:12px; }
+.chart-panel .years { padding-bottom:14px; border-bottom:1px solid #edf0e9; margin-bottom:14px; }
+.chart-panel .years button { padding:4px 8px; font-size:12px; }
+.metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:18px; }
+.metric { min-width:0; padding:11px 12px; background:#f5f7f3; border-radius:8px; }
+.metric-label { color:#677568; font-size:11px; line-height:1.4; min-height:16px; }
+.metric-value { display:block; margin:4px 0; color:#263a2c; font-size:22px; line-height:1.25; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.metric-note { font-size:11px; color:#69756b; }
+.chart-toolbar { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; }
+.chart-toolbar h2,.chart-panel h2 { margin:0; font-size:14px; text-transform:none; letter-spacing:0; color:#304636; }
+.quiet { padding:5px 9px; color:#426448; background:white; border:1px solid #dbe3d8; border-radius:6px; cursor:pointer; font:inherit; font-size:12px; }
+.quiet:disabled { color:#9da59c; cursor:default; }
+.chart-key { display:flex; align-items:center; gap:15px; flex-wrap:wrap; color:#788178; font-size:11px; margin:8px 0 0; }
+.chart-key span::before { content:""; display:inline-block; width:15px; height:2px; margin-right:5px; vertical-align:middle; background:#25362b; }
+.chart-key .norm::before { background:#9aa49c; }
+#weather-year-key::before { background:var(--weather-color,#417ca8); }
+.chart-key .observed::before { width:5px; height:5px; border-radius:50%; background:#417ca8; }
+.chart-note { margin:3px 0; font-size:11px; color:#7a857b; }
+#ndvi { height:300px; }
+#agro-extra { margin:15px 0 0; padding-top:14px; border-top:1px solid #e8ede4; }
+.weather-tabs { display:flex; gap:3px; background:#f0f3ed; border-radius:7px; padding:3px; }
+.weather-tabs button { border:0; background:transparent; border-radius:5px; padding:6px 12px; color:#73816e; font:inherit; font-size:12px; cursor:pointer; }
+.weather-tabs button[aria-pressed=true] { background:white; color:#2e5439; box-shadow:0 1px 3px #243b2315; }
+#weather-plot { height:240px; }
+#weather-description { margin:6px 0 0; font-size:11px; color:#778275; min-height:16px; }
+#weather-readout { font-size:12px; color:#4c624f; min-height:18px; margin:3px 0 0; font-variant-numeric:tabular-nums; }
+#weather-status:empty { display:none; }
+#episodes { padding:14px 18px; }
+#episodes h2 { text-transform:none; letter-spacing:0; font-size:14px; color:#304636; }
+#episode-count { color:#8b9688; margin-left:4px; }
+.episode { border:1px solid #eee8d9; border-left:3px solid #e5ab48; border-radius:6px; margin-top:8px; background:#fffefb; }
+.episode.strong { border-left-color:#ce5350; }
+.episode summary { padding:10px 12px; cursor:pointer; font-size:13px; }
+.episode-level { float:right; font-size:12px; color:#7e8275; margin-left:8px; }
+.episode-body { padding:0 12px 12px; font-size:13px; }
+.episode-body p { margin:2px 0 8px; }
+#calculation { padding:0; }
+#calculation>summary { cursor:pointer; padding:13px 18px; color:#657561; font-size:13px; }
+.calculation-body { padding:0 18px 16px; }
+.calculation-body h3 { color:#4b604e; font-size:13px; margin:16px 0 4px; }
+.calculation-body p { color:#798477; font-size:12px; margin:6px 0; }
+#zplot { height:170px; } #raw-ndvi { height:250px; } #wx { height:190px; }
+[hidden] { display:none!important; }
+button:focus-visible,summary:focus-visible,.poly:focus-visible { outline:2px solid #638e6c; outline-offset:3px; }
+@media(max-width:1150px) { main { grid-template-columns:280px minmax(0,1fr); padding:14px; gap:12px; } .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } .metric-value { font-size:21px; } }
+@media(max-width:760px) { main { grid-template-columns:minmax(0,1fr); padding:10px; } header { padding:12px; } header .sub { display:none; } .chart-panel { padding:13px 10px; } .metrics { gap:6px; } .metric { padding:8px; } .metric-value { font-size:19px; } .weather-tabs button { padding:6px 8px; } .episode-level { float:none; display:block; margin:4px 0 0; } #ndvi { height:270px; } #list { max-height:210px; } }
+@media(max-width:760px) { #name { min-width:100%; } }

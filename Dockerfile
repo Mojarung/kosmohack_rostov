@@ -43,4 +43,4 @@ COPY --from=web /web/dist ./web/dist
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/summary', timeout=4)"
-CMD ["uv", "run", "uvicorn", "service.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "--no-sync", "uvicorn", "service.app:app", "--host", "0.0.0.0", "--port", "8000"]

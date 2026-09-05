@@ -19,6 +19,7 @@ from anomaly.series import curves_by_year, harmonized_series
 from anomaly.weather import daily_weather
 from gapfill.config import CROP_CODES, ROOT, SUBMISSION_PATH
 from gapfill.data import load_all, polygon_kinds
+from service.weather_metrics import _numbers
 
 CROP_NAMES = {v: k for k, v in CROP_CODES.items()}
 SENSOR_NAMES = {0: "Sentinel-2", 1: "Landsat", 2: "MODIS"}
@@ -73,14 +74,14 @@ class Store:
             eps = ep_by.get_group(pid) if ep_by is not None and pid in ep_by.groups else pd.DataFrame()
             out.append({"pid": pid, "crop": CROP_NAMES.get(int(self.crop_of[pid]), "?"),
                         "kind": KIND_NAMES.get(self.kinds[pid], self.kinds[pid]),
-                        "years": [int(y) for y in sorted(g["year"].unique())], "n_obs": int(len(g)),
-                        "n_episodes": int(len(eps)),
+                        "years": [int(y) for y in sorted(g["year"].unique())], "n_obs": len(g),
+                        "n_episodes": len(eps),
                         "n_critical": int((eps["severity"] == "критическая").sum()) if len(eps) else 0,
                         "has_weather": bool(self.grid.loc[self.grid["pid"] == pid, "era5_temp_c"].notna().any()),
                         "n_gaps": int((self.restored["pid"] == pid).sum())})
         return out
 
-    @lru_cache(maxsize=128)
+    @lru_cache(maxsize=128)  # noqa: B019 — единственный Store приложения
     def polygon(self, pid: str) -> dict:
         """Полный набор для графиков полигона: по годам наблюдения, кривая, норма, Z; эпизоды; погода."""
         rows = self.obs.loc[self.obs["pid"] == pid]
@@ -119,8 +120,8 @@ class Store:
         for year, g in w.groupby("year"):
             g = g.dropna(subset=["era5_temp_c"])
             out[int(year)] = {"date": [d.strftime("%Y-%m-%d") for d in g["date"]],
-                              "temp": [round(float(v), 2) for v in g["era5_temp_c"]],
-                              "precip": [round(float(v), 2) for v in g["era5_precip_mm"]]}
+                              "temp": _numbers(g["era5_temp_c"]),
+                              "precip": _numbers(g["era5_precip_mm"])}
         return out
 
 

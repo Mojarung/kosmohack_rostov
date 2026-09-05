@@ -12,4 +12,8 @@ docs/source
 .pytest_cache
 .ruff_cache
 .mypy_cache
+.playwright-mcp
+data/external
+reports/modeling
+research4
 *.log

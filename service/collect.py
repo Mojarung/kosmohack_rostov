@@ -11,13 +11,9 @@
 
 from __future__ import annotations
 
-import datetime as dt
-import json
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
-import urllib.parse
-import urllib.request
 
 import numpy as np
 import pandas as pd
@@ -27,11 +23,13 @@ from odc.stac import load as stac_load
 from rasterio.features import geometry_mask
 from shapely.geometry import shape
 
+from service.field_store import field_id
+from service.weather_source import SOURCE, collect_weather, weather_records
+
 log = logging.getLogger("service.collect")
 EARTH_SEARCH = "https://earth-search.aws.element84.com/v1"
 PLANETARY = "https://planetarycomputer.microsoft.com/api/stac/v1"
 OPEN_METEO = "https://archive-api.open-meteo.com/v1/archive"
-OVERPASS = "https://overpass-api.de/api/interpreter"
 SEASON = ("04-01", "10-30")
 MIN_VALID_SHARE = 0.6          # доля чистых пикселей в полигоне, ниже — сцена отбрасывается
 MIN_PIXELS = 6
@@ -62,13 +60,21 @@ def _by_years(fn, years: range, max_workers: int = 4, label: str = "") -> pd.Dat
     """Сезоны собираются параллельно (каждый год — отдельный запрос к каталогу и своя загрузка)."""
     def timed(year):
         t0 = time.time()
-        frame = fn(year)
+        try:
+            frame = fn(year)
+        except Exception as exc:
+            log.exception("%s %s: год не загружен", label, year)
+            frame = pd.DataFrame()
+            frame.attrs["failure"] = f"{label} {year}: {type(exc).__name__}"
         log.info("%s %s: %d сцен за %.0f с", label, year, len(frame), time.time() - t0)
         return frame
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         frames = list(pool.map(timed, years))
+    failures = [f.attrs["failure"] for f in frames if "failure" in f.attrs]
     frames = [f for f in frames if len(f)]
-    return pd.concat(frames, ignore_index=True).sort_values("date").reset_index(drop=True) if frames else pd.DataFrame()
+    result = pd.concat(frames, ignore_index=True).sort_values("date").reset_index(drop=True) if frames else pd.DataFrame()
+    result.attrs["warnings"] = failures
+    return result
 
 
 def _polygon_mask(data, geom) -> np.ndarray:
@@ -76,8 +82,8 @@ def _polygon_mask(data, geom) -> np.ndarray:
     from pyproj import Transformer
     crs = data.odc.crs
     transformer = Transformer.from_crs("EPSG:4326", crs, always_xy=True)
-    ring = [transformer.transform(x, y) for x, y in geom.exterior.coords]
-    return ~geometry_mask([{"type": "Polygon", "coordinates": [ring]}], out_shape=(data.sizes["y"], data.sizes["x"]),
+    rings = [[transformer.transform(x, y) for x, y in ring.coords] for ring in [geom.exterior, *geom.interiors]]
+    return ~geometry_mask([{"type": "Polygon", "coordinates": rings}], out_shape=(data.sizes["y"], data.sizes["x"]),
                           transform=data.odc.geobox.transform, invert=False)
 
 
@@ -97,6 +103,9 @@ def _s2_year(geom, year: int) -> pd.DataFrame:
                                datetime=_season_range(year), query={"eo:cloud_cover": {"lt": 80}}).items())
     if not items:
         return pd.DataFrame()
+    items = public_s2_items(items)
+    if not items:
+        return pd.DataFrame()
     data = _load_parallel(items, ["red", "nir", "scl"], geom, resolution=20)
     inside = _polygon_mask(data, geom)
     rows = []
@@ -107,6 +116,20 @@ def _s2_year(geom, year: int) -> pd.DataFrame:
         if np.isfinite(ndvi):
             rows.append({"date": pd.Timestamp(t).normalize(), "s2_ndvi": ndvi, "s2_clear_share": share})
     return pd.DataFrame(rows)
+
+
+def public_s2_items(items):
+    """Исключает JP2-дубликаты: их псевдонимы перекрывают публичные HTTPS COG и ведут в платный S3."""
+    result = []
+    for item in items:
+        if not all(key in item.assets and item.assets[key].href.startswith("https://") for key in ("red", "nir", "scl")):
+            continue
+        public = item.clone()
+        for key in list(public.assets):
+            if key.endswith("-jp2"):
+                del public.assets[key]
+        result.append(public)
+    return result
 
 
 def collect_s2(geom, years: range) -> pd.DataFrame:
@@ -167,36 +190,6 @@ def collect_modis(geom, years: range) -> pd.DataFrame:
     return _by_years(lambda y: _modis_year(geom, y), years, label="MODIS")
 
 
-def collect_weather(lat: float, lon: float, years: range) -> pd.DataFrame:
-    """ERA5 по Open-Meteo: среднесуточная температура и осадки за все дни выбранных лет (с апреля по октябрь)."""
-    params = {"latitude": lat, "longitude": lon, "start_date": f"{years[0]}-04-01",
-              "end_date": min(dt.date(years[-1], 10, 30), dt.date.today() - dt.timedelta(days=6)).isoformat(),
-              "daily": "temperature_2m_mean,precipitation_sum", "timezone": "UTC"}
-    with urllib.request.urlopen(OPEN_METEO + "?" + urllib.parse.urlencode(params), timeout=60) as resp:
-        payload = json.load(resp)
-    d = payload["daily"]
-    w = pd.DataFrame({"date": pd.to_datetime(d["time"]), "era5_temp_c": d["temperature_2m_mean"],
-                      "era5_precip_mm": d["precipitation_sum"]})
-    return w[(w["date"].dt.dayofyear >= 91) & (w["date"].dt.dayofyear <= 304)]
-
-
-def osm_fields(bbox: tuple[float, float, float, float]) -> list[dict]:
-    """Готовые контуры полей OpenStreetMap (landuse=farmland) в рамке (юг, запад, север, восток)."""
-    s, w, n, e = bbox
-    query = f'[out:json][timeout:25];(way["landuse"="farmland"]({s},{w},{n},{e}););out geom 200;'
-    req = urllib.request.Request(OVERPASS, data=urllib.parse.urlencode({"data": query}).encode(),
-                                 headers={"User-Agent": "kosmohack-ndvi/0.1"})
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        payload = json.load(resp)
-    out = []
-    for el in payload.get("elements", []):
-        pts = [[p["lon"], p["lat"]] for p in el.get("geometry", [])]
-        if len(pts) >= 4:
-            out.append({"id": str(el["id"]), "name": el.get("tags", {}).get("name", f"поле OSM {el['id']}"),
-                        "geometry": {"type": "Polygon", "coordinates": [pts]}})
-    return out
-
-
 def assemble_observations(pid: str, s2: pd.DataFrame, ls: pd.DataFrame, md: pd.DataFrame) -> pd.DataFrame:
     """Таблица наблюдений в формате кейса: одна строка на дату, primary_ndvi по приоритету S2 → Landsat → MODIS."""
     frames = [f.set_index("date") for f in (s2, ls, md) if len(f)]
@@ -220,25 +213,36 @@ def analyze_geometry(geometry: dict, name: str, start_year: int, end_year: int) 
     from service.analyze_new import analyze_new_polygon
     geom = shape(geometry)
     years = range(start_year, end_year + 1)
-    frames, notes = {}, []
+    frames, notes, warnings = {}, [], []
     # каждый источник независим: если один недоступен, ряд строится по остальным, а пользователь видит пометку
     for label, fn in (("S2", collect_s2), ("Landsat", collect_landsat), ("MODIS", collect_modis)):
         try:
             frames[label] = fn(geom, years)
+            warnings.extend(frames[label].attrs.get("warnings", []))
             notes.append(f"{label} {len(frames[label])} сцен")
         except Exception as exc:    # сетевые ошибки, недоступный каталог, пустой ответ
+            log.exception("Источник %s недоступен", label)
             frames[label] = pd.DataFrame()
             notes.append(f"{label} недоступен ({type(exc).__name__})")
-    pid = f"NEW:{name}"
+            warnings.append(f"{label} недоступен: {type(exc).__name__}")
+    pid = field_id(geometry)
     obs = assemble_observations(pid, frames["S2"], frames["Landsat"], frames["MODIS"])
     centroid = geom.centroid
     try:
         weather = collect_weather(centroid.y, centroid.x, years).assign(pid=pid)
+        warnings.extend(weather.attrs.get("warnings", []))
         notes.append(f"ERA5 {len(weather)} дней")
     except Exception as exc:
+        log.exception("Метеоданные недоступны")
         weather = pd.DataFrame(columns=["date", "era5_temp_c", "era5_precip_mm", "pid"])
         notes.append(f"ERA5 недоступен ({type(exc).__name__})")
-    result = analyze_new_polygon(pid, obs, weather)
+        warnings.append("Погода ERA5 не загрузилась")
+    recent_weather = weather.loc[weather["date"].dt.year >= start_year] if len(weather) else weather
+    result = analyze_new_polygon(pid, obs, recent_weather)
+    result["_weather"] = weather_records(weather)
+    result["weather_source"] = SOURCE if len(weather) else "Погода недоступна"
+    result["name"] = name
+    result["warnings"] = warnings
     result["collected"] = ", ".join(notes)
     result["geometry"] = geometry
     return result

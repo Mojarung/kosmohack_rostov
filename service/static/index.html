@@ -3,12 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22/%3E">
 <title>NDVI-мониторинг полей</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.2/plotly.min.js"></script>
+<script src="/vendor/plotly.min.js"></script>
 <style>
   :root { --bg:#f6f4ee; --panel:#ffffff; --ink:#1f2a1f; --muted:#6b7266; --line:#e2ded3; --accent:#2f6f3e;
           --warn:#e8a33d; --crit:#c8423f; --s2:#2b6cb0; --ls:#805ad5; --md:#dd6b20; }
@@ -26,10 +27,6 @@
   .poly { padding:7px 8px; border-radius:6px; cursor:pointer; display:flex; justify-content:space-between; gap:8px; }
   .poly:hover { background:#f1efe6; } .poly.active { background:#e5efe7; }
   .poly .meta { color:var(--muted); font-size:12px; }
-  .poly button.del { border:0; background:transparent; color:var(--muted); cursor:pointer; font-size:15px; padding:0 4px; align-self:flex-start; }
-  .poly button.del:hover { color:var(--crit); }
-  .maplegend { font-size:12px; color:var(--muted); margin-top:6px; }
-  .maplegend i { display:inline-block; width:12px; height:12px; border-radius:3px; margin:0 3px 0 8px; vertical-align:middle; }
   .badge { display:inline-block; padding:1px 7px; border-radius:10px; font-size:12px; color:#fff; }
   .badge.crit { background:var(--crit); } .badge.warn { background:var(--warn); } .badge.ok { background:var(--accent); }
   #map { height:260px; border-radius:8px; }
@@ -50,6 +47,7 @@
   button.primary:disabled { opacity:.5; cursor:default; }
   #status { font-size:12px; color:var(--muted); min-height:16px; }
 </style>
+<link rel="stylesheet" href="/static/chart-panel.css">
 </head>
 <body>
 <header>
@@ -69,11 +67,6 @@
         <button class="primary" id="analyze" disabled>Собрать данные и проанализировать</button>
       </div>
       <div id="status">Нарисуйте контур поля на карте или найдите готовые контуры OSM и кликните по полю.</div>
-      <div class="maplegend">Мои поля на карте — состояние последнего сезона:<i style="background:#2f6f3e"></i>норма<i style="background:#e8a33d"></i>умеренное угнетение<i style="background:#c8423f"></i>критическое</div>
-    </div>
-    <div class="card">
-      <h2>Мои поля <span id="savedcount"></span></h2>
-      <div id="saved"></div>
     </div>
     <div class="card">
       <h2>Полигоны кейса</h2>
@@ -86,32 +79,60 @@
       <div id="list"></div>
     </div>
   </aside>
-  <section>
-    <div class="card">
-      <div class="row" style="justify-content:space-between">
-        <div><b id="title">Выберите полигон</b> <span id="subtitle" class="muted"></span></div>
-        <div class="years" id="years"></div>
+  <section aria-label="Анализ поля">
+    <div class="card chart-panel">
+      <div class="field-heading"><b id="title">Выберите полигон</b><span id="subtitle" class="muted"></span></div>
+      <div class="years" id="years" aria-label="Сезон"></div>
+      <div class="metrics" aria-label="Показатели поля">
+        <div class="metric"><div class="metric-label" id="metric-ndvi-label">Последний снимок</div><b class="metric-value" id="metric-ndvi-value">—</b><div class="metric-note" id="metric-ndvi-note"></div></div>
+        <div class="metric" id="metric-rain" hidden><div class="metric-label">Осадки за 30 дней · <span id="metric-rain-date"></span></div><b class="metric-value" id="metric-rain-value"></b><div class="metric-note" id="metric-rain-note"></div></div>
+        <div class="metric" id="metric-heat" hidden><div class="metric-label">Накопленное тепло · <span id="metric-heat-date"></span></div><b class="metric-value" id="metric-heat-value"></b><div class="metric-note" id="metric-heat-note"></div></div>
+        <div class="metric" id="metric-dry" hidden><div class="metric-label">Сухой период · максимум за сезон</div><b class="metric-value" id="metric-dry-value"></b><div class="metric-note" id="metric-dry-note"></div></div>
       </div>
-      <div class="legend muted" style="margin:6px 0 2px">
-        <span><i class="dot" style="background:var(--s2)"></i>Sentinel-2</span>
-        <span><i class="dot" style="background:var(--ls)"></i>Landsat</span>
-        <span><i class="dot" style="background:var(--md)"></i>MODIS</span>
-        <span><i class="dot" style="background:#000"></i>восстановленная кривая</span>
-        <span><i class="dot" style="background:#e11d74"></i>восстановленные пропуски</span>
-        <span><i class="dot" style="background:#bbb"></i>норма ±1σ</span>
-        <span style="color:var(--crit)">✕ артефакт (облако/тень)</span>
+      <div class="chart-toolbar"><h2>Развитие растительности</h2><button class="quiet" id="reset-period" disabled>Весь сезон</button></div>
+      <div class="chart-key"><span>Кривая NDVI</span><span class="norm">Исторический ориентир</span><span class="observed">Наблюдения</span></div>
+      <div id="ndvi" aria-label="Динамика NDVI"></div>
+      <p class="chart-note" id="ndvi-note"></p>
+      <div id="agro-extra" hidden>
+        <div class="chart-toolbar"><h2>Погодный контекст</h2><div class="weather-tabs" role="group" aria-label="Погодный показатель">
+          <button data-weather="rain" aria-pressed="true">Осадки</button><button data-weather="thermal" aria-pressed="false">Тепло</button><button data-weather="water" aria-pressed="false" hidden>Баланс влаги</button>
+        </div></div>
+        <p id="weather-status" class="muted" role="status"></p><button class="quiet" id="weather-retry" hidden>Повторить</button>
+        <div id="weather-content" hidden>
+          <p id="weather-description"></p><p id="weather-readout" aria-live="off"></p>
+          <div class="chart-key"><span id="weather-year-key"></span><span id="weather-norm-key" class="norm">Среднее прошлых лет</span></div>
+          <div id="weather-plot" aria-label="Погода относительно прошлых лет"></div>
+        </div>
       </div>
-      <div id="ndvi" style="height:380px"></div>
-      <div id="zplot" style="height:170px"></div>
-      <div id="wx" style="height:170px"></div>
+      <div class="imagery-card" id="imagery-card" hidden>
+        <div class="chart-toolbar"><h2>Карта поля</h2><button class="quiet" id="imagery-load">Загрузить снимки</button></div>
+        <div class="row imagery-controls"><select id="imagery-date" aria-label="Дата снимка"></select><button data-image="ndvi" aria-pressed="true">NDVI</button><button data-image="ndmi" aria-pressed="false">Влажность NDMI</button><button data-image="change" aria-pressed="false">Изменение</button></div>
+        <p class="muted" id="imagery-status">Выберите дату и показатель.</p><img id="imagery-image" alt="Карта показателя по пикселям поля" hidden><p class="chart-note" id="imagery-note"></p>
+      </div>
     </div>
-    <div class="card" id="episodes"><h2>Эпизоды угнетения</h2><div class="muted">Нет данных</div></div>
+    <div class="card" id="episodes"><h2>Периоды отклонения <span id="episode-count"></span></h2><div id="episode-list"></div></div>
+    <details class="card" id="calculation"><summary>Данные и расчёт</summary><div class="calculation-body">
+      <p>На основном графике наблюдения приведены к шкале Sentinel-2. Серая полоса — ориентир NDVI ±1σ. Красные и жёлтые периоды отмечают силу отклонения.</p>
+      <h3>Отклонение от ориентира — Z</h3><div id="zplot"></div>
+      <p>Z = (NDVI − среднее истории) / разброс. Порог жёлтого уровня −1, красного −2; детектор также учитывает длительность и реальные наблюдения.</p>
+      <p id="shape-notes"></p>
+      <h3>Исходные наблюдения и восстановленные пропуски</h3><div id="raw-ndvi"></div>
+      <p>Точки — исходные спутниковые значения, ромбы — контрольные восстановления модели, крестики — исключённые артефакты.</p>
+      <div id="raw-weather"><h3>Температура и осадки по дням</h3><div id="wx"></div></div>
+      <h3>Погодные показатели</h3>
+      <p>Осадки — сумма за 30 полных дней. Тепло — сумма max(Tср − 10 °C, 0) от 1 апреля, общий показатель сезона без привязки к культуре. Сухой период — дни подряд с осадками менее 1 мм.</p>
+      <p>Серая погодная полоса — 10–90-й процентили предыдущих лет, линия — среднее. Для сравнения нужны минимум 3 года; текущий год исключён. Пропуски не заменяются нулями.</p>
+      <p id="agro-balance-note" hidden>Баланс влаги — осадки минус испарение ET₀ за 30 дней; это не измерение влажности почвы.</p>
+      <p id="agro-source"></p><p id="source-note"></p>
+    </div></details>
   </section>
 </main>
+<script src="/static/chart-ui.js"></script>
+<script src="/static/field-charts.js"></script>
+<script src="/static/weather-charts.js"></script>
+<script src="/static/imagery.js"></script>
 <script>
-const S = { polys: [], current: null, data: null, year: null, drawn: null, saved: [], currentUid: null };
-const STATUS_COLOR = { "критическая": "#c8423f", "умеренная": "#e8a33d", "норма": "#2f6f3e" };
-function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+const S = { polys: [], current: null, data: null, year: null, drawn: null };
 const SENSOR_COLOR = { "Sentinel-2": "#2b6cb0", "Landsat": "#805ad5", "MODIS": "#dd6b20" };
 const CAUSE = { weather_drought: "погодный стресс", unsown_or_changed: "не засеяно / другая культура",
   early_decline: "ранний спад", weak_season: "ослабленный сезон", late_start: "поздний старт",
@@ -122,13 +143,13 @@ async function api(path, opts) { const r = await fetch(path, opts); if (!r.ok) t
 function renderList() {
   const q = document.getElementById("search").value.toLowerCase();
   const sort = document.getElementById("sort").value;
-  let items = S.polys.filter(p => (p.pid + " " + p.crop).toLowerCase().includes(q));
+  let items = S.polys.filter(p => (p.pid + " " + (p.name || "") + " " + p.crop).toLowerCase().includes(q));
   if (sort === "crit") items.sort((a, b) => b.n_critical - a.n_critical || b.n_episodes - a.n_episodes);
   else if (sort === "eps") items.sort((a, b) => b.n_episodes - a.n_episodes);
   else items.sort((a, b) => a.pid.localeCompare(b.pid));
   document.getElementById("list").innerHTML = items.map(p => `
     <div class="poly ${S.current === p.pid ? "active" : ""}" data-pid="${p.pid}">
-      <div><div>${p.pid} <span class="meta">${p.crop}</span></div>
+      <div><div>${escapeHtml(p.name || p.pid)} <span class="meta">${p.crop}</span></div>
            <div class="meta">${p.years[0]}–${p.years[p.years.length - 1]} · ${p.n_obs} набл.${p.n_gaps ? " · " + p.n_gaps + " контр. точек" : ""}</div></div>
       <div>${p.n_critical ? `<span class="badge crit">${p.n_critical}</span>` : ""} ${p.n_episodes ? `<span class="badge warn">${p.n_episodes}</span>` : `<span class="badge ok">ок</span>`}</div>
     </div>`).join("");
@@ -136,41 +157,12 @@ function renderList() {
 }
 
 async function loadPolygon(pid) {
-  S.current = pid; S.currentUid = null; renderList(); renderSaved();
-  S.data = await api(`/api/polygon/${pid}`);
-  showData(S.data, pid, S.data.crop + " · " + S.data.kind);
-}
-
-// набор полигонов пользователя: список слева и контуры на карте, цвет — состояние последнего сезона
-function renderSaved() {
-  const items = S.saved;
-  savedLayer.clearLayers();
-  savedLayer.addData({ type: "FeatureCollection", features: items.filter(p => p.geometry).map(p => ({ type: "Feature", geometry: p.geometry,
-    properties: { uid: p.uid, name: p.name, status: p.last_year_status, last_year: p.last_year } })) });
-  document.getElementById("savedcount").textContent = items.length ? "· " + items.length : "";
-  const el = document.getElementById("saved");
-  if (!items.length) { el.innerHTML = '<div class="muted">Пока пусто: проанализированные поля сохраняются здесь и на карте.</div>'; return; }
-  el.innerHTML = items.map(p => `
-    <div class="poly ${S.currentUid === p.uid ? "active" : ""}" data-uid="${p.uid}">
-      <div><div>${esc(p.name)} <span class="badge" style="background:${STATUS_COLOR[p.last_year_status] || "#888"}">${p.last_year_status}${p.last_year ? " " + p.last_year : ""}</span></div>
-           <div class="meta">${p.years.length ? p.years[0] + "–" + p.years[p.years.length - 1] : "нет сезонов"} · эпизодов ${p.n_episodes}${p.n_critical ? " · критических " + p.n_critical : ""} · ${p.created_at.slice(0, 16).replace("T", " ")}</div></div>
-      <button class="del" title="удалить из набора" data-uid="${p.uid}">✕</button>
-    </div>`).join("");
-  el.querySelectorAll(".poly").forEach(d => d.onclick = () => loadSaved(d.dataset.uid));
-  el.querySelectorAll(".del").forEach(b => b.onclick = async ev => {
-    ev.stopPropagation();
-    if (!confirm("Удалить поле из набора?")) return;
-    try { await api(`/api/user-polygons/${b.dataset.uid}`, { method: "DELETE" }); } catch (err) { document.getElementById("status").textContent = "Ошибка: " + err.message; }
-    if (S.currentUid === b.dataset.uid) S.currentUid = null;
-    refreshSaved();
-  });
-}
-async function refreshSaved() { try { S.saved = await api("/api/user-polygons"); } catch (err) { S.saved = []; } renderSaved(); }
-async function loadSaved(uid) {
-  const data = await api(`/api/user-polygons/${uid}`);
-  S.current = null; S.currentUid = uid; renderList(); renderSaved();
-  showData(data, data.name, data.kind + (data.collected ? " · " + data.collected : ""));
-  if (data.geometry) map.fitBounds(L.geoJSON(data.geometry).getBounds(), { maxZoom: 14 });
+  S.current = pid; renderList();
+  const data = await api(`/api/polygon/${encodeURIComponent(pid)}`);
+  if (S.current !== pid) return;
+  S.data = data;
+  showData(S.data, S.data.name || pid, S.data.crop || "");
+  if (window.renderImagery) renderImagery(pid, S.year);
 }
 
 function showData(data, title, subtitle) {
@@ -183,102 +175,57 @@ function showData(data, title, subtitle) {
   S.year = years.includes(S.year) ? S.year : years[years.length - 1];
   document.getElementById("years").innerHTML = years.map(y =>
     `<button class="${y === S.year ? "active" : ""} ${critYears.has(y) ? "hascrit" : epYears.has(y) ? "hasep" : ""}" data-y="${y}">${y}</button>`).join("");
-  document.querySelectorAll("#years button").forEach(b => b.onclick = () => { S.year = Number(b.dataset.y); showData(S.data, title, subtitle); });
-  renderCharts(); renderEpisodes();
-}
-
-function shapes(eps) {
-  return eps.map(e => ({ type: "rect", xref: "x", yref: "paper", x0: e.start, x1: e.end, y0: 0, y1: 1,
-    fillcolor: e.severity === "критическая" ? "#c8423f" : "#e8a33d", opacity: 0.16, line: { width: 0 } }));
-}
-
-function renderCharts() {
-  const y = S.data.years[S.year]; if (!y) return;
-  const eps = S.data.episodes.filter(e => e.year === S.year);
-  const traces = [];
-  const nm = y.norm_mean, ns = y.norm_std;
-  if (nm.length) {
-    const sd = Object.fromEntries(ns.map(p => [p.date, p.value]));
-    traces.push({ x: nm.map(p => p.date), y: nm.map(p => p.value + (sd[p.date] || 0)), mode: "lines", line: { width: 0 }, showlegend: false, hoverinfo: "skip" });
-    traces.push({ x: nm.map(p => p.date), y: nm.map(p => p.value - (sd[p.date] || 0)), mode: "lines", line: { width: 0 }, fill: "tonexty", fillcolor: "rgba(150,150,150,.22)", name: "норма ±1σ (" + y.norm_source + ")", hoverinfo: "skip" });
-    traces.push({ x: nm.map(p => p.date), y: nm.map(p => p.value), mode: "lines", line: { color: "#888", width: 1.3 }, name: "норма" });
-  }
-  traces.push({ x: y.curve.map(p => p.date), y: y.curve.map(p => p.value), mode: "lines", line: { color: "#000", width: 2 }, name: "восстановленная кривая" });
-  for (const s of ["Sentinel-2", "Landsat", "MODIS"]) {
-    const pts = y.observations.filter(o => o.sensor === s && !o.artifact);
-    traces.push({ x: pts.map(o => o.date), y: pts.map(o => o.value), mode: "markers", marker: { color: SENSOR_COLOR[s], size: 7 }, name: s + " (исходный primary_ndvi)",
-      text: pts.map(o => `в шкале S2: ${o.harmonized.toFixed(3)}`), hovertemplate: "%{x}<br>%{y:.3f}<br>%{text}" });
-  }
-  const art = y.observations.filter(o => o.artifact);
-  if (art.length) traces.push({ x: art.map(o => o.date), y: art.map(o => o.value), mode: "markers", marker: { symbol: "x", color: "#c8423f", size: 9 }, name: "артефакт (исключён)" });
-  if (y.restored.length) traces.push({ x: y.restored.map(o => o.date), y: y.restored.map(o => o.value), mode: "markers", marker: { color: "#e11d74", size: 8, symbol: "diamond" }, name: "восстановленный пропуск (контрольная точка)" });
-  Plotly.newPlot("ndvi", traces, { margin: { l: 45, r: 10, t: 10, b: 30 }, yaxis: { title: "NDVI", range: [0, 1] }, shapes: shapes(eps), legend: { orientation: "h", y: -0.15 }, hovermode: "closest" }, { displayModeBar: false, responsive: true });
-  Plotly.newPlot("zplot", [{ x: y.z.map(p => p.date), y: y.z.map(p => p.value), mode: "lines", line: { color: "#000", width: 1.4 }, name: "Z-score" }],
-    { margin: { l: 45, r: 10, t: 5, b: 25 }, yaxis: { title: "Z-score", range: [-4, 3] }, shapes: [...shapes(eps),
-      { type: "line", xref: "paper", x0: 0, x1: 1, y0: -1, y1: -1, line: { color: "#e8a33d", dash: "dash", width: 1 } },
-      { type: "line", xref: "paper", x0: 0, x1: 1, y0: -2, y1: -2, line: { color: "#c8423f", dash: "dash", width: 1 } }], showlegend: false }, { displayModeBar: false, responsive: true });
-  const w = S.data.weather && S.data.weather[S.year];
-  if (w) Plotly.newPlot("wx", [{ x: w.date, y: w.precip, type: "bar", marker: { color: "#2b6cb0" }, name: "осадки, мм/день" },
-    { x: w.date, y: w.temp, mode: "lines", line: { color: "#dd6b20", width: 1 }, name: "температура, °C", yaxis: "y2" }],
-    { margin: { l: 45, r: 45, t: 5, b: 25 }, yaxis: { title: "мм" }, yaxis2: { title: "°C", overlaying: "y", side: "right" }, showlegend: false }, { displayModeBar: false, responsive: true });
-  else Plotly.purge("wx"), document.getElementById("wx").innerHTML = '<div class="muted" style="padding:20px">ERA5 для этого полигона нет: погода берётся по региону.</div>';
-}
-
-function renderEpisodes() {
-  const eps = S.data.episodes.filter(e => e.year === S.year).sort((a, b) => a.min_z - b.min_z);
-  const shape = (S.data.shape || []).filter(s => s.year === S.year);
-  const el = document.getElementById("episodes");
-  let html = "<h2>Эпизоды угнетения · " + S.year + "</h2>";
-  if (!eps.length) html += '<div class="muted">В этом сезоне устойчивых или сильных отклонений ниже нормы не найдено.</div>';
-  html += eps.map(e => `<div class="ep ${e.severity === "критическая" ? "crit" : ""}">
-      <div class="head">${e.start} — ${e.end} · ${e.days} дн. · ${e.severity} · Z<sub>min</sub> ${e.min_z.toFixed(1)}</div>
-      <div class="cause">причина: ${CAUSE[e.cause] || e.cause} (уверенность ${Math.round(e.confidence * 100)} %) · норма: ${e.norm_source} · погода: ${e.weather_source || "—"}</div>
-      <div>${e.text}</div></div>`).join("");
-  if (shape.length) html += shape.map(s => `<div class="ep" style="border-left-color:#888"><div class="head">Нетипичная форма сезона (${s.shape_direction})</div><div>${s.shape_reasons}</div></div>`).join("");
-  el.innerHTML = html;
+  document.querySelectorAll("#years button").forEach(b => b.onclick = () => { S.year = Number(b.dataset.y); showData(S.data, title, subtitle); if (window.renderImagery) renderImagery(S.current, S.year); });
+  FieldCharts.render(data, S.year); WeatherCharts.render(data, S.year);
 }
 
 // карта и рисование полигона
-const map = L.map("map").setView([47.2, 39.7], 8);
+if (typeof L !== "undefined") {
+const map = L.map("map").setView([47.35, 39.85], 11);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap" }).addTo(map);
 const drawn = new L.FeatureGroup().addTo(map);
 map.addControl(new L.Control.Draw({ draw: { polygon: { allowIntersection: false, showArea: true }, polyline: false, circle: false, rectangle: true, marker: false, circlemarker: false }, edit: { featureGroup: drawn } }));
 map.on(L.Draw.Event.CREATED, e => { drawn.clearLayers(); drawn.addLayer(e.layer); S.drawn = e.layer.toGeoJSON().geometry;
   document.getElementById("analyze").disabled = false; document.getElementById("status").textContent = "Контур задан. Нажмите «Собрать данные»."; });
-const savedLayer = L.geoJSON(null, { style: f => ({ color: STATUS_COLOR[f.properties.status] || "#2f6f3e", weight: 2.5, fillOpacity: 0.28 }),
-  onEachFeature: (f, layer) => { layer.bindTooltip(`${f.properties.name}: ${f.properties.status}${f.properties.last_year ? " (" + f.properties.last_year + ")" : ""}`);
-    layer.on("click", () => loadSaved(f.properties.uid)); } }).addTo(map);
+for (const event of [L.Draw.Event.EDITED, L.Draw.Event.DELETED]) map.on(event, () => { S.drawn = drawn.getLayers()[0]?.toGeoJSON().geometry || null; document.getElementById("analyze").disabled = !S.drawn; });
 const osmLayer = L.geoJSON(null, { style: { color: "#2f6f3e", weight: 1.5, fillOpacity: 0.12 },
   onEachFeature: (f, layer) => layer.on("click", () => { drawn.clearLayers(); S.drawn = f.geometry;
     document.getElementById("name").value = f.properties.name; document.getElementById("analyze").disabled = false;
     L.geoJSON(f, { style: { color: "#e11d74", weight: 2.5, fillOpacity: 0.2 } }).addTo(drawn);
     document.getElementById("status").textContent = "Выбрано: " + f.properties.name + ". Нажмите «Собрать данные»."; }) }).addTo(map);
 document.getElementById("fields").onclick = async () => {
+  while ((map.getBounds().getNorth()-map.getBounds().getSouth()) * (map.getBounds().getEast()-map.getBounds().getWest()) > .24 && map.getZoom() < 19) map.setZoom(map.getZoom()+1, {animate:false});
   const b = map.getBounds(); const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map(v => v.toFixed(4)).join(",");
   document.getElementById("status").textContent = "Запрашиваем контуры полей OpenStreetMap…";
   try {
     const feats = await api("/api/fields?bbox=" + bbox);
     osmLayer.clearLayers(); osmLayer.addData({ type: "FeatureCollection", features: feats.map(f => ({ type: "Feature", geometry: f.geometry, properties: { name: f.name } })) });
-    document.getElementById("status").textContent = feats.length ? `Найдено полей: ${feats.length}. Кликните по контуру.` : "В этой области контуров OSM нет — нарисуйте поле вручную.";
+    document.getElementById("status").textContent = feats.length ? `Найдено полей: ${feats.length}. ${feats.length >= 200 ? "Достигнут предел выдачи — приблизьте карту. " : ""}Кликните по контуру. В OSM есть не все поля.` : "В этой области контуров OSM нет — нарисуйте поле вручную.";
   } catch (err) { document.getElementById("status").textContent = "Ошибка: " + err.message; }
 };
 document.getElementById("analyze").onclick = async () => {
   const btn = document.getElementById("analyze"); btn.disabled = true;
-  document.getElementById("status").textContent = "Собираем Sentinel-2, Landsat, MODIS и ERA5… это занимает 1–3 минуты.";
+  document.getElementById("status").textContent = "Собираем Sentinel-2, Landsat, MODIS и ERA5… для новой территории это может занять несколько минут.";
   try {
     const data = await api("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ geometry: S.drawn, name: document.getElementById("name").value }) });
-    S.current = null; S.currentUid = data.uid || null; renderList();
-    showData(data, data.name || data.pid, data.kind + (data.collected ? " · " + data.collected : ""));
-    await refreshSaved();
-    document.getElementById("status").textContent = "Готово, поле сохранено в «Мои поля»: " + (data.collected || "");
+    S.current = null; renderList(); showData(data, data.name || data.pid, data.crop || "");
+    document.getElementById("status").textContent = "Готово: " + (data.collected || "");
   } catch (err) { document.getElementById("status").textContent = "Ошибка: " + err.message; }
   btn.disabled = false;
 };
+} else document.getElementById("status").textContent = "Карта не загрузилась. Обновите страницу; графики доступны.";
 document.getElementById("search").oninput = renderList;
 document.getElementById("sort").onchange = renderList;
-refreshSaved();
-api("/api/polygons").then(p => { S.polys = p; renderList(); const first = [...p].sort((a, b) => b.n_critical - a.n_critical)[0]; if (first) loadPolygon(first.pid); });
+function escapeHtml(value) { const el = document.createElement("span"); el.textContent = value; return el.innerHTML; }
+api("/api/polygons").then(p => {
+  S.polys = p; renderList();
+  const first = [...p].sort((a, b) => b.n_critical - a.n_critical)[0]; if (first) loadPolygon(first.pid);
+  return api("/api/saved-fields");
+}).then(saved => {
+  S.polys.push(...saved.map(p => ({...p, crop:"собранное поле", n_obs:"—", n_critical:0, n_gaps:0})));
+  renderList();
+}).catch(err => { document.getElementById("status").textContent = "Ошибка загрузки списка: " + err.message; });
 </script>
 </body>
 </html>

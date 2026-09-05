@@ -77,6 +77,8 @@ openeo = [
     "openeo>=0.47.0",
 ]
 service = [
+    { include-group = "geo" },
+    { include-group = "ml" },
     "duckdb>=1.5.5",
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
@@ -95,7 +97,7 @@ testpaths = ["tests"]
 [tool.uv]
 # openeo (клиент Copernicus Data Space) требует xarray<2025.1.2 и несовместим с современным geo-стеком,
 # поэтому живёт в отдельной группе: uv sync --group openeo
-conflicts = [[{ group = "geo" }, { group = "openeo" }]]
+conflicts = [[{ group = "geo" }, { group = "openeo" }], [{ group = "service" }, { group = "openeo" }]]
 
 # torch: индекс выбирается переменной UV_TORCH_BACKEND, а не жёсткой привязкой в файле.
 #   UV_TORCH_BACKEND=cu130 uv sync --group dl   — сборка под CUDA 13.0 (RTX 5070, Blackwell sm_120), для обучения
