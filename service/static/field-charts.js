@@ -84,12 +84,22 @@ window.FieldCharts = (() => {
       ChartUI.layout("мм",{yaxis2:{title:{text:"°C"},overlaying:"y",side:"right",showgrid:false},margin:{l:54,r:54,t:8,b:30}}),options);
     $("source-note").textContent=report.collected||"Исходные наблюдения и контрольные восстановления из данных кейса.";
   }
+  function renderTrend() {
+    const trend=report.insights?.[year];
+    $("trend-card").open=false;
+    $("trend-card").dataset.status=trend?.status||"insufficient";
+    $("trend-value").textContent=trend?.label||"Мало наблюдений";
+    $("trend-note").textContent=trend?.start?`${date(trend.start)} — ${date(trend.end)} · к историческому ориентиру`:"Нужны наблюдения и история";
+    $("trend-evidence").textContent=trend?.available?
+      `Медиана Z: ${format(trend.before_z,2)} → ${format(trend.after_z,2)}. Пригодных дат: ${trend.before_count} и ${trend.after_count}.`:
+      `Пригодных дат с историческим ориентиром: ${trend?.before_count||0} и ${trend?.after_count||0}. Восстановленные значения в этот расчёт не входят.`;
+  }
   function render(data,selectedYear) {
     const token=++version;report=data;year=selectedYear;season=data.years[year];weather=null;
     ChartUI.start(year);$("calculation").open=false;
     for(const id of ["rain","heat","dry"])$("metric-"+id).hidden=true;
     for(const id of ["zplot","raw-ndvi","wx"])Plotly.purge(id);
-    updateCards();renderEpisodes();drawNDVI(token);
+    updateCards();renderTrend();renderEpisodes();drawNDVI(token);
   }
   document.addEventListener("chart-date",event=>{if(season)updateCards(event.detail);});
   document.addEventListener("DOMContentLoaded",()=>{$("calculation").ontoggle=details;});

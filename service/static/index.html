@@ -47,7 +47,7 @@
   button.primary:disabled { opacity:.5; cursor:default; }
   #status { font-size:12px; color:var(--muted); min-height:16px; }
 </style>
-<link rel="stylesheet" href="/static/chart-panel.css">
+<link rel="stylesheet" href="/static/chart-panel.css?v=insights-2">
 </head>
 <body>
 <header>
@@ -93,6 +93,10 @@
       <div class="chart-key"><span>Кривая NDVI</span><span class="norm">Исторический ориентир</span><span class="observed">Наблюдения</span></div>
       <div id="ndvi" aria-label="Динамика NDVI"></div>
       <p class="chart-note" id="ndvi-note"></p>
+      <div class="insights" aria-label="Изменения поля">
+        <details class="insight" id="trend-card"><summary><span class="metric-label">Динамика отклонения NDVI</span><strong id="trend-value">Мало наблюдений</strong><span class="metric-note" id="trend-note"></span></summary><div class="insight-body"><p id="trend-evidence"></p><p>Сравниваем медиану отклонения реальных наблюдений за два соседних периода по 14 дней. Нужно минимум 2 даты в каждом. Изменение от 0,5 Z считаем заметным. Статус описывает снижение относительно истории; причины проверяют на поле.</p></div></details>
+        <details class="insight" id="area-card" hidden><summary><span class="metric-label">Площадь снижения NDVI</span><strong id="area-value">Нужны снимки</strong><span class="metric-note" id="area-note"></span></summary><div class="insight-body"><p id="area-evidence"></p><button class="quiet" id="area-open">Открыть карту поля</button></div></details>
+      </div>
       <div id="agro-extra" hidden>
         <div class="chart-toolbar"><h2>Погодный контекст</h2><div class="weather-tabs" role="group" aria-label="Погодный показатель">
           <button data-weather="rain" aria-pressed="true">Осадки</button><button data-weather="thermal" aria-pressed="false">Тепло</button><button data-weather="water" aria-pressed="false" hidden>Баланс влаги</button>
@@ -104,11 +108,14 @@
           <div id="weather-plot" aria-label="Погода относительно прошлых лет"></div>
         </div>
       </div>
-      <div class="imagery-card" id="imagery-card" hidden>
-        <div class="chart-toolbar"><h2>Карта поля</h2><button class="quiet" id="imagery-load">Загрузить снимки</button></div>
-        <div class="row imagery-controls"><select id="imagery-date" aria-label="Дата снимка"></select><button data-image="ndvi" aria-pressed="true">NDVI</button><button data-image="ndmi" aria-pressed="false">Влажность NDMI</button><button data-image="change" aria-pressed="false">Изменение</button></div>
-        <p class="muted" id="imagery-status">Выберите дату и показатель.</p><img id="imagery-image" alt="Карта показателя по пикселям поля" hidden><p class="chart-note" id="imagery-note"></p>
-      </div>
+      <details class="imagery-card" id="imagery-card" hidden>
+        <summary>Карта поля <span class="muted">· Sentinel-2, 20 м</span></summary>
+        <div class="imagery-body"><p id="imagery-status" role="status"></p><button class="quiet" id="imagery-load">Загрузить снимки сезона</button>
+          <div id="imagery-content" hidden><div class="imagery-controls"><select id="imagery-date" aria-label="Дата снимка"></select><div class="weather-tabs" role="group" aria-label="Слой карты"><button data-image="ndvi" aria-pressed="true">NDVI</button><button data-image="ndmi" aria-pressed="false">NDMI</button><button data-image="change" aria-pressed="false">Изменение</button></div></div>
+            <div id="imagery-map" aria-label="Спутниковая карта поля"></div><div id="imagery-legend"><div id="imagery-scale"></div><div id="imagery-labels"></div></div><p class="chart-note" id="imagery-note"></p>
+          </div>
+        </div>
+      </details>
     </div>
     <div class="card" id="episodes"><h2>Периоды отклонения <span id="episode-count"></span></h2><div id="episode-list"></div></div>
     <details class="card" id="calculation"><summary>Данные и расчёт</summary><div class="calculation-body">
@@ -128,9 +135,9 @@
   </section>
 </main>
 <script src="/static/chart-ui.js"></script>
-<script src="/static/field-charts.js"></script>
+<script src="/static/field-charts.js?v=insights-2"></script>
 <script src="/static/weather-charts.js"></script>
-<script src="/static/imagery.js"></script>
+<script src="/static/imagery.js?v=insights-2"></script>
 <script>
 const S = { polys: [], current: null, data: null, year: null, drawn: null };
 const SENSOR_COLOR = { "Sentinel-2": "#2b6cb0", "Landsat": "#805ad5", "MODIS": "#dd6b20" };
@@ -162,7 +169,6 @@ async function loadPolygon(pid) {
   if (S.current !== pid) return;
   S.data = data;
   showData(S.data, S.data.name || pid, S.data.crop || "");
-  if (window.renderImagery) renderImagery(pid, S.year);
 }
 
 function showData(data, title, subtitle) {
@@ -175,8 +181,9 @@ function showData(data, title, subtitle) {
   S.year = years.includes(S.year) ? S.year : years[years.length - 1];
   document.getElementById("years").innerHTML = years.map(y =>
     `<button class="${y === S.year ? "active" : ""} ${critYears.has(y) ? "hascrit" : epYears.has(y) ? "hasep" : ""}" data-y="${y}">${y}</button>`).join("");
-  document.querySelectorAll("#years button").forEach(b => b.onclick = () => { S.year = Number(b.dataset.y); showData(S.data, title, subtitle); if (window.renderImagery) renderImagery(S.current, S.year); });
+  document.querySelectorAll("#years button").forEach(b => b.onclick = () => { S.year = Number(b.dataset.y); showData(S.data, title, subtitle); });
   FieldCharts.render(data, S.year); WeatherCharts.render(data, S.year);
+  renderImagery(data, S.year);
 }
 
 // карта и рисование полигона

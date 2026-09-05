@@ -43,7 +43,8 @@ def save_report(report: dict) -> None:
 
 
 def public_report(report: dict) -> dict:
-    return {key: value for key, value in report.items() if not key.startswith("_")}
+    from service.insights import with_insights
+    return with_insights({key: value for key, value in report.items() if not key.startswith("_")})
 
 
 def list_fields() -> list[dict]:

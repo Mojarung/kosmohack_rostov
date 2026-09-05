@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import logging
 import uuid
 from pathlib import Path
 
@@ -62,7 +63,8 @@ def compare(current, previous, total: int) -> tuple[np.ndarray, dict]:
     stats = scene_stats(delta, total)
     valid = np.isfinite(delta)
     count = int(valid.sum())
-    lower = int((delta[valid] <= DROP_THRESHOLD).sum())
+    # Отражения хранятся в float32: учитываем погрешность на самой границе −0,1.
+    lower = int((delta[valid] <= DROP_THRESHOLD + 1e-7).sum())
     stats.update(drop_area_ha=round(lower * RESOLUTION**2 / 10000, 2),
                  drop_share=round(lower / count, 4) if count else None, threshold=DROP_THRESHOLD)
     return delta, stats
@@ -94,15 +96,22 @@ def _save_map(values, index, path, geobox, target):
 
 def collect(pid: str, geometry: dict, year: int) -> dict:
     """Один сезон, ограниченные партии; полный результат публикуется атомарно."""
+    if (cached := read(pid, year)) is not None:
+        return cached
     import pystac_client
     import rasterio
-    from odc.stac import load
+    from odc.stac import configure_rio, load
     from rasterio.transform import array_bounds
     from rasterio.warp import calculate_default_transform
     from shapely.geometry import shape
 
     from service.collect import EARTH_SEARCH, MIN_PIXELS, MIN_VALID_SHARE, S2_CLEAR_SCL, _polygon_mask, public_s2_items, utm_crs
 
+    logging.basicConfig(level=logging.INFO)
+    logging.getLogger("rasterio.session").setLevel(logging.WARNING)
+    log = logging.getLogger(__name__)
+    configure_rio(cloud_defaults=True, GDAL_HTTP_TIMEOUT=30, GDAL_HTTP_CONNECTTIMEOUT=15,
+                  GDAL_HTTP_MAX_RETRY=1, GDAL_HTTP_RETRY_DELAY=1)
     geom = shape(geometry)
     end = min(dt.date(year, 10, 30), dt.datetime.now(dt.UTC).date())
     if end < dt.date(year, 4, 1):
@@ -114,6 +123,7 @@ def collect(pid: str, geometry: dict, year: int) -> dict:
     items = [item for item in items if all(key in item.assets for key in bands)]
     if not items:
         raise ValueError("Sentinel-2 не вернул снимки этого сезона")
+    log.info("Карта %s %s: %s сцен в каталоге", pid, year, len(items))
     # C1 хранит исходные DN. Применяем scale/offset из STAC; старую коллекцию с уже
     # изменёнными DN не смешиваем с C1. Разные калибровки читаются отдельными партиями.
     groups = {}
@@ -139,7 +149,10 @@ def collect(pid: str, geometry: dict, year: int) -> dict:
                             resampling="nearest", fail_on_error=False, **location)
                 if lazy.sizes["y"] * lazy.sizes["x"] > 250_000:
                     raise ValueError("Контур слишком большой для карты 20 м. Выберите отдельное поле.")
-                data = lazy.compute(num_workers=8)
+                # GDAL в нескольких потоках под Windows может взаимно блокировать open().
+                # Изолированный процесс и последовательные чтения сохраняют отзывчивость API.
+                data = lazy.compute(scheduler="synchronous")
+                log.info("Карта %s: загружены даты %s — %s", pid, dates[first], dates[min(first + 7, len(dates) - 1)])
                 if geobox is None:
                     geobox, inside = data.odc.geobox, _polygon_mask(data, geom)
                 total = int(inside.sum())
