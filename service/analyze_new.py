@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
-import json
-
-import numpy as np
 import pandas as pd
 
 from anomaly.climatology import norm_for_year
-from anomaly.detect import find_episodes, norm_phenology, phenology, phenology_deviation, z_series
+from anomaly.detect import (
+    find_episodes,
+    norm_phenology,
+    phenology,
+    phenology_deviation,
+    z_series,
+)
 from anomaly.indices import ndwi_anomaly, ndwi_note
 from anomaly.report import classify, describe, severity_label
 from anomaly.series import curves_by_year, harmonized_series
 from anomaly.weather import daily_weather, episode_weather
 from service.data import SENSOR_NAMES, _series_json
+from service.weather_metrics import _numbers
 
 MIN_YEARS_FOR_NORM = 3
 
@@ -68,7 +72,7 @@ def analyze_new_polygon(pid: str, obs: pd.DataFrame, weather: pd.DataFrame) -> d
         for year, g in wx.groupby("year"):
             g = g.dropna(subset=["era5_temp_c"])
             weather_json[int(year)] = {"date": [d.strftime("%Y-%m-%d") for d in g["date"]],
-                                       "temp": [round(float(v), 2) for v in g["era5_temp_c"]],
-                                       "precip": [round(float(v), 2) for v in g["era5_precip_mm"]]}
+                                       "temp": _numbers(g["era5_temp_c"]),
+                                       "precip": _numbers(g["era5_precip_mm"])}
     return {"pid": pid, "crop": "не задана", "kind": "новая территория (данные собраны сервисом)", "years": years,
             "episodes": episodes, "shape": [], "weather": weather_json}

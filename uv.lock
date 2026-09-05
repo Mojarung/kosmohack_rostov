@@ -2,20 +2,19 @@ version = 1
 revision = 3
 requires-python = ">=3.14"
 resolution-markers = [
-    "python_full_version >= '3.15' and sys_platform == 'win32'",
-    "python_full_version < '3.15' and sys_platform == 'win32'",
-    "python_full_version >= '3.15' and sys_platform == 'emscripten'",
-    "python_full_version < '3.15' and sys_platform == 'emscripten'",
+    "(python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'win32')",
+    "(python_full_version < '3.15' and sys_platform == 'linux') or (python_full_version < '3.15' and sys_platform == 'win32')",
     "python_full_version >= '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin'",
-    "python_full_version >= '3.15' and sys_platform == 'linux'",
-    "(python_full_version >= '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "(python_full_version >= '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
     "python_full_version < '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin'",
-    "python_full_version < '3.15' and sys_platform == 'linux'",
-    "(python_full_version < '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.15' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "(python_full_version < '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.15' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
 ]
 conflicts = [[
     { package = "kosmohack", group = "geo" },
     { package = "kosmohack", group = "openeo" },
+], [
+    { package = "kosmohack", group = "openeo" },
+    { package = "kosmohack", group = "service" },
 ]]
 
 [[package]]
@@ -38,8 +37,8 @@ dependencies = [
     { name = "psutil" },
     { name = "pyyaml" },
     { name = "safetensors" },
-    { name = "torch", version = "2.14.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "torch", version = "2.14.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "torch", version = "2.14.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "torch", version = "2.14.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/8d/75/94cd5d389649578aca399e5aa822637eec18319a1dadc400ffe2f9a7493f/accelerate-1.14.0.tar.gz", hash = "sha256:41b9c4377a54e0b460a959b0defa1b736e4ca0a2373252d9a539964c2afe3c8d", size = 412167, upload-time = "2026-06-11T13:45:52.326Z" }
 wheels = [
@@ -241,7 +240,7 @@ version = "4.15.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "idna" },
-    { name = "typing-extensions", marker = "python_full_version < '3.15' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "typing-extensions", marker = "python_full_version < '3.15' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ea/9a/c15a60547004a3f3cea20296c934f827ddd7bdba225a2e7e9fcb5ec48c80/anyio-4.15.0.tar.gz", hash = "sha256:b5c620ed540725e2579c31b17bb995b3bf02c9281c9cace04c7d186380bab85e", size = 276504, upload-time = "2026-09-02T21:46:36.957Z" }
 wheels = [
@@ -363,8 +362,8 @@ dependencies = [
     { name = "pandas" },
     { name = "pygrinder" },
     { name = "scikit-learn" },
-    { name = "torch", version = "2.14.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "torch", version = "2.14.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "torch", version = "2.14.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "torch", version = "2.14.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
     { name = "tsdb" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e9/64/730fe7373531350db316746cade3861a63a557c9936c1ec4bf4ef4becc75/benchpots-1.tar.gz", hash = "sha256:be500458aea44283c0c17a2d738b25c811bff6a560ad684ba19627bf69bae7dd", size = 26583, upload-time = "2026-04-27T22:32:36.954Z" }
@@ -458,7 +457,7 @@ name = "cffi"
 version = "2.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pycparser", marker = "implementation_name != 'PyPy' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "pycparser", marker = "implementation_name != 'PyPy' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9e/ef/008a1939e372c06329a3fce4279c02f328488f3526744906eeec3da7ad5f/cffi-2.1.1.tar.gz", hash = "sha256:dd31f52ea1086513bb9df30f8fcee9b8918323ae067a3d5b78bc826a000712be", size = 530807, upload-time = "2026-08-03T21:21:18.939Z" }
 wheels = [
@@ -615,8 +614,8 @@ dependencies = [
     { name = "einops" },
     { name = "numpy" },
     { name = "pandas" },
-    { name = "torch", version = "2.14.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "torch", version = "2.14.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "torch", version = "2.14.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "torch", version = "2.14.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
     { name = "transformers" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a6/71/609ff332069de0580a8a1fa357558975a91be786d612ce179c2797a00a52/chronos_forecasting-2.3.1.tar.gz", hash = "sha256:785116f3f10aaac44a315700c5e4de71a5fe6385c9c771722d688f402fe75083", size = 726426, upload-time = "2026-07-02T08:22:58.672Z" }
@@ -656,7 +655,7 @@ name = "colorlog"
 version = "6.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/8c/55/ba79756cb90c8d69d599d57785398ac87bba7b19c80e87f4e8a562197c93/colorlog-6.12.0.tar.gz", hash = "sha256:2a7924c1dadf18b22a0eb8b06d1c7b01d5341707ec1641eb6fcc4fde0c3e8e5f", size = 18151, upload-time = "2026-07-23T13:40:40.71Z" }
 wheels = [
@@ -770,7 +769,7 @@ name = "cryptography"
 version = "50.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cffi", marker = "platform_python_implementation != 'PyPy' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "cffi", marker = "platform_python_implementation != 'PyPy' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/bb/ad/5d6702db60b1e40b41ef513b6967ff5848f307d50f8449baf1634f5908f1/cryptography-50.0.1.tar.gz", hash = "sha256:5dd9bda1c12b4162f6ff568eeb5e0ff956c28d14406e875cfe8a63a2d414ff20", size = 880381, upload-time = "2026-08-25T19:45:45.499Z" }
 wheels = [
@@ -820,7 +819,7 @@ name = "cuda-bindings"
 version = "13.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cuda-pathfinder", marker = "(python_full_version < '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "cuda-pathfinder", marker = "(python_full_version < '3.15' and sys_platform == 'linux') or (python_full_version < '3.15' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b1/81/bff68ce829999c1e4209c761bbf903b1c06ec570416ddb25020864ad5907/cuda_bindings-13.3.1-cp314-cp314-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:1ab2f74ed65bfef4163ba07a8db16f1085e0729291db12a2423aff84ee8278b8", size = 6013639, upload-time = "2026-05-29T23:12:03.509Z" },
@@ -849,43 +848,43 @@ wheels = [
 
 [package.optional-dependencies]
 cublas = [
-    { name = "nvidia-cublas", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "nvidia-cuda-nvrtc", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "nvidia-cublas", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "nvidia-cuda-nvrtc", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 cudart = [
-    { name = "nvidia-cuda-runtime", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "nvidia-cuda-runtime", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 cufft = [
-    { name = "nvidia-cufft", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "nvidia-nvjitlink", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "nvidia-cufft", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 cufile = [
-    { name = "nvidia-cufile", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "nvidia-cufile", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 cupti = [
-    { name = "nvidia-cuda-cupti", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "nvidia-cuda-cupti", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 curand = [
-    { name = "nvidia-curand", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "nvidia-curand", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 cusolver = [
-    { name = "nvidia-cublas", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "nvidia-cusolver", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "nvidia-cusparse", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "nvidia-nvjitlink", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "nvidia-cublas", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "nvidia-cusolver", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "nvidia-cusparse", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 cusparse = [
-    { name = "nvidia-cusparse", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "nvidia-nvjitlink", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "nvidia-cusparse", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 nvjitlink = [
-    { name = "nvidia-nvjitlink", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "nvidia-nvjitlink", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 nvrtc = [
-    { name = "nvidia-cuda-nvrtc", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "nvidia-cuda-nvrtc", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 nvtx = [
-    { name = "nvidia-nvtx", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "nvidia-nvtx", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 
 [[package]]
@@ -1570,8 +1569,8 @@ name = "httpcore2"
 version = "2.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "h11", marker = "sys_platform != 'emscripten' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "truststore", marker = "sys_platform != 'emscripten' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "h11" },
+    { name = "truststore" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/be/ad/f4f0e57345f1870f3e8cb624e058d7eca6e5a27d33bcc3311d9b618734cd/httpcore2-2.12.0.tar.gz", hash = "sha256:9293522bba0aa7c4c8e9e3f040c16575bd8868e155a77fa30c7a9085a5eae648", size = 67548, upload-time = "2026-08-18T13:22:08.211Z" }
 wheels = [
@@ -1632,11 +1631,11 @@ name = "httpx2"
 version = "2.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio", marker = "sys_platform != 'emscripten' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "httpcore2", marker = "sys_platform != 'emscripten' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "httpx2-jsfetch", marker = "sys_platform == 'emscripten' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "anyio", marker = "sys_platform != 'emscripten' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "httpcore2", marker = "sys_platform != 'emscripten' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "httpx2-jsfetch", marker = "sys_platform == 'emscripten' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
     { name = "idna" },
-    { name = "truststore", marker = "sys_platform != 'emscripten' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "truststore", marker = "sys_platform != 'emscripten' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/7f/f8/579a8b51e42e38ee32647df9f08aa25643ae788e275cc625b199829c4671/httpx2-2.12.0.tar.gz", hash = "sha256:7631fe9887a8a2275f4a2540e053aa670fcc50742864a9ae7c66e609fdcf12cf", size = 100040, upload-time = "2026-08-18T13:22:09.086Z" }
 wheels = [
@@ -1659,7 +1658,7 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "filelock" },
     { name = "fsspec" },
-    { name = "hf-xet", marker = "platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "hf-xet", marker = "platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
     { name = "packaging" },
     { name = "pyyaml" },
     { name = "requests" },
@@ -1904,9 +1903,9 @@ dependencies = [
     { name = "jaraco-classes" },
     { name = "jaraco-context" },
     { name = "jaraco-functools" },
-    { name = "jeepney", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "pywin32-ctypes", marker = "sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "secretstorage", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "jeepney", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "pywin32-ctypes", marker = "sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "secretstorage", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/43/4b/674af6ef2f97d56f0ab5153bf0bfa28ccb6c3ed4d1babf4305449668807b/keyring-25.7.0.tar.gz", hash = "sha256:fe01bd85eb3f8fb3dd0405defdeac9a5b4f6f0439edbb3149577f244a2e8245b", size = 63516, upload-time = "2025-11-16T16:26:09.482Z" }
 wheels = [
@@ -2019,8 +2018,8 @@ dl = [
     { name = "chronos-forecasting" },
     { name = "pygrinder" },
     { name = "pypots" },
-    { name = "torch", version = "2.14.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "torch", version = "2.14.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "torch", version = "2.14.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "torch", version = "2.14.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 geo = [
     { name = "earthaccess" },
@@ -2047,8 +2046,8 @@ ml = [
     { name = "scikit-learn" },
     { name = "shap" },
     { name = "statsmodels" },
-    { name = "stumpy", version = "1.10.2", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "stumpy", version = "1.14.1", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'x86_64' or sys_platform != 'darwin' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "stumpy", version = "1.10.2", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "stumpy", version = "1.14.1", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'x86_64' or sys_platform != 'darwin' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
     { name = "whittaker-eilers" },
     { name = "xgboost" },
 ]
@@ -2056,15 +2055,41 @@ openeo = [
     { name = "openeo" },
 ]
 service = [
+    { name = "catboost" },
     { name = "duckdb" },
+    { name = "earthaccess" },
+    { name = "earthengine-api" },
     { name = "fastapi" },
+    { name = "geopandas" },
     { name = "httpx" },
+    { name = "lightgbm" },
+    { name = "odc-stac" },
+    { name = "openmeteo-requests" },
+    { name = "optuna" },
     { name = "orjson" },
+    { name = "osmnx" },
+    { name = "overpy" },
+    { name = "planetary-computer" },
     { name = "plotly" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "pyproj" },
+    { name = "pystac" },
+    { name = "pystac-client" },
     { name = "python-dotenv" },
-    { name = "uvicorn", extra = ["standard"] },
+    { name = "rasterio" },
+    { name = "rioxarray" },
+    { name = "scikit-learn" },
+    { name = "shap" },
+    { name = "shapely" },
+    { name = "stackstac" },
+    { name = "statsmodels" },
+    { name = "stumpy", version = "1.10.2", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin' and extra != 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (platform_machine == 'x86_64' and sys_platform == 'darwin' and extra != 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-service') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "stumpy", version = "1.14.1", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'x86_64' and extra == 'group-9-kosmohack-service') or (sys_platform != 'darwin' and extra != 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform != 'darwin' and extra != 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-service') or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "uvicorn", extra = ["standard"], marker = "(extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra != 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (extra != 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-service')" },
+    { name = "whittaker-eilers" },
+    { name = "xarray", version = "2026.7.0", source = { registry = "https://pypi.org/simple" } },
+    { name = "xgboost" },
 ]
 
 [package.metadata]
@@ -2130,15 +2155,40 @@ ml = [
 ]
 openeo = [{ name = "openeo", specifier = ">=0.47.0" }]
 service = [
+    { name = "catboost", specifier = ">=1.2.10" },
     { name = "duckdb", specifier = ">=1.5.5" },
+    { name = "earthaccess", specifier = ">=0.19.0" },
+    { name = "earthengine-api", specifier = ">=1.7.42" },
     { name = "fastapi", specifier = ">=0.141.1" },
+    { name = "geopandas", specifier = ">=1.1.4" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "lightgbm", specifier = ">=4.7.0" },
+    { name = "odc-stac", specifier = ">=0.5.3" },
+    { name = "openmeteo-requests", specifier = ">=1.7.5" },
+    { name = "optuna", specifier = ">=4.9.0" },
     { name = "orjson", specifier = ">=3.12.0" },
+    { name = "osmnx", specifier = ">=2.1.1" },
+    { name = "overpy", specifier = ">=0.7" },
+    { name = "planetary-computer", specifier = ">=1.0.0" },
     { name = "plotly", specifier = ">=7.0.0" },
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
+    { name = "pyproj", specifier = ">=3.7.2" },
+    { name = "pystac", specifier = ">=1.15.2" },
+    { name = "pystac-client", specifier = ">=0.9.0" },
     { name = "python-dotenv", specifier = ">=1.2.3" },
+    { name = "rasterio", specifier = ">=1.5.1" },
+    { name = "rioxarray", specifier = ">=0.23.0" },
+    { name = "scikit-learn", specifier = ">=1.9.0" },
+    { name = "shap", specifier = ">=0.52.0" },
+    { name = "shapely", specifier = ">=2.1.2" },
+    { name = "stackstac", specifier = ">=0.5.0" },
+    { name = "statsmodels", specifier = ">=0.15.0" },
+    { name = "stumpy", specifier = ">=1.10.2" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.4" },
+    { name = "whittaker-eilers", specifier = ">=0.2.0" },
+    { name = "xarray", specifier = ">=2026.7.0" },
+    { name = "xgboost", specifier = ">=3.4.1" },
 ]
 
 [[package]]
@@ -2244,14 +2294,10 @@ name = "llvmlite"
 version = "0.49.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.15' and sys_platform == 'win32'",
-    "python_full_version < '3.15' and sys_platform == 'win32'",
-    "python_full_version >= '3.15' and sys_platform == 'emscripten'",
-    "python_full_version < '3.15' and sys_platform == 'emscripten'",
-    "python_full_version >= '3.15' and sys_platform == 'linux'",
-    "(python_full_version >= '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32')",
-    "python_full_version < '3.15' and sys_platform == 'linux'",
-    "(python_full_version < '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.15' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "(python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'win32')",
+    "(python_full_version < '3.15' and sys_platform == 'linux') or (python_full_version < '3.15' and sys_platform == 'win32')",
+    "(python_full_version >= '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "(python_full_version < '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.15' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/43/27/72ae94ea5c8f7349ec1c229d4cd058feb799cbd0833ad6d1b47c919b37b7/llvmlite-0.49.0.tar.gz", hash = "sha256:00f16db782f4a13c78c5804aedc434e46794a77e89999a168f9401106270e50a", size = 194467, upload-time = "2026-08-11T16:26:00.489Z" }
 wheels = [
@@ -2416,12 +2462,12 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyjwt", extra = ["crypto"] },
     { name = "python-multipart" },
-    { name = "pywin32", marker = "sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "pywin32", marker = "sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
     { name = "sse-starlette" },
     { name = "starlette" },
     { name = "typing-extensions" },
     { name = "typing-inspection" },
-    { name = "uvicorn", marker = "sys_platform != 'emscripten' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "uvicorn", marker = "sys_platform != 'emscripten' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d4/6e/21fb8e5d579dbe21d96ea4d5034200d46d8bdf2261053b5bd041f3c2f612/mcp-2.1.1.tar.gz", hash = "sha256:50b7ba1ebbe117008ea7bdd288234043e69c20b403d6851d19661e6d431a75ef", size = 3984589, upload-time = "2026-08-25T16:14:02.376Z" }
 wheels = [
@@ -2528,7 +2574,7 @@ version = "2.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ast-serialize" },
-    { name = "librt", marker = "platform_python_implementation != 'PyPy' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "librt", marker = "platform_python_implementation != 'PyPy' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
     { name = "mypy-extensions" },
     { name = "pathspec" },
     { name = "typing-extensions" },
@@ -2631,9 +2677,9 @@ resolution-markers = [
     "python_full_version < '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin'",
 ]
 dependencies = [
-    { name = "llvmlite", version = "0.36.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "numpy", marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "setuptools", marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "llvmlite", version = "0.36.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "numpy", marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "setuptools", marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e3/7d/3d61160836e49f40913741c464f119551c15ed371c1d91ea50308495b93b/numba-0.53.1.tar.gz", hash = "sha256:9cd4e5216acdc66c4e9dab2dfd22ddb5bef151185c070d4a3cd8e78638aff5b0", size = 2213956, upload-time = "2021-03-26T09:15:50.402Z" }
 
@@ -2642,18 +2688,14 @@ name = "numba"
 version = "0.67.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.15' and sys_platform == 'win32'",
-    "python_full_version < '3.15' and sys_platform == 'win32'",
-    "python_full_version >= '3.15' and sys_platform == 'emscripten'",
-    "python_full_version < '3.15' and sys_platform == 'emscripten'",
-    "python_full_version >= '3.15' and sys_platform == 'linux'",
-    "(python_full_version >= '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32')",
-    "python_full_version < '3.15' and sys_platform == 'linux'",
-    "(python_full_version < '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.15' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "(python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'win32')",
+    "(python_full_version < '3.15' and sys_platform == 'linux') or (python_full_version < '3.15' and sys_platform == 'win32')",
+    "(python_full_version >= '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "(python_full_version < '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.15' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
 ]
 dependencies = [
-    { name = "llvmlite", version = "0.49.0", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'x86_64' or sys_platform != 'darwin' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "numpy", marker = "platform_machine != 'x86_64' or sys_platform != 'darwin' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "llvmlite", version = "0.49.0", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'x86_64' or sys_platform != 'darwin' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "numpy", marker = "platform_machine != 'x86_64' or sys_platform != 'darwin' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/7a/90/2544f4e3a61e501d6c9a5418fd4b905323222693d54a02cab0106a0af865/numba-0.67.0.tar.gz", hash = "sha256:cd75aa535b33fa05d9d930b1ae8af9f97a2881e96d72dfb38ec9b78284d9f851", size = 2836515, upload-time = "2026-08-11T23:04:00.174Z" }
 wheels = [
@@ -2724,7 +2766,7 @@ name = "nvidia-cublas"
 version = "13.1.1.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cuda-nvrtc", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "nvidia-cuda-nvrtc", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/a1/0bd24ee8c8d03adac032fd2909426a00c88f8c57961b1277ded97f91119f/nvidia_cublas-13.1.1.3-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:b7a210458267ac818974c53038fbec2e969d5c99f305ab15c72522fa9f001dd5", size = 542848918, upload-time = "2026-04-08T18:46:22.985Z" },
@@ -2767,7 +2809,7 @@ name = "nvidia-cudnn-cu13"
 version = "9.24.0.43"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "nvidia-cublas", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ca/30/7c257e3d5cb4fecb147b93895c66e29c93f8e76d74b45bb418ff0587c4ec/nvidia_cudnn_cu13-9.24.0.43-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:a6812a554a1ff0413e9c52b84c26c050380649ab9615f9c16bded368ce9f421f", size = 650976863, upload-time = "2026-07-02T16:23:39.248Z" },
@@ -2780,7 +2822,7 @@ name = "nvidia-cufft"
 version = "12.0.0.61"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "nvidia-nvjitlink", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8b/ae/f417a75c0259e85c1d2f83ca4e960289a5f814ed0cea74d18c353d3e989d/nvidia_cufft-12.0.0.61-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:2708c852ef8cd89d1d2068bdbece0aa188813a0c934db3779b9b1faa8442e5f5", size = 214053554, upload-time = "2025-09-04T08:31:38.196Z" },
@@ -2812,9 +2854,9 @@ name = "nvidia-cusolver"
 version = "12.0.4.66"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "nvidia-cusparse", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "nvidia-nvjitlink", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "nvidia-cublas", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "nvidia-cusparse", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "nvidia-nvjitlink", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c8/c3/b30c9e935fc01e3da443ec0116ed1b2a009bb867f5324d3f2d7e533e776b/nvidia_cusolver-12.0.4.66-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:02c2457eaa9e39de20f880f4bd8820e6a1cfb9f9a34f820eb12a155aa5bc92d2", size = 223467760, upload-time = "2025-09-04T08:33:04.222Z" },
@@ -2827,7 +2869,7 @@ name = "nvidia-cusparse"
 version = "12.6.3.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "nvidia-nvjitlink", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f8/94/5c26f33738ae35276672f12615a64bd008ed5be6d1ebcb23579285d960a9/nvidia_cusparse-12.6.3.3-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:80bcc4662f23f1054ee334a15c72b8940402975e0eab63178fc7e670aa59472c", size = 162155568, upload-time = "2025-09-04T08:33:42.864Z" },
@@ -2905,7 +2947,7 @@ name = "odc-loader"
 version = "0.6.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "dask", extra = ["array"], marker = "extra == 'group-9-kosmohack-geo'" },
+    { name = "dask", extra = ["array"], marker = "extra == 'group-9-kosmohack-geo' or extra == 'group-9-kosmohack-service'" },
     { name = "numpy" },
     { name = "odc-geo" },
     { name = "rasterio" },
@@ -2923,7 +2965,7 @@ version = "0.5.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "affine" },
-    { name = "dask", extra = ["array"], marker = "extra == 'group-9-kosmohack-geo'" },
+    { name = "dask", extra = ["array"], marker = "extra == 'group-9-kosmohack-geo' or extra == 'group-9-kosmohack-service'" },
     { name = "numpy" },
     { name = "odc-geo" },
     { name = "odc-loader" },
@@ -3236,7 +3278,7 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
     { name = "python-dateutil" },
-    { name = "tzdata", marker = "sys_platform == 'emscripten' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "tzdata", marker = "sys_platform == 'emscripten' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/be/4f/5f3422a2afec5ffc46308b79e53291365a93748b498ac2e58bead0197916/pandas-3.0.5.tar.gz", hash = "sha256:dca3734d6ab7c906e6730f0788b0a1dbb9f2467731f9711f77995c8e9d62d712", size = 4658219, upload-time = "2026-07-22T22:19:28.819Z" }
 wheels = [
@@ -3810,8 +3852,8 @@ dependencies = [
     { name = "numpy" },
     { name = "pandas" },
     { name = "scikit-learn" },
-    { name = "torch", version = "2.14.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "torch", version = "2.14.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "torch", version = "2.14.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "torch", version = "2.14.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
     { name = "tsdb" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1b/c0/63f297e12dce134397efe319a014c3c39c16c1a1cc3c221ebeadf7dc4157/pygrinder-0.7.tar.gz", hash = "sha256:d227e9d71ce75099c59857706f97d0d53d778bd4c8fb52c577b3f7dd33a872bc", size = 21092, upload-time = "2025-02-03T15:16:16.169Z" }
@@ -3894,8 +3936,8 @@ dependencies = [
     { name = "seaborn" },
     { name = "sympy" },
     { name = "tensorboard" },
-    { name = "torch", version = "2.14.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "torch", version = "2.14.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "torch", version = "2.14.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "torch", version = "2.14.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
     { name = "transformers" },
     { name = "tsdb" },
 ]
@@ -3977,7 +4019,7 @@ name = "pystac-client"
 version = "0.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pystac", extra = ["validation"], marker = "extra == 'group-9-kosmohack-geo'" },
+    { name = "pystac", extra = ["validation"], marker = "extra == 'group-9-kosmohack-geo' or extra == 'group-9-kosmohack-service'" },
     { name = "python-dateutil" },
     { name = "requests" },
 ]
@@ -4272,7 +4314,7 @@ name = "pytest"
 version = "9.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
     { name = "iniconfig" },
     { name = "packaging" },
     { name = "pluggy" },
@@ -4842,8 +4884,8 @@ name = "secretstorage"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cryptography", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "jeepney", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "cryptography", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "jeepney", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1c/03/e834bcd866f2f8a49a85eaff47340affa3bfa391ee9912a952a1faa68c7b/secretstorage-3.5.0.tar.gz", hash = "sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be", size = 19884, upload-time = "2025-11-23T19:02:53.191Z" }
 wheels = [
@@ -4865,10 +4907,10 @@ version = "0.52.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cloudpickle" },
-    { name = "llvmlite", version = "0.36.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "llvmlite", version = "0.49.0", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'x86_64' or sys_platform != 'darwin' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "numba", version = "0.53.1", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "numba", version = "0.67.0", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'x86_64' or sys_platform != 'darwin' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "llvmlite", version = "0.36.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "llvmlite", version = "0.49.0", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'x86_64' or sys_platform != 'darwin' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "numba", version = "0.53.1", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "numba", version = "0.67.0", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'x86_64' or sys_platform != 'darwin' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
     { name = "numpy" },
     { name = "packaging" },
     { name = "pandas" },
@@ -4951,7 +4993,7 @@ name = "sqlalchemy"
 version = "2.0.52"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "greenlet", marker = "platform_machine == 'AMD64' or platform_machine == 'WIN32' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'ppc64le' or platform_machine == 'win32' or platform_machine == 'x86_64' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "greenlet", marker = "platform_machine == 'AMD64' or platform_machine == 'WIN32' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'ppc64le' or platform_machine == 'win32' or platform_machine == 'x86_64' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
     { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/3b/21/77b4c147963073040dc3c3a5cb7a8c3001a1893c0209432cb77f9df836aa/sqlalchemy-2.0.52.tar.gz", hash = "sha256:5e2d46356ac2ccb7d268ab6c2319ac6a2b42f1b8d5fd8bd3d46855cd82abee97", size = 9945637, upload-time = "2026-08-11T19:07:09.829Z" }
@@ -4985,7 +5027,7 @@ name = "stackstac"
 version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "dask", extra = ["array"], marker = "extra == 'group-9-kosmohack-geo'" },
+    { name = "dask", extra = ["array"], marker = "extra == 'group-9-kosmohack-geo' or extra == 'group-9-kosmohack-service'" },
     { name = "pyproj" },
     { name = "rasterio" },
     { name = "xarray", version = "2026.7.0", source = { registry = "https://pypi.org/simple" } },
@@ -5060,9 +5102,9 @@ resolution-markers = [
     "python_full_version < '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin'",
 ]
 dependencies = [
-    { name = "numba", version = "0.53.1", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "numpy", marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "scipy", marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "numba", version = "0.53.1", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "numpy", marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "scipy", marker = "(platform_machine == 'x86_64' and sys_platform == 'darwin') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (platform_machine != 'x86_64' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'darwin' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ab/84/8fbeefb36512f91c565cab60c866ae027259935e88ff45cada67af4653d2/stumpy-1.10.2.tar.gz", hash = "sha256:a2429d1d309e7fe24a2861b59f7a84190263fde1afa87bb8c749b236bfe0515a", size = 92212, upload-time = "2021-12-24T18:12:12.623Z" }
 wheels = [
@@ -5074,19 +5116,15 @@ name = "stumpy"
 version = "1.14.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.15' and sys_platform == 'win32'",
-    "python_full_version < '3.15' and sys_platform == 'win32'",
-    "python_full_version >= '3.15' and sys_platform == 'emscripten'",
-    "python_full_version < '3.15' and sys_platform == 'emscripten'",
-    "python_full_version >= '3.15' and sys_platform == 'linux'",
-    "(python_full_version >= '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32')",
-    "python_full_version < '3.15' and sys_platform == 'linux'",
-    "(python_full_version < '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.15' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "(python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'win32')",
+    "(python_full_version < '3.15' and sys_platform == 'linux') or (python_full_version < '3.15' and sys_platform == 'win32')",
+    "(python_full_version >= '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "(python_full_version < '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.15' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
 ]
 dependencies = [
-    { name = "numba", version = "0.67.0", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'x86_64' or sys_platform != 'darwin' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "numpy", marker = "platform_machine != 'x86_64' or sys_platform != 'darwin' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "scipy", marker = "platform_machine != 'x86_64' or sys_platform != 'darwin' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "numba", version = "0.67.0", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'x86_64' or sys_platform != 'darwin' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "numpy", marker = "platform_machine != 'x86_64' or sys_platform != 'darwin' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "scipy", marker = "platform_machine != 'x86_64' or sys_platform != 'darwin' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c9/78/bd8662a45669dfecda152af36f45b00f186cb2b368b3289b9fd556587ef4/stumpy-1.14.1.tar.gz", hash = "sha256:1cb13696724ddab4b512b16843d37ccf4047aee19e072d1ad83024e1fa6fde96", size = 597700, upload-time = "2026-02-08T01:54:10.08Z" }
 wheels = [
@@ -5242,21 +5280,19 @@ name = "torch"
 version = "2.14.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.15' and sys_platform == 'emscripten'",
-    "python_full_version < '3.15' and sys_platform == 'emscripten'",
     "python_full_version >= '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin'",
-    "(python_full_version >= '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "(python_full_version >= '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
     "python_full_version < '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin'",
-    "(python_full_version < '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.15' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "(python_full_version < '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.15' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
 ]
 dependencies = [
-    { name = "filelock", marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "fsspec", marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "jinja2", marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "networkx", marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "setuptools", marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "sympy", marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "typing-extensions", marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "filelock", marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "fsspec", marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "jinja2", marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "networkx", marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "setuptools", marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "sympy", marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "typing-extensions", marker = "(sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ee/90/1241e7db5ccc2455f8735bd6b1becfad39916206ad18001c4c0014d139e2/torch-2.14.0-cp314-cp314-macosx_14_0_arm64.whl", hash = "sha256:860423e970f2ce02c4476e8e2d1350131b1c5c5a5e4912180e78b50b53241efa", size = 127321431, upload-time = "2026-09-02T13:44:38.236Z" },
@@ -5274,26 +5310,24 @@ name = "torch"
 version = "2.14.0+cu130"
 source = { registry = "https://download.pytorch.org/whl/cu130" }
 resolution-markers = [
-    "python_full_version >= '3.15' and sys_platform == 'win32'",
-    "python_full_version < '3.15' and sys_platform == 'win32'",
-    "python_full_version >= '3.15' and sys_platform == 'linux'",
-    "python_full_version < '3.15' and sys_platform == 'linux'",
+    "(python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'win32')",
+    "(python_full_version < '3.15' and sys_platform == 'linux') or (python_full_version < '3.15' and sys_platform == 'win32')",
 ]
 dependencies = [
-    { name = "cuda-bindings", marker = "(python_full_version < '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "cuda-toolkit", extra = ["cublas", "cudart", "cufft", "cufile", "cupti", "curand", "cusolver", "cusparse", "nvjitlink", "nvrtc", "nvtx"], marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "filelock", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "fsspec", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "jinja2", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "networkx", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "nvidia-cudnn-cu13", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "nvidia-cusparselt-cu13", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "nvidia-nccl-cu13", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "nvidia-nvshmem-cu13", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "setuptools", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "sympy", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "triton", marker = "(python_full_version < '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
-    { name = "typing-extensions", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "cuda-bindings", marker = "(python_full_version < '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (python_full_version >= '3.15' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "cuda-toolkit", extra = ["cublas", "cudart", "cufft", "cufile", "cupti", "curand", "cusolver", "cusparse", "nvjitlink", "nvrtc", "nvtx"], marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "filelock", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "fsspec", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "jinja2", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "networkx", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "nvidia-cudnn-cu13", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "nvidia-cusparselt-cu13", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "nvidia-nccl-cu13", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "nvidia-nvshmem-cu13", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "setuptools", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "sympy", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "triton", marker = "(python_full_version < '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (python_full_version >= '3.15' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform != 'linux' and extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
+    { name = "typing-extensions", marker = "sys_platform == 'linux' or sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/cu130/torch-2.14.0%2Bcu130-cp314-cp314-manylinux_2_28_aarch64.whl", hash = "sha256:9af4e8f3933c3d515d1949befad551262cdb3f195cbbdb4674369585c55ec342", upload-time = "2026-09-02T18:54:18Z" },
@@ -5315,7 +5349,7 @@ name = "tqdm"
 version = "4.70.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/21/3b/6c24bec5be5e743ffd99576daa5cc077722fc7d5bbc00bd133fa0c698dc6/tqdm-4.70.0.tar.gz", hash = "sha256:55b0b0dbd97462d06ebee91e4dac24ed4d4702be82b24f07e6c1d27e08cea220", size = 795438, upload-time = "2026-07-27T11:33:15.271Z" }
 wheels = [
@@ -5461,7 +5495,7 @@ standard = [
     { name = "httptools" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
-    { name = "uvloop", marker = "(platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32') or (platform_python_implementation == 'PyPy' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'cygwin' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (sys_platform == 'win32' and extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "uvloop", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'" },
     { name = "watchfiles" },
     { name = "websockets" },
 ]
@@ -5682,16 +5716,12 @@ name = "xarray"
 version = "2025.1.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.15' and sys_platform == 'win32'",
-    "python_full_version < '3.15' and sys_platform == 'win32'",
-    "python_full_version >= '3.15' and sys_platform == 'emscripten'",
-    "python_full_version < '3.15' and sys_platform == 'emscripten'",
+    "(python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'win32')",
+    "(python_full_version < '3.15' and sys_platform == 'linux') or (python_full_version < '3.15' and sys_platform == 'win32')",
     "python_full_version >= '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin'",
-    "python_full_version >= '3.15' and sys_platform == 'linux'",
-    "(python_full_version >= '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "(python_full_version >= '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
     "python_full_version < '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin'",
-    "python_full_version < '3.15' and sys_platform == 'linux'",
-    "(python_full_version < '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.15' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "(python_full_version < '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.15' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
 ]
 dependencies = [
     { name = "numpy" },
@@ -5708,16 +5738,12 @@ name = "xarray"
 version = "2026.7.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.15' and sys_platform == 'win32'",
-    "python_full_version < '3.15' and sys_platform == 'win32'",
-    "python_full_version >= '3.15' and sys_platform == 'emscripten'",
-    "python_full_version < '3.15' and sys_platform == 'emscripten'",
+    "(python_full_version >= '3.15' and sys_platform == 'linux') or (python_full_version >= '3.15' and sys_platform == 'win32')",
+    "(python_full_version < '3.15' and sys_platform == 'linux') or (python_full_version < '3.15' and sys_platform == 'win32')",
     "python_full_version >= '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin'",
-    "python_full_version >= '3.15' and sys_platform == 'linux'",
-    "(python_full_version >= '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "(python_full_version >= '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version >= '3.15' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
     "python_full_version < '3.15' and platform_machine == 'x86_64' and sys_platform == 'darwin'",
-    "python_full_version < '3.15' and sys_platform == 'linux'",
-    "(python_full_version < '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.15' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "(python_full_version < '3.15' and platform_machine != 'x86_64' and sys_platform == 'darwin') or (python_full_version < '3.15' and sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
 ]
 dependencies = [
     { name = "numpy" },
@@ -5735,7 +5761,7 @@ version = "3.4.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
-    { name = "nvidia-nccl-cu13", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo')" },
+    { name = "nvidia-nccl-cu13", marker = "sys_platform == 'linux' or (extra == 'group-9-kosmohack-geo' and extra == 'group-9-kosmohack-openeo') or (extra == 'group-9-kosmohack-openeo' and extra == 'group-9-kosmohack-service')" },
     { name = "scipy" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/38/a9/295320f741c5be4be996c73ee65a2a11852028c50daa7229adb0d61c330b/xgboost-3.4.1.tar.gz", hash = "sha256:6968a4c71efdfa859df0dfcad0d99211c95c28c4ffd6aecff46efff77d18026a", size = 1231819, upload-time = "2026-08-15T08:39:21.197Z" }

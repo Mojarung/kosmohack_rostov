@@ -1,0 +1,11 @@
+.git
+.venv
+__pycache__
+.pytest_cache
+.ruff_cache
+.playwright-mcp
+artifacts
+data/external
+reports/modeling
+research4
+*.log

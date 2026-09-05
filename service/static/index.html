@@ -3,12 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22/%3E">
 <title>NDVI-мониторинг полей</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.2/plotly.min.js"></script>
+<script src="/vendor/plotly.min.js"></script>
 <style>
   :root { --bg:#f6f4ee; --panel:#ffffff; --ink:#1f2a1f; --muted:#6b7266; --line:#e2ded3; --accent:#2f6f3e;
           --warn:#e8a33d; --crit:#c8423f; --s2:#2b6cb0; --ls:#805ad5; --md:#dd6b20; }
@@ -45,6 +46,13 @@
   button.primary { background:var(--accent); color:#fff; border:0; border-radius:6px; padding:8px 12px; cursor:pointer; font:inherit; }
   button.primary:disabled { opacity:.5; cursor:default; }
   #status { font-size:12px; color:var(--muted); min-height:16px; }
+  #agro-extra { margin-top:12px; }
+  #agro-extra [hidden] { display:none; }
+  #agro-extra select { width:auto; padding:4px; font:inherit; }
+  #agro-extra p { margin:4px 0 10px; }
+  #agro-extra summary { cursor:pointer; color:var(--muted); }
+  .agro-plot { height:270px; }
+  .agro-empty { padding:18px 0; color:var(--muted); }
 </style>
 </head>
 <body>
@@ -97,8 +105,34 @@
       <div id="wx" style="height:170px"></div>
     </div>
     <div class="card" id="episodes"><h2>Эпизоды угнетения</h2><div class="muted">Нет данных</div></div>
+    <div class="card" id="agro-extra" hidden>
+      <h2>Погода: сравнение с прошлыми годами</h2>
+      <p class="muted" id="agro-status" role="status"></p>
+      <div id="agro-rain-section" hidden>
+        <div class="row"><b id="agro-water-title">Осадки за 30 дней, мм</b>
+          <select id="agro-water-mode" aria-label="Погодный показатель" hidden><option value="rain">Осадки</option><option value="water">Осадки − испарение</option></select>
+        </div>
+        <p class="muted" id="agro-water-value"></p>
+        <div id="agro-water" class="agro-plot"></div>
+        <p class="muted" id="agro-dry-spell" hidden></p>
+      </div>
+      <div id="agro-heat-section" hidden>
+        <b>Накопленное тепло, °C·дни</b>
+        <p class="muted">С 1 апреля · порог +10 °C · по средней температуре</p>
+        <p class="muted" id="agro-heat-value"></p>
+        <div id="agro-heat" class="agro-plot"></div>
+      </div>
+      <details><summary>Как считается</summary>
+        <p>Осадки — сумма за 30 дней. Тепло — сумма превышений средней температуры над +10 °C с 1 апреля; общий показатель сезона, без привязки к культуре.</p>
+        <p>Серая линия — среднее прошлых лет, полоса — диапазон 10–90%. Нужны минимум 3 года; текущий год исключён. Пропуски остаются пропусками.</p>
+        <p>Сухой период — дни подряд с осадками менее 1 мм. Пропуск данных разрывает период.</p>
+        <p id="agro-balance-note" hidden>Осадки − испарение: сумма осадков минус ET₀ за 30 дней. Этот баланс не измеряет влажность почвы.</p>
+        <p class="muted" id="agro-source"></p>
+      </details>
+    </div>
   </section>
 </main>
+<script src="/static/weather-charts.js"></script>
 <script>
 const S = { polys: [], current: null, data: null, year: null, drawn: null };
 const SENSOR_COLOR = { "Sentinel-2": "#2b6cb0", "Landsat": "#805ad5", "MODIS": "#dd6b20" };
@@ -111,13 +145,13 @@ async function api(path, opts) { const r = await fetch(path, opts); if (!r.ok) t
 function renderList() {
   const q = document.getElementById("search").value.toLowerCase();
   const sort = document.getElementById("sort").value;
-  let items = S.polys.filter(p => (p.pid + " " + p.crop).toLowerCase().includes(q));
+  let items = S.polys.filter(p => (p.pid + " " + (p.name || "") + " " + p.crop).toLowerCase().includes(q));
   if (sort === "crit") items.sort((a, b) => b.n_critical - a.n_critical || b.n_episodes - a.n_episodes);
   else if (sort === "eps") items.sort((a, b) => b.n_episodes - a.n_episodes);
   else items.sort((a, b) => a.pid.localeCompare(b.pid));
   document.getElementById("list").innerHTML = items.map(p => `
     <div class="poly ${S.current === p.pid ? "active" : ""}" data-pid="${p.pid}">
-      <div><div>${p.pid} <span class="meta">${p.crop}</span></div>
+      <div><div>${escapeHtml(p.name || p.pid)} <span class="meta">${p.crop}</span></div>
            <div class="meta">${p.years[0]}–${p.years[p.years.length - 1]} · ${p.n_obs} набл.${p.n_gaps ? " · " + p.n_gaps + " контр. точек" : ""}</div></div>
       <div>${p.n_critical ? `<span class="badge crit">${p.n_critical}</span>` : ""} ${p.n_episodes ? `<span class="badge warn">${p.n_episodes}</span>` : `<span class="badge ok">ок</span>`}</div>
     </div>`).join("");
@@ -126,8 +160,10 @@ function renderList() {
 
 async function loadPolygon(pid) {
   S.current = pid; renderList();
-  S.data = await api(`/api/polygon/${pid}`);
-  showData(S.data, pid, S.data.crop + " · " + S.data.kind);
+  const data = await api(`/api/polygon/${encodeURIComponent(pid)}`);
+  if (S.current !== pid) return;
+  S.data = data;
+  showData(S.data, S.data.name || pid, S.data.crop + " · " + S.data.kind);
 }
 
 function showData(data, title, subtitle) {
@@ -141,7 +177,7 @@ function showData(data, title, subtitle) {
   document.getElementById("years").innerHTML = years.map(y =>
     `<button class="${y === S.year ? "active" : ""} ${critYears.has(y) ? "hascrit" : epYears.has(y) ? "hasep" : ""}" data-y="${y}">${y}</button>`).join("");
   document.querySelectorAll("#years button").forEach(b => b.onclick = () => { S.year = Number(b.dataset.y); showData(S.data, title, subtitle); });
-  renderCharts(); renderEpisodes();
+  renderCharts(); renderEpisodes(); WeatherCharts.render(data, S.year);
 }
 
 function shapes(eps) {
@@ -156,8 +192,8 @@ function renderCharts() {
   const nm = y.norm_mean, ns = y.norm_std;
   if (nm.length) {
     const sd = Object.fromEntries(ns.map(p => [p.date, p.value]));
-    traces.push({ x: nm.map(p => p.date), y: nm.map(p => p.value + (sd[p.date] || 0)), mode: "lines", line: { width: 0 }, showlegend: false, hoverinfo: "skip" });
-    traces.push({ x: nm.map(p => p.date), y: nm.map(p => p.value - (sd[p.date] || 0)), mode: "lines", line: { width: 0 }, fill: "tonexty", fillcolor: "rgba(150,150,150,.22)", name: "норма ±1σ (" + y.norm_source + ")", hoverinfo: "skip" });
+    traces.push({ x: nm.map(p => p.date), y: nm.map(p => p.value == null ? null : p.value + (sd[p.date] || 0)), mode: "lines", line: { width: 0 }, showlegend: false, hoverinfo: "skip" });
+    traces.push({ x: nm.map(p => p.date), y: nm.map(p => p.value == null ? null : p.value - (sd[p.date] || 0)), mode: "lines", line: { width: 0 }, fill: "tonexty", fillcolor: "rgba(150,150,150,.22)", name: "норма ±1σ (" + y.norm_source + ")", hoverinfo: "skip" });
     traces.push({ x: nm.map(p => p.date), y: nm.map(p => p.value), mode: "lines", line: { color: "#888", width: 1.3 }, name: "норма" });
   }
   traces.push({ x: y.curve.map(p => p.date), y: y.curve.map(p => p.value), mode: "lines", line: { color: "#000", width: 2 }, name: "восстановленная кривая" });
@@ -175,6 +211,7 @@ function renderCharts() {
       { type: "line", xref: "paper", x0: 0, x1: 1, y0: -1, y1: -1, line: { color: "#e8a33d", dash: "dash", width: 1 } },
       { type: "line", xref: "paper", x0: 0, x1: 1, y0: -2, y1: -2, line: { color: "#c8423f", dash: "dash", width: 1 } }], showlegend: false }, { displayModeBar: false, responsive: true });
   const w = S.data.weather && S.data.weather[S.year];
+  Plotly.purge("wx"); document.getElementById("wx").replaceChildren();
   if (w) Plotly.newPlot("wx", [{ x: w.date, y: w.precip, type: "bar", marker: { color: "#2b6cb0" }, name: "осадки, мм/день" },
     { x: w.date, y: w.temp, mode: "lines", line: { color: "#dd6b20", width: 1 }, name: "температура, °C", yaxis: "y2" }],
     { margin: { l: 45, r: 45, t: 5, b: 25 }, yaxis: { title: "мм" }, yaxis2: { title: "°C", overlaying: "y", side: "right" }, showlegend: false }, { displayModeBar: false, responsive: true });
@@ -196,40 +233,52 @@ function renderEpisodes() {
 }
 
 // карта и рисование полигона
-const map = L.map("map").setView([47.2, 39.7], 8);
+if (typeof L !== "undefined") {
+const map = L.map("map").setView([47.35, 39.85], 11);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap" }).addTo(map);
 const drawn = new L.FeatureGroup().addTo(map);
 map.addControl(new L.Control.Draw({ draw: { polygon: { allowIntersection: false, showArea: true }, polyline: false, circle: false, rectangle: true, marker: false, circlemarker: false }, edit: { featureGroup: drawn } }));
 map.on(L.Draw.Event.CREATED, e => { drawn.clearLayers(); drawn.addLayer(e.layer); S.drawn = e.layer.toGeoJSON().geometry;
   document.getElementById("analyze").disabled = false; document.getElementById("status").textContent = "Контур задан. Нажмите «Собрать данные»."; });
+for (const event of [L.Draw.Event.EDITED, L.Draw.Event.DELETED]) map.on(event, () => { S.drawn = drawn.getLayers()[0]?.toGeoJSON().geometry || null; document.getElementById("analyze").disabled = !S.drawn; });
 const osmLayer = L.geoJSON(null, { style: { color: "#2f6f3e", weight: 1.5, fillOpacity: 0.12 },
   onEachFeature: (f, layer) => layer.on("click", () => { drawn.clearLayers(); S.drawn = f.geometry;
     document.getElementById("name").value = f.properties.name; document.getElementById("analyze").disabled = false;
     L.geoJSON(f, { style: { color: "#e11d74", weight: 2.5, fillOpacity: 0.2 } }).addTo(drawn);
     document.getElementById("status").textContent = "Выбрано: " + f.properties.name + ". Нажмите «Собрать данные»."; }) }).addTo(map);
 document.getElementById("fields").onclick = async () => {
+  while ((map.getBounds().getNorth()-map.getBounds().getSouth()) * (map.getBounds().getEast()-map.getBounds().getWest()) > .24 && map.getZoom() < 19) map.setZoom(map.getZoom()+1, {animate:false});
   const b = map.getBounds(); const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map(v => v.toFixed(4)).join(",");
   document.getElementById("status").textContent = "Запрашиваем контуры полей OpenStreetMap…";
   try {
     const feats = await api("/api/fields?bbox=" + bbox);
     osmLayer.clearLayers(); osmLayer.addData({ type: "FeatureCollection", features: feats.map(f => ({ type: "Feature", geometry: f.geometry, properties: { name: f.name } })) });
-    document.getElementById("status").textContent = feats.length ? `Найдено полей: ${feats.length}. Кликните по контуру.` : "В этой области контуров OSM нет — нарисуйте поле вручную.";
+    document.getElementById("status").textContent = feats.length ? `Найдено полей: ${feats.length}. ${feats.length >= 200 ? "Достигнут предел выдачи — приблизьте карту. " : ""}Кликните по контуру. В OSM есть не все поля.` : "В этой области контуров OSM нет — нарисуйте поле вручную.";
   } catch (err) { document.getElementById("status").textContent = "Ошибка: " + err.message; }
 };
 document.getElementById("analyze").onclick = async () => {
   const btn = document.getElementById("analyze"); btn.disabled = true;
-  document.getElementById("status").textContent = "Собираем Sentinel-2, Landsat, MODIS и ERA5… это занимает 1–3 минуты.";
+  document.getElementById("status").textContent = "Собираем Sentinel-2, Landsat, MODIS и ERA5… для новой территории это может занять несколько минут.";
   try {
     const data = await api("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ geometry: S.drawn, name: document.getElementById("name").value }) });
-    S.current = null; renderList(); showData(data, data.pid, data.kind);
+    S.current = null; renderList(); showData(data, data.name || data.pid, data.kind);
     document.getElementById("status").textContent = "Готово: " + (data.collected || "");
   } catch (err) { document.getElementById("status").textContent = "Ошибка: " + err.message; }
   btn.disabled = false;
 };
+} else document.getElementById("status").textContent = "Карта не загрузилась. Обновите страницу; графики доступны.";
 document.getElementById("search").oninput = renderList;
 document.getElementById("sort").onchange = renderList;
-api("/api/polygons").then(p => { S.polys = p; renderList(); const first = [...p].sort((a, b) => b.n_critical - a.n_critical)[0]; if (first) loadPolygon(first.pid); });
+function escapeHtml(value) { const el = document.createElement("span"); el.textContent = value; return el.innerHTML; }
+api("/api/polygons").then(p => {
+  S.polys = p; renderList();
+  const first = [...p].sort((a, b) => b.n_critical - a.n_critical)[0]; if (first) loadPolygon(first.pid);
+  return api("/api/saved-fields");
+}).then(saved => {
+  S.polys.push(...saved.map(p => ({...p, crop:"собранное поле", n_obs:"—", n_critical:0, n_gaps:0})));
+  renderList();
+}).catch(err => { document.getElementById("status").textContent = "Ошибка загрузки списка: " + err.message; });
 </script>
 </body>
 </html>

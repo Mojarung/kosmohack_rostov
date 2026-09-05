@@ -18,6 +18,7 @@ reports/dashboard/dashboard_data.json
 Thumbs.db
 .idea/
 .vscode/
+.playwright-mcp/
 artifacts/
 catboost_info/
 reports/anomalies/organizer_norm.parquet

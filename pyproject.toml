@@ -65,6 +65,8 @@ openeo = [
     "openeo>=0.47.0",
 ]
 service = [
+    { include-group = "geo" },
+    { include-group = "ml" },
     "duckdb>=1.5.5",
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
@@ -83,7 +85,7 @@ testpaths = ["tests"]
 [tool.uv]
 # openeo (клиент Copernicus Data Space) требует xarray<2025.1.2 и несовместим с современным geo-стеком,
 # поэтому живёт в отдельной группе: uv sync --group openeo
-conflicts = [[{ group = "geo" }, { group = "openeo" }]]
+conflicts = [[{ group = "geo" }, { group = "openeo" }], [{ group = "service" }, { group = "openeo" }]]
 
 # torch с CUDA 13.0 для RTX 5070 (Blackwell, sm_120): на PyPI под Windows лежит CPU-сборка,
 # поэтому torch берём из индекса PyTorch (explicit = true — только для torch)
