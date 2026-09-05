@@ -11,9 +11,11 @@ services:
       # без него текст формируется по правилам.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     volumes:
-      # Поля, добавленные пользователем через интерфейс, переживают перезапуск контейнера.
-      - user-polygons:/app/artifacts/service
+      # Всё, что сервис пишет во время работы, переживает перезапуск контейнера:
+      # набор полей пользователя (artifacts/service), отчёты собранных полей (artifacts/fields)
+      # и кэш погоды ERA5 (artifacts/weather).
+      - runtime-data:/app/artifacts
     restart: unless-stopped
 
 volumes:
-  user-polygons:
+  runtime-data:

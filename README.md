@@ -123,6 +123,18 @@ Batch-инференс в том же контейнере:
 docker compose exec app uv run python -m gapfill.predict_saved   --input data/test_features_new.csv --output submission.csv
 ```
 
+### Пересчёт метрики задачи 1
+
+```bash
+uv run --no-sync python -m gapfill.metrics
+```
+
+Считает RMSE и GapScore по сохранённым предсказаниям отложенной выборки
+(`reports/gapfill/improvement/validation_*.csv`) — без обучения и инференса, за доли секунды.
+Обновляет `reports/gapfill/validation.json`, откуда числа берёт интерфейс.
+Заголовочная цифра — модель с калибровкой историческими агрегатами, рядом всегда показывается
+результат чистого ансамбля. Это отложенная выборка, а не приватный лидерборд.
+
 ### Запуск без Docker
 
 ```bash

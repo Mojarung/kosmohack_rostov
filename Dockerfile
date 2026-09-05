@@ -22,20 +22,24 @@ FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
 WORKDIR /app
 ENV UV_LINK_MODE=copy PYTHONIOENCODING=utf-8 UV_TORCH_BACKEND=cpu PYTHONUNBUFFERED=1
 
-# LightGBM нужна libgomp (OpenMP), в slim-образе её нет
-RUN apt-get update     && apt-get install -y --no-install-recommends libgomp1     && rm -rf /var/lib/apt/lists/*
+# Системные библиотеки, которых нет в slim-образе:
+#   libgomp1  — OpenMP для LightGBM;
+#   libexpat1 — нужна rasterio (через GDAL внутри колеса), без неё падает весь сбор данных,
+#               а вместе с ним и проверка окружения при старте сервиса.
+RUN apt-get update     && apt-get install -y --no-install-recommends libgomp1 libexpat1     && rm -rf /var/lib/apt/lists/*
 
 # Зависимости отдельно от кода, чтобы слой кэшировался между сборками.
-# В образ идут только группы, нужные для работы сервиса и инференса: geo (сбор данных),
-# service (FastAPI), infer (LightGBM, scikit-learn). Полная ml с CatBoost, XGBoost, Optuna и SHAP —
-# только для экспериментов на машине разработчика.
+# В образ идут только группы, нужные для работы: geo (сбор данных), serve (FastAPI),
+# infer (LightGBM, scikit-learn). Группа ml с CatBoost, XGBoost, Optuna, SHAP и Numba нужна
+# только для экспериментов: на Linux она тянет nvidia-* и раздувает образ на десятки гигабайт.
+# --no-cache: иначе загруженные колёса остаются в слое рядом с распакованным venv.
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --group infer --group geo --group service
+RUN uv sync --frozen --no-dev --no-cache --group infer --group geo --group serve
 
 # torch ставится отдельно из индекса CPU-сборок: в общем lock-файле линуксовый torch тянет пакеты
 # nvidia-* (несколько гигабайт), а для инференса SeasonNet из models/ достаточно CPU.
 # Полная группа dl (Chronos, PyPOTS) нужна только для экспериментов и в образ не входит.
-RUN uv pip install "torch==2.14.0" --index-url https://download.pytorch.org/whl/cpu
+RUN uv pip install --no-cache "torch==2.14.0" --index-url https://download.pytorch.org/whl/cpu
 
 COPY . .
 COPY --from=web /web/dist ./web/dist

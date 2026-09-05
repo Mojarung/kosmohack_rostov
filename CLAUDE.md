@@ -38,6 +38,16 @@
   затем `uv run uvicorn service.app:app --port 8000`. Готовые веса в `models/` (инференс без обучения — `gapfill.predict_saved`),
   сводный отчёт `docs/14-research-report.md`. Набор полигонов пользователя — `service/polygons.py`
   (`artifacts/service/polygons/`, API `/api/user-polygons`, карточка «Мои поля», цвет контура на карте по тяжести).
+- **Метрика пересчитывается за 0.04 с**: `uv run --no-sync python -m gapfill.metrics` считает RMSE и GapScore
+  по сохранённым holdout-предсказаниям (`reports/gapfill/improvement/validation_*.csv`), без обучения и инференса.
+  Текущий результат на страте конкурсного файла: RMSE 0.0437, GapScore 16.88 (разброс по трём сидам 0.0036);
+  чистый ансамбль без калибровки историческими агрегатами — 0.0553 и 13.41. `submission.csv` — предсказания
+  улучшенной модели (exp-008), прежний файл сохранён как `reports/gapfill/submission_prev_exp007.csv`.
+- **Интерфейс переделан под один экран**: `.shell` во всю высоту окна, прокручиваются только панели.
+  Общие примитивы в `web/src/styles/shell.css` (`.pane`, `.kpi`, `.rows`, `.chip`). Пузырьки убраны.
+  Графики сезона интерактивные: выделение периода мышью, зум колесом, общий курсор и общее окно
+  просмотра трёх графиков (`web/src/components/charts/range.ts`, `BrushLayer.tsx`).
+  Карта: подложка «Спутник» (Esri) по умолчанию и переключатель на схему OSM.
 - Сверка с ТЗ по пунктам — `docs/07-submission-checklist.md` (статусы 2026-09-05); вопросы к экспертам и трекерам — `docs/15-consultation-questions.md`.
 - Docker проверен: `docker compose up --build` собирается, интерфейс и API отвечают, batch-инференс в контейнере
   воспроизводит submission (расхождение 7e-5, CPU против GPU). Образ 1.33 ГБ (группы infer + geo + service + torch CPU).
@@ -76,7 +86,8 @@ uv sync --group ml               # бустинги, whittaker-eilers, optuna, s
 uv sync --group geo              # STAC, rasterio, xarray, geopandas, Open-Meteo, osmnx
 UV_TORCH_BACKEND=cu130 uv sync --group dl   # torch (CUDA 13.0 для RTX 5070), PyPOTS, pygrinder, chronos
 uv sync --group torch            # только torch (по умолчанию CPU-сборка) — хватает для инференса из models/
-uv sync --group service          # FastAPI, uvicorn, plotly, duckdb
+uv sync --group serve            # только веб-слой: FastAPI, uvicorn, plotly, duckdb (эта группа идёт в образ)
+uv sync --group service          # всё для запуска сервиса на разработке: serve + geo + infer + ml
 uv sync --group agent            # pydantic-ai, anthropic, mcp
 uv sync --group openeo           # отдельно: конфликтует с geo по xarray
 ```
