@@ -1,8 +1,8 @@
 /** Карта на AntV L7 (WebGL): две подложки на выбор, контуры полей пользователя с окраской по
  *  состоянию последнего сезона, найденные контуры OSM и рисование произвольного полигона.
  *
- *  Подложки: спутниковый снимок Esri World Imagery (по умолчанию — по нему видно сами поля,
- *  а не дороги) с прозрачным слоем названий и обычная схема OpenStreetMap.
+ *  Подложки: схема OpenStreetMap (по умолчанию — на ней читаются дороги, границы и названия)
+ *  и спутниковый снимок Esri World Imagery с прозрачным слоем названий от CARTO.
  *
  *  Компонент тяжёлый (WebGL + тайлы), поэтому подключается через React.lazy и монтируется
  *  только на экранах, где карта действительно нужна. */
@@ -17,6 +17,12 @@ import type { OsmField, UserPolygon } from "../../api/types";
 type Basemap = "satellite" | "scheme";
 
 const BASEMAPS: Record<Basemap, { label: string; url: string; labels?: string; credit: string; maxZoom: number }> = {
+  scheme: {
+    label: "Схема",
+    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    credit: "© OpenStreetMap contributors",
+    maxZoom: 19,
+  },
   satellite: {
     label: "Спутник",
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -24,12 +30,6 @@ const BASEMAPS: Record<Basemap, { label: string; url: string; labels?: string; c
     labels: "https://basemaps.cartocdn.com/rastertiles/light_only_labels/{z}/{x}/{y}.png",
     credit: "© Esri, Maxar · подписи © OpenStreetMap, CARTO",
     maxZoom: 18,
-  },
-  scheme: {
-    label: "Схема",
-    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    credit: "© OpenStreetMap contributors",
-    maxZoom: 19,
   },
 };
 
@@ -121,7 +121,7 @@ export default function FieldMap({
   const osmFieldsRef = useRef(osmFields);
   osmFieldsRef.current = osmFields;
   const [ready, setReady] = useState(false);
-  const [basemap, setBasemap] = useState<Basemap>("satellite");
+  const [basemap, setBasemap] = useState<Basemap>("scheme");
   const baseRef = useRef<{ tiles?: RasterLayer; labels?: RasterLayer }>({});
 
   // --- инициализация сцены (один раз) ---
