@@ -1,0 +1,216 @@
+/* Стиль презентации: та же палитра и типографика, что и в веб-интерфейсе (web/src/styles/global.css),
+   чтобы слайды и продукт читались как одно решение. Слайд — фиксированные 1280x720, вписывается в окно. */
+
+:root {
+  --canvas: #f7f6f3;
+  --surface: #ffffff;
+  --surface-sunk: #f4f3ef;
+  --ink: #1a1d16;
+  --ink-soft: #3d4136;
+  --muted: #7a7c71;
+  --line: #e4e1d8;
+  --line-strong: #d3cfc2;
+
+  --ok-bg: #edf3ec;
+  --ok-ink: #346538;
+  --warn-bg: #fbf3db;
+  --warn-ink: #956400;
+  --crit-bg: #fdebec;
+  --crit-ink: #9f2f2d;
+  --info-bg: #e1f3fe;
+  --info-ink: #1f6c9f;
+
+  --s2: #3a6ea5;
+  --landsat: #6b5b95;
+  --modis: #c2703a;
+  --restored: #b03a76;
+
+  --font-sans: "Manrope", "Segoe UI Variable Display", "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
+  --font-display: "Noto Serif", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", "SF Mono", ui-monospace, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #23261f;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  overflow: hidden;
+}
+
+/* --- сцена и масштабирование --- */
+
+#stage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+#scaler {
+  width: 1280px;
+  height: 720px;
+  transform-origin: center center;
+  position: relative;
+}
+
+.slide {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  padding: 46px 60px 54px;
+  background: var(--canvas);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.slide.is-active { display: flex; }
+
+/* --- типографика --- */
+
+h1 {
+  font-family: var(--font-display);
+  font-size: 52px;
+  line-height: 1.08;
+  margin: 0 0 14px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 1.15;
+  margin: 0 0 6px;
+  font-weight: 400;
+}
+
+.eyebrow {
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 12px;
+  font-weight: 600;
+}
+
+.lead {
+  font-size: 21px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  margin: 0 0 22px;
+  max-width: 74ch;
+}
+
+.slide-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 18px; }
+
+p, li { font-size: 18px; line-height: 1.5; color: var(--ink-soft); }
+ul { margin: 0; padding-left: 22px; }
+li { margin-bottom: 8px; }
+li b, p b { color: var(--ink); font-weight: 700; }
+.mono { font-family: var(--font-mono); font-size: 15px; }
+.small { font-size: 15px; color: var(--muted); }
+
+/* --- сетки и карточки --- */
+
+.cols { display: grid; gap: 20px; flex: 1; min-height: 0; }
+.cols-2 { grid-template-columns: 1fr 1fr; }
+.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.cols-2-1 { grid-template-columns: 1.35fr 1fr; }
+.cols-1-2 { grid-template-columns: 1fr 1.6fr; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.card--sunk { background: var(--surface-sunk); border-color: var(--line); }
+.card h3 { margin: 0; font-size: 19px; font-weight: 700; color: var(--ink); }
+.card p { margin: 0; font-size: 16px; }
+.card ul { padding-left: 20px; }
+.card li { font-size: 16px; margin-bottom: 6px; }
+
+.kpi { display: flex; flex-direction: column; gap: 2px; }
+.kpi-value { font-family: var(--font-display); font-size: 46px; line-height: 1; color: var(--ink); }
+.kpi-value small { font-size: 20px; color: var(--muted); }
+.kpi-label { font-size: 15px; color: var(--muted); }
+
+.tag {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--ok-bg);
+  color: var(--ok-ink);
+}
+.tag--warn { background: var(--warn-bg); color: var(--warn-ink); }
+.tag--crit { background: var(--crit-bg); color: var(--crit-ink); }
+.tag--info { background: var(--info-bg); color: var(--info-ink); }
+
+/* --- таблицы --- */
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px 10px; font-size: 16px; border-bottom: 1px solid var(--line); }
+th { font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+td.num { font-family: var(--font-mono); text-align: right; }
+tr.is-final td { background: var(--ok-bg); font-weight: 700; color: var(--ink); }
+tr.is-base td { color: var(--muted); }
+
+/* --- прочее --- */
+
+.figure { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 10px; }
+.figure img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.caption { font-size: 14px; color: var(--muted); margin-top: 6px; }
+
+.bar { height: 12px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.bar > span { display: block; height: 100%; border-radius: 999px; background: var(--ok-ink); }
+
+.slide-foot {
+  position: absolute;
+  left: 60px;
+  right: 60px;
+  bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.progress { position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--line); }
+.progress > span { display: block; height: 100%; background: var(--ok-ink); transition: width 0.25s ease; }
+
+.title-slide { justify-content: center; background: linear-gradient(140deg, #ffffff 0%, #f2f4ec 55%, #e8efe2 100%); }
+.title-slide h1 { font-size: 60px; max-width: 22ch; }
+.title-rule { width: 88px; height: 4px; background: var(--ok-ink); border-radius: 2px; margin: 0 0 26px; }
+
+/* --- печать в PDF: один слайд = одна страница --- */
+
+@media print {
+  @page { size: 1280px 720px; margin: 0; }
+  html, body { overflow: visible; background: #fff; }
+  #stage { position: static; display: block; }
+  #scaler { width: 1280px; height: auto; transform: none !important; }
+  .slide { position: relative; display: flex !important; page-break-after: always; break-after: page; height: 720px; border-radius: 0; }
+  .progress, .hint { display: none !important; }
+}
+
+.hint {
+  position: fixed;
+  right: 14px;
+  bottom: 12px;
+  font-size: 12px;
+  color: #8d9186;
+  font-family: var(--font-sans);
+}

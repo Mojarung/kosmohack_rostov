@@ -1,6 +1,7 @@
 /** Тонкая обёртка над fetch: единый разбор ошибок FastAPI (поле detail). */
 
 import type {
+  AskAnswer,
   CollectProgressState,
   Episode,
   Meta,
@@ -12,6 +13,7 @@ import type {
   UserPolygon,
 } from "./types";
 import type { AgroContext, ImageryResponse } from "./analytics";
+import type { AnomalyFeed, FieldSource } from "./anomalies";
 
 // Повторное открытие поля во время сбора присоединяется к уже запущенному запросу.
 const collecting = new Map<string, Promise<ImageryResponse>>();
@@ -48,6 +50,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  anomalyFields: (source: FieldSource, year?: number, signal?: AbortSignal) =>
+    request<AnomalyFeed>(`/api/anomaly-fields?source=${source}${year ? `&year=${year}` : ""}`, { signal }),
   places: (query: string, signal?: AbortSignal) =>
     request<PlaceResult[]>(`/api/places?q=${encodeURIComponent(query)}`, { signal }),
   polygons: () => request<PolygonSummary[]>("/api/polygons"),
@@ -75,4 +79,10 @@ export const api = {
   analyze: (body: { geometry: GeoJSON.Polygon; name: string; start_year?: number; end_year?: number; job?: string }) =>
     request<PolygonDetail>("/api/analyze", { method: "POST", body: JSON.stringify(body) }),
   analyzeProgress: (job: string) => request<CollectProgressState>(`/api/analyze/progress/${job}`),
+  /** Вопрос о поле своими словами: с ключом отвечает модель, без ключа — разбор по правилам. */
+  ask: (body: { pid: string; question: string; year?: number }) =>
+    request<AskAnswer>("/api/ask", { method: "POST", body: JSON.stringify(body) }),
+  /** Ссылка на отчёт по полю: самодостаточный HTML, печатается в PDF из браузера. */
+  reportUrl: (pid: string, year?: number) =>
+    `/api/report/${encodeURIComponent(pid)}${year ? `?year=${year}` : ""}`,
 };

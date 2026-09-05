@@ -29,6 +29,7 @@ from shapely.geometry import shape
 
 from service.field_store import field_id
 from service.progress import Progress
+from service.s2_cloud_filter import load_clear_days
 from service.weather_source import SOURCE, collect_weather, weather_records
 
 log = logging.getLogger("service.collect")
@@ -143,12 +144,17 @@ def _load_parallel(items, bands: list[str], geom, resolution: int, dtype=None):
     Поиск в каталоге идёт без ограничений, а сами загрузки — не больше LOAD_LIMIT одновременно на процесс:
     у каждой загрузки свой пул из READ_THREADS потоков, и без лимита 24 сезона × 24 потока рвут канал.
     """
+    with _load_gate:
+        return _plan_load(items, bands, geom, resolution, dtype).compute()
+
+
+def _plan_load(items, bands: list[str], geom, resolution: int, dtype=None):
+    """Единый план чтения: сетка и группировка сохраняются при выборе каналов и дат."""
     _setup_reader()
     # fail_on_error=False: одна битая сцена (недоступный файл в каталоге) не должна ронять весь год
     lazy = stac_load(items, bands=bands, geopolygon=geom.__geo_interface__, resolution=resolution,
                      chunks={"time": 1}, groupby="solar_day", crs=utm_crs(geom), dtype=dtype, fail_on_error=False)
-    with _load_gate:
-        return lazy.compute()
+    return lazy
 
 
 def _by_years(fn, years: range, label: str = "", progress: Progress | None = None,
@@ -214,8 +220,13 @@ def _s2_year_from(catalog: str, geom, year: int) -> pd.DataFrame:
     if not items:
         return pd.DataFrame()
     red, nir, scl = S2_BANDS[catalog]
-    data = _load_parallel(items, [red, nir, scl], geom, resolution=20)
-    inside = _polygon_mask(data, geom)
+    lazy = _plan_load(items, [red, nir, scl], geom, resolution=20)
+    inside = _polygon_mask(lazy, geom)
+    # Сначала читаем только SCL и отбрасываем облачные дни, red/nir — лишь для оставшихся.
+    # Для контрольного замера прежнего пути: NDVI_S2_CLOUD_FIRST=0. Загрузка — под общим лимитом LOAD_LIMIT.
+    with _load_gate:
+        data = (load_clear_days(lazy, inside, MIN_PIXELS, MIN_VALID_SHARE, S2_CLEAR_SCL, bands=(red, nir, scl))
+                if os.environ.get("NDVI_S2_CLOUD_FIRST", "1") == "1" else lazy.compute())
     rows = []
     for t in data.time.values:
         frame = data.sel(time=t)

@@ -9,7 +9,7 @@ const page = await browser.newPage();
 try {
   await mkdir("artifacts/e2e", { recursive: true });
   page.setDefaultTimeout(20000);
-  const scenarioFile = process.env.E2E_RESPONSE === "1" ? "./api_response.js"
+  const scenarioFile = process.env.E2E_ANOMALIES === "1" ? "./anomalies.js" : process.env.E2E_RESPONSE === "1" ? "./api_response.js"
     : process.env.E2E_LIVE === "1" ? "./geocoding_live.js" : "./geocoding.js";
   const scenario = vm.runInThisContext(await readFile(new URL(scenarioFile, import.meta.url), "utf8"));
   console.log(JSON.stringify(await scenario(page, process.env.E2E_BASE || "http://127.0.0.1:8011")));

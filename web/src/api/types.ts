@@ -169,6 +169,15 @@ export interface CollectProgressState {
   sources: Record<string, CollectSource>;
   log: string[];
 }
+
+/** Ответ агента о поле: текст, источник (модель или правила) и вызванные им инструменты. */
+export interface AskAnswer {
+  answer: string;
+  source: "llm" | "rules";
+  tools_used: string[];
+}
+
+/** Найденное место из Nominatim: центр, рамка и разобранный адрес. */
 export interface PlaceResult {
   id: string;
   label: string;
