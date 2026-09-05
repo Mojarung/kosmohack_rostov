@@ -892,3 +892,53 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* --- панель вопросов о поле --- */
+
+/* правая колонка экрана поля делится между эпизодами и вопросами */
+.season-layout:has(.ask-pane) {
+  grid-template-areas: "charts episodes" "charts ask";
+  /* эпизоды занимают верх правой колонки, вопросам оставляем читаемую высоту */
+  grid-template-rows: minmax(0, 1fr) minmax(230px, 38%);
+}
+
+.season-layout:has(.ask-pane) > .season-main { grid-area: charts; }
+.season-layout:has(.ask-pane) > .season-episodes { grid-area: episodes; }
+.ask-pane { grid-area: ask; min-height: 0; }
+
+.ask-item + .ask-item {
+  border-top: 1px solid rgba(33, 29, 23, 0.07);
+  padding-top: 9px;
+}
+
+.ask-question {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+
+.ask-answer {
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.ask-source {
+  font-size: 11px;
+  margin-top: 3px;
+}
+
+.ask-form {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px 14px;
+}
+
+@media (max-width: 1100px) {
+  .season-layout:has(.ask-pane) {
+    grid-template-areas: "charts" "episodes" "ask";
+    grid-template-rows: minmax(340px, 1fr) auto auto;
+  }
+  .ask-pane { min-height: 260px; }
+}

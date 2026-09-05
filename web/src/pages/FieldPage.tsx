@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 
 import { api } from "../api/client";
+import { AskPanel } from "../components/panels/AskPanel";
 import { SeasonPanel } from "../components/panels/SeasonPanel";
 import { ErrorNote } from "../components/ui/Loader";
 import { PagePending } from "../components/ui/PagePending";
@@ -46,7 +47,7 @@ export default function FieldPage() {
         </span>
       </div>
 
-      <SeasonPanel key={data.pid} detail={data} />
+      <SeasonPanel key={data.pid} detail={data} aside={(year) => <AskPanel pid={data.pid} year={year} />} />
     </div>
   );
 }

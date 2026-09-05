@@ -19,7 +19,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
@@ -291,6 +291,39 @@ def summary() -> dict:
 def meta() -> dict:
     """Сводка о решении: метрики обеих задач, состав данных, источники (для экрана «Как это работает»)."""
     return build_meta(n_gaps=int(len(store().gaps)))
+
+
+class AskRequest(BaseModel):
+    """Вопрос о поле: пользователь спрашивает своими словами, ответ строится по фактам поля."""
+
+    pid: str
+    question: str = Field(min_length=2, max_length=500)
+    year: int | None = None
+
+
+@app.post("/api/ask")
+def ask_about_field(req: AskRequest) -> dict:
+    """Ответ агронома-агента о конкретном поле.
+
+    Модель получает выжимку фактов (service.facts) и может дозапросить сезон, эпизоды или метод.
+    Без ключа ANTHROPIC_API_KEY отвечает разбор по правилам — теми же числами, только без связного текста.
+    """
+    from service.agent import ask
+    detail = polygon(req.pid)
+    try:
+        return ask(detail, req.question, meta=meta(), year=req.year)
+    except Exception as exc:        # ошибка модели не должна ронять экран поля
+        logging.getLogger("service.agent").exception("Агент не ответил")
+        raise HTTPException(502, f"не удалось ответить: {type(exc).__name__}: {exc}") from exc
+
+
+@app.get("/api/report/{pid}", response_class=HTMLResponse)
+def field_report(pid: str, year: int | None = None) -> HTMLResponse:
+    """Отчёт по полю одним HTML-файлом: самодостаточный, печатается в PDF из браузера."""
+    from service.report_html import build_report
+    detail = polygon(pid)
+    html = build_report(detail, year=year, meta=meta())
+    return HTMLResponse(html, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/fields")

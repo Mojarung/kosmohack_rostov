@@ -1,6 +1,7 @@
 /** Тонкая обёртка над fetch: единый разбор ошибок FastAPI (поле detail). */
 
 import type {
+  AskAnswer,
   CollectProgressState,
   Episode,
   Meta,
@@ -66,4 +67,10 @@ export const api = {
   analyze: (body: { geometry: GeoJSON.Polygon; name: string; start_year?: number; end_year?: number; job?: string }) =>
     request<PolygonDetail>("/api/analyze", { method: "POST", body: JSON.stringify(body) }),
   analyzeProgress: (job: string) => request<CollectProgressState>(`/api/analyze/progress/${job}`),
+  /** Вопрос о поле своими словами: с ключом отвечает модель, без ключа — разбор по правилам. */
+  ask: (body: { pid: string; question: string; year?: number }) =>
+    request<AskAnswer>("/api/ask", { method: "POST", body: JSON.stringify(body) }),
+  /** Ссылка на отчёт по полю: самодостаточный HTML, печатается в PDF из браузера. */
+  reportUrl: (pid: string, year?: number) =>
+    `/api/report/${encodeURIComponent(pid)}${year ? `?year=${year}` : ""}`,
 };
