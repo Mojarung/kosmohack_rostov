@@ -1,5 +1,6 @@
 /** Единая панель сезона: оформление main, погодные показатели и карты из field-insights. */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../api/client";
 import type { PolygonDetail } from "../../api/types";
@@ -27,6 +28,16 @@ function SeasonContent({ detail, year, onYear }: { detail: PolygonDetail; year: 
   const shape = (detail.shape ?? []).filter(s => s.year === year);
   const bounds = useMemo(() => ({ from: ms(`${year}-04-01`), to: ms(`${year}-10-30`) }), [year]);
   const control = useDateRange(bounds);
+  const [params] = useSearchParams();
+  const requestedFrom = params.get("from"), requestedTo = params.get("to");
+  useEffect(() => {
+    // Прямой переход из эпизода открывает именно его период, только в выбранном сезоне.
+    if (Number(params.get("year")) !== year || !requestedFrom || !requestedTo) return;
+    const from = ms(requestedFrom), to = ms(requestedTo);
+    if (Number.isFinite(from) && Number.isFinite(to) && from <= to && from >= bounds.from && to <= bounds.to) {
+      control.select(from - 7 * 86400000, to + 7 * 86400000);
+    }
+  }, [requestedFrom, requestedTo, year, bounds.from, bounds.to, control.select, params]);
   const [hover, setHover] = useState<number | null>(null), [showDetails, setShowDetails] = useState(false);
   const agro = useQuery({ queryKey: ["agro", detail.pid, year, detail.saved_at],
     queryFn: ({ signal }) => api.agro(detail.pid, year, signal), retry: false });
@@ -107,7 +118,9 @@ function SeasonHeader({ detail, year, onYear }: { detail: PolygonDetail; year: n
 
 export function SeasonPanel({ detail }: { detail: PolygonDetail }) {
   const years = Object.keys(detail.years).map(Number).sort((a, b) => a - b);
-  const [year, setYear] = useState(() => years.at(-1) ?? 0);
+  const [params] = useSearchParams();
+  const requested = Number(params.get("year"));
+  const [year, setYear] = useState(() => years.includes(requested) ? requested : years.at(-1) ?? 0);
   return <div className="season-layout season-panel" data-testid="season-panel" data-pid={detail.pid} data-year={year}>
     <SeasonContent key={`${detail.pid}:${year}`} detail={detail} year={year} onYear={setYear} />
   </div>;
