@@ -104,6 +104,11 @@
           <div id="weather-plot" aria-label="Погода относительно прошлых лет"></div>
         </div>
       </div>
+      <div class="imagery-card" id="imagery-card" hidden>
+        <div class="chart-toolbar"><h2>Карта поля</h2><button class="quiet" id="imagery-load">Загрузить снимки</button></div>
+        <div class="row imagery-controls"><select id="imagery-date" aria-label="Дата снимка"></select><button data-image="ndvi" aria-pressed="true">NDVI</button><button data-image="ndmi" aria-pressed="false">Влажность NDMI</button><button data-image="change" aria-pressed="false">Изменение</button></div>
+        <p class="muted" id="imagery-status">Выберите дату и показатель.</p><img id="imagery-image" alt="Карта показателя по пикселям поля" hidden><p class="chart-note" id="imagery-note"></p>
+      </div>
     </div>
     <div class="card" id="episodes"><h2>Периоды отклонения <span id="episode-count"></span></h2><div id="episode-list"></div></div>
     <details class="card" id="calculation"><summary>Данные и расчёт</summary><div class="calculation-body">
@@ -125,6 +130,7 @@
 <script src="/static/chart-ui.js"></script>
 <script src="/static/field-charts.js"></script>
 <script src="/static/weather-charts.js"></script>
+<script src="/static/imagery.js"></script>
 <script>
 const S = { polys: [], current: null, data: null, year: null, drawn: null };
 const SENSOR_COLOR = { "Sentinel-2": "#2b6cb0", "Landsat": "#805ad5", "MODIS": "#dd6b20" };
@@ -156,6 +162,7 @@ async function loadPolygon(pid) {
   if (S.current !== pid) return;
   S.data = data;
   showData(S.data, S.data.name || pid, S.data.crop || "");
+  if (window.renderImagery) renderImagery(pid, S.year);
 }
 
 function showData(data, title, subtitle) {
@@ -168,7 +175,7 @@ function showData(data, title, subtitle) {
   S.year = years.includes(S.year) ? S.year : years[years.length - 1];
   document.getElementById("years").innerHTML = years.map(y =>
     `<button class="${y === S.year ? "active" : ""} ${critYears.has(y) ? "hascrit" : epYears.has(y) ? "hasep" : ""}" data-y="${y}">${y}</button>`).join("");
-  document.querySelectorAll("#years button").forEach(b => b.onclick = () => { S.year = Number(b.dataset.y); showData(S.data, title, subtitle); });
+  document.querySelectorAll("#years button").forEach(b => b.onclick = () => { S.year = Number(b.dataset.y); showData(S.data, title, subtitle); if (window.renderImagery) renderImagery(S.current, S.year); });
   FieldCharts.render(data, S.year); WeatherCharts.render(data, S.year);
 }
 
