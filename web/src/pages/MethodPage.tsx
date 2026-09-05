@@ -60,7 +60,7 @@ export default function MethodPage() {
         </p>
       </div>
 
-      <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
+      <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", alignItems: "stretch" }}>
         {STEPS.map((step, index) => {
           const Art = step.art;
           return (

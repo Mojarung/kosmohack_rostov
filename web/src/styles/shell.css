@@ -1,0 +1,173 @@
+/* Каркас внутренних экранов в стиле главной: тёплый фон без жёстких границ,
+   шапка на мягкой подложке, «пузырь» под активной вкладкой и плавная смена экранов. */
+
+.shell {
+  position: relative;
+  min-height: 100%;
+  isolation: isolate;
+  background:
+    radial-gradient(90% 60% at 50% 0%, rgba(243, 231, 212, 0.85) 0%, rgba(243, 231, 212, 0) 58%),
+    var(--canvas);
+}
+
+/* --- шапка --- */
+
+.shell-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 10px clamp(16px, 3vw, 34px) 14px;
+  /* граница не рисуется: край растворяется в фон, как на главной */
+  background: linear-gradient(180deg, rgba(248, 244, 236, 0.94) 0%, rgba(248, 244, 236, 0.82) 62%, rgba(248, 244, 236, 0) 100%);
+  backdrop-filter: blur(10px);
+}
+
+.shell-header-inner {
+  max-width: var(--shell-max);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.shell-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.shell-brand-name {
+  font-family: var(--font-display);
+  font-size: 19px;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+}
+
+.shell-brand-sub {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+/* --- вкладки: белый «пузырь» переезжает под активную --- */
+
+.shell-nav {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.shell-pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 34px;
+  border-radius: 999px;
+  background: #fffdf9;
+  box-shadow: 0 2px 10px rgba(33, 29, 23, 0.09), inset 0 0 0 1px rgba(33, 29, 23, 0.07);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, width;
+}
+
+.shell-tab {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 15px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  text-decoration: none;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: color 0.25s var(--ease);
+}
+
+.shell-tab:hover {
+  color: var(--ink);
+}
+
+.shell-tab[aria-current="page"] {
+  color: var(--ink);
+}
+
+/* --- рабочая область и подвал --- */
+
+.shell-main {
+  position: relative;
+  z-index: 1;
+  max-width: var(--shell-max);
+  margin: 0 auto;
+  padding: clamp(14px, 2vw, 26px) clamp(16px, 3vw, 34px) 72px;
+  will-change: transform, opacity;
+}
+
+.shell-footer {
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(247, 246, 243, 0) 0%, rgba(240, 236, 227, 0.7) 100%);
+}
+
+.shell-footer-inner {
+  max-width: var(--shell-max);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 22px clamp(16px, 3vw, 34px) 26px;
+}
+
+/* --- ожидание чанка экрана: не подменяет содержимое, а всплывает поверх --- */
+
+.shell-pending {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 46vh;
+  color: var(--muted);
+}
+
+.shell-pending-track {
+  position: relative;
+  width: 120px;
+  height: 1px;
+  overflow: hidden;
+  background: rgba(33, 29, 23, 0.14);
+}
+
+.shell-pending-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 38%;
+  background: var(--ink);
+  animation: shell-run 1.25s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+@keyframes shell-run {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(300%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell-pending-bar { animation: none; width: 40%; }
+}
+
+@media (max-width: 720px) {
+  .shell-header-inner { gap: 10px; }
+  .shell-brand-sub { display: none; }
+  .shell-tab { padding: 0 11px; font-size: 12.5px; }
+}

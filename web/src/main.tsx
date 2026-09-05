@@ -7,6 +7,7 @@ import { App } from "./App";
 import { hideBoot } from "./boot";
 import "./styles/fonts.css";
 import "./styles/global.css";
+import "./styles/shell.css";
 import "./styles/landing.css";
 
 // Данные кейса статичны в пределах сессии: держим их в кэше и не перезапрашиваем при фокусе окна.

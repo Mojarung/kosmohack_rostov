@@ -1,21 +1,44 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { AppShell } from "./components/layout/AppShell";
-import { Loader } from "./components/ui/Loader";
+import { PagePending } from "./components/ui/PagePending";
 import { LandingPage } from "./pages/LandingPage";
 
 // Экраны с картой и графиками грузятся по требованию: первый экран остаётся лёгким.
-const OverviewPage = lazy(() => import("./pages/OverviewPage"));
-const FieldPage = lazy(() => import("./pages/FieldPage"));
-const ExplorePage = lazy(() => import("./pages/ExplorePage"));
-const AnomaliesPage = lazy(() => import("./pages/AnomaliesPage"));
-const MethodPage = lazy(() => import("./pages/MethodPage"));
+const CHUNKS = {
+  overview: () => import("./pages/OverviewPage"),
+  field: () => import("./pages/FieldPage"),
+  explore: () => import("./pages/ExplorePage"),
+  anomalies: () => import("./pages/AnomaliesPage"),
+  method: () => import("./pages/MethodPage"),
+};
+
+const OverviewPage = lazy(CHUNKS.overview);
+const FieldPage = lazy(CHUNKS.field);
+const ExplorePage = lazy(CHUNKS.explore);
+const AnomaliesPage = lazy(CHUNKS.anomalies);
+const MethodPage = lazy(CHUNKS.method);
+
+/** Догружаем остальные экраны в простое браузера: переход по вкладке происходит без ожидания. */
+function usePrefetchPages() {
+  useEffect(() => {
+    const load = () => Object.values(CHUNKS).forEach((chunk) => void chunk());
+    const idle = window.requestIdleCallback;
+    if (idle) {
+      const id = idle(load, { timeout: 3000 });
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const timer = window.setTimeout(load, 1200);
+    return () => window.clearTimeout(timer);
+  }, []);
+}
 
 export function App() {
+  usePrefetchPages();
   return (
     <AppShell>
-      <Suspense fallback={<Loader label="Готовим экран" />}>
+      <Suspense fallback={<PagePending />}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/fields" element={<OverviewPage />} />
