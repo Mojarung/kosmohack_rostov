@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мониторинг вегетационной динамики — презентация решения</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="progress"><span id="progress-bar"></span></div>
+<div id="stage"><div id="scaler">
+
+<!-- 1. Титул -->
+<section class="slide title-slide">
+  <p class="eyebrow">Космохакатон · Ростов-на-Дону · кейс мониторинга полей</p>
+  <h1>Мониторинг вегетационной динамики сельхозполей</h1>
+  <div class="title-rule"></div>
+  <p class="lead">Восстанавливаем пропуски в спутниковом ряде NDVI, находим периоды угнетения посевов
+  и объясняем их причину — в веб-сервисе, который сам собирает данные по любому полю на карте.</p>
+  <div class="cols cols-3" style="flex:none; margin-top:8px">
+    <div class="card"><div class="kpi"><span class="kpi-value">0.0437</span><span class="kpi-label">RMSE восстановления, отложенная выборка</span></div></div>
+    <div class="card"><div class="kpi"><span class="kpi-value">617</span><span class="kpi-label">аномальных эпизодов найдено и объяснено</span></div></div>
+    <div class="card"><div class="kpi"><span class="kpi-value">1<small> команда</small></span><span class="kpi-label">docker compose up --build</span></div></div>
+  </div>
+  <div class="slide-foot"><span>Задача 1 — восстановление · Задача 2 — аномалии · Веб-сервис</span><span class="mono">1</span></div>
+</section>
+
+<!-- 2. Проблема -->
+<section class="slide">
+  <p class="eyebrow">Зачем это нужно</p>
+  <h2>Спутник видит поле часто, но не каждый день — и не всегда честно</h2>
+  <div class="slide-body">
+    <div class="cols cols-3">
+      <div class="card">
+        <span class="tag tag--crit">Пропуски</span>
+        <h3>Ряд рваный</h3>
+        <p>Облака и разные спутники: между наблюдениями провалы, часть значений отсутствует.
+        Без непрерывной кривой нельзя ни сравнить сезоны, ни поймать момент угнетения.</p>
+      </div>
+      <div class="card">
+        <span class="tag tag--warn">Сенсоры</span>
+        <h3>Приборы спорят друг с другом</h3>
+        <p>Landsat даёт NDVI выше Sentinel-2 на <b>0.037</b>, MODIS — на <b>0.083</b>.
+        Четверть «угнетений» в исходных данных — просто смена спутника.</p>
+      </div>
+      <div class="card">
+        <span class="tag tag--info">Интерпретация</span>
+        <h3>Число ≠ решение</h3>
+        <p>Агроному нужен не Z-score, а ответ: поле просело из-за засухи, севооборота или это сбой съёмки —
+        и что с этим делать.</p>
+      </div>
+    </div>
+    <div class="card card--sunk" style="flex:none">
+      <p><b>Наш ответ:</b> одна кривая сезона в единой шкале → восстановленные пропуски →
+      сравнение с нормой самого поля → эпизоды угнетения с разбором причины на простом языке.</p>
+    </div>
+  </div>
+  <div class="slide-foot"><span>Проблематика</span><span class="mono">2</span></div>
+</section>
+
+<!-- 3. Данные -->
+<section class="slide">
+  <p class="eyebrow">Данные и разведочный анализ</p>
+  <h2>Что дали организаторы и что мы в этом нашли</h2>
+  <div class="slide-body">
+    <div class="cols cols-2-1">
+      <div class="card">
+        <h3>Наблюдение → гипотеза → эксперимент</h3>
+        <ul>
+          <li><b>primary_ndvi — сырое значение одного сенсора</b> (S2 → Landsat → MODIS), а не сглаженный ряд.
+          Значит, задача 1 — не интерполяция, а «угадать прибор и его шкалу».</li>
+          <li><b>Сенсор скрытой точки читается по расписанию съёмки</b>: MODIS — сетка каждые 16 дней, S2 — 5, Landsat — 8.
+          Правило угадывает 92 % точек, классификатор — 98 %.</li>
+          <li><b>Контрольные точки плотные</b>: до ближайшего соседа медиана 2 дня. Ошибка зависит не от расстояния,
+          а от смены сенсора: 0.065 против 0.112.</li>
+          <li><b>Есть общий «шум дня»</b>: остатки разных полей в один день коррелируют на 0.32–0.48 — это атмосфера,
+          а не поле. Значит, признак, а не помеха.</li>
+          <li><b>Координат полей нет</b> — только AOI-xxxx. Внешние снимки к обучающим данным не привязать;
+          в сервисе внешние источники работают для новых территорий.</li>
+        </ul>
+      </div>
+      <div class="card card--sunk">
+        <h3>Объёмы</h3>
+        <table>
+          <tr><td>train</td><td class="num">39 полей · 30 520 точек</td></tr>
+          <tr><td>test (v2)</td><td class="num">20 полей · 13 164 точки</td></tr>
+          <tr><td>контрольные точки</td><td class="num">2 323</td></tr>
+          <tr><td>обучение итого</td><td class="num">61 325 точек</td></tr>
+          <tr><td>период</td><td class="num">2010–2024</td></tr>
+        </table>
+        <p class="small">36 графиков EDA и выводы — <span class="mono">docs/08</span>,
+        интерактивный дашборд «NDVI-атлас полей» — <span class="mono">reports/dashboard/</span>.</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>EDA</span><span class="mono">3</span></div>
+</section>
+
+<!-- 4. Baseline -->
+<section class="slide">
+  <p class="eyebrow">Задача 1 · отправная точка</p>
+  <h2>Baseline и его потолок</h2>
+  <div class="slide-body">
+    <div class="cols cols-2">
+      <div class="card">
+        <h3>Что мерили как baseline</h3>
+        <table>
+          <thead><tr><th>Метод</th><th style="text-align:right">RMSE</th><th style="text-align:right">GapScore</th></tr></thead>
+          <tbody>
+            <tr class="is-base"><td>среднее двух соседей (из ТЗ)</td><td class="num">0.093</td><td class="num">2.1</td></tr>
+            <tr class="is-base"><td>линейная интерполяция по времени</td><td class="num">0.094</td><td class="num">1.7</td></tr>
+            <tr class="is-base"><td>климатология</td><td class="num">0.159</td><td class="num">0</td></tr>
+            <tr class="is-base"><td>сенсорная коррекция без обучения</td><td class="num">0.084</td><td class="num">4.9</td></tr>
+            <tr class="is-base"><td>интерполяция «того же сенсора» (oracle)</td><td class="num">0.086</td><td class="num">4.3</td></tr>
+          </tbody>
+        </table>
+        <p class="small">Даже если бесплатно знать сенсор скрытой точки, простая интерполяция упирается в 0.084.</p>
+      </div>
+      <div class="card">
+        <h3>Чего baseline не умеет → наши гипотезы</h3>
+        <ul>
+          <li>не знает сенсора точки → <b>угадать сенсор и привести соседей к его шкале</b>;</li>
+          <li>смотрит на два соседа → <b>гладкая кривая сезона по всем сенсорам и индексам</b>;</li>
+          <li>игнорирует композит MODIS → <b>MODIS как среднее за окно [d, d+15]</b>;</li>
+          <li>не видит соседние поля → <b>взвешенный «шум дня» по остальным полигонам</b>;</li>
+          <li>учится только на train → <b>известные точки test — легальные обучающие данные</b>;</li>
+          <li>одна модель → <b>смесь моделей разной природы</b>: дерево и нейросеть.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>Baseline</span><span class="mono">4</span></div>
+</section>
+
+<!-- 5. Эксперименты -->
+<section class="slide">
+  <p class="eyebrow">Задача 1 · ход работы</p>
+  <h2>Каждый шаг проверен на отложенной выборке</h2>
+  <div class="slide-body">
+    <div class="cols cols-2-1">
+      <div class="card">
+        <table>
+          <thead><tr><th>Эксперимент</th><th style="text-align:right">RMSE</th><th>Что выяснили</th></tr></thead>
+          <tbody>
+            <tr class="is-base"><td>baseline ТЗ</td><td class="num">0.093</td><td>точка отсчёта</td></tr>
+            <tr><td>exp-001 LightGBM, 231 признак</td><td class="num">0.0587</td><td>признаки цикла съёмки решают</td></tr>
+            <tr><td>exp-002 обрезка target [−0.1, 1]</td><td class="num">0.0577</td><td>остаток вредит, обрезка помогает</td></tr>
+            <tr><td>exp-003 + SeasonNet, смесь</td><td class="num">0.0559</td><td>смесь сильнее любого нового признака</td></tr>
+            <tr><td>exp-004 CatBoost третьей моделью</td><td class="num">0.0554</td><td>ещё одно дерево почти не добавляет</td></tr>
+            <tr><td>exp-005 Optuna, seeds</td><td class="num">0.0552</td><td>тюнинг не дал, seeds дали</td></tr>
+            <tr><td>exp-006 вторая маска, готовые модели</td><td class="num">0.0527</td><td>Chronos-2 zero-shot 0.088 — вес 0</td></tr>
+            <tr><td>exp-007 вторая версия test</td><td class="num">0.0541</td><td>первая версия — контекст, не ответы</td></tr>
+            <tr class="is-final"><td>exp-008 kriging-признаки + остаточная сеть</td><td class="num">0.0437</td><td>финальная конфигурация</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card card--sunk">
+        <h3>Условия сравнения</h3>
+        <ul>
+          <li>маскируем <b>15 %</b> известных точек — как доля контрольных в test;</li>
+          <li>у скрытой строки убираем <b>все динамические колонки</b>, как в реальном файле;</li>
+          <li>три независимые маски (seed 2026 / 777 / 999), разброс RMSE <b>0.0036</b>;</li>
+          <li>сплит по полигонам и по сезону целиком — модель не видит «своё» будущее;</li>
+          <li>seed 42, гиперпараметры зафиксированы в коде и в отчёте.</li>
+        </ul>
+        <p class="small">Журнал — <span class="mono">experiments/</span>, разбор — <span class="mono">docs/12</span> и <span class="mono">docs/16</span>.</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>Эксперименты и абляции</span><span class="mono">5</span></div>
+</section>
+
+<!-- 6. Результат задачи 1 -->
+<section class="slide">
+  <p class="eyebrow">Задача 1 · результат</p>
+  <h2>Вдвое точнее baseline и близко к физическому потолку</h2>
+  <div class="slide-body">
+    <div class="cols cols-3" style="flex:none">
+      <div class="card"><div class="kpi"><span class="kpi-value" style="color:var(--muted)">0.093</span><span class="kpi-label">baseline «среднее соседей» · GapScore 2.1</span></div><div class="bar"><span style="width:100%; background:var(--line-strong)"></span></div></div>
+      <div class="card"><div class="kpi"><span class="kpi-value">0.0553</span><span class="kpi-label">ансамбль без калибровки · GapScore 13.41</span></div><div class="bar"><span style="width:59%"></span></div></div>
+      <div class="card"><div class="kpi"><span class="kpi-value" style="color:var(--ok-ink)">0.0437</span><span class="kpi-label">финальная модель · GapScore 16.88</span></div><div class="bar"><span style="width:47%"></span></div></div>
+    </div>
+    <div class="cols cols-2">
+      <div class="card">
+        <h3>Из чего собран финал</h3>
+        <ul>
+          <li><b>LightGBM</b>, 427 признаков: соседи по сенсорам, форма сезона, кригинг по времени, «шум дня» соседних полей;</li>
+          <li><b>ResidualSeasonNet</b>: свёртки по сезонной сетке и трансформер, учится на остатке дерева;</li>
+          <li><b>смесь 0.5 / 0.5</b> плюс калибровка по историческим агрегатам полигона;</li>
+          <li>обучение на всех <b>61 325</b> известных точках train и test.</li>
+        </ul>
+      </div>
+      <div class="card card--sunk">
+        <h3>Где потолок</h3>
+        <p>Усечённый RMSE <b>0.046</b> при физическом пределе <b>0.041</b> — это шум одного наблюдения
+        для точек, у которых сосед снят в тот же день.</p>
+        <p><b>1.2 %</b> точек-выбросов в ответах дают <b>43 %</b> всей ошибки: дальше мешает шум самих данных,
+        а не модель.</p>
+        <p class="small">Метрика пересчитывается за 0.04 с: <span class="mono">uv run python -m gapfill.metrics</span></p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>Отложенная выборка, не приватный лидерборд</span><span class="mono">6</span></div>
+</section>
+
+<!-- 7. Логика детекции -->
+<section class="slide">
+  <p class="eyebrow">Задача 2 · как устроена детекция</p>
+  <h2>От сырых точек к объяснённому эпизоду</h2>
+  <div class="slide-body">
+    <svg viewBox="0 0 1160 180" style="width:100%; height:auto; flex:none" role="img" aria-label="Схема конвейера детекции аномалий">
+      <defs>
+        <marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0 0 L10 5 L0 10 z" fill="#7a7c71"></path>
+        </marker>
+      </defs>
+      <g font-family="Manrope, system-ui, sans-serif">
+        <rect x="0" y="30" width="205" height="96" rx="14" fill="#ffffff" stroke="#e4e1d8"></rect>
+        <text x="102" y="62" text-anchor="middle" font-size="17" font-weight="700" fill="#1a1d16">Гармонизация</text>
+        <text x="102" y="86" text-anchor="middle" font-size="14" fill="#3d4136">все сенсоры → шкала S2,</text>
+        <text x="102" y="105" text-anchor="middle" font-size="14" fill="#3d4136">артефакты убраны</text>
+        <line x1="213" y1="78" x2="245" y2="78" stroke="#7a7c71" stroke-width="2" marker-end="url(#arw)"></line>
+        <rect x="253" y="30" width="205" height="96" rx="14" fill="#ffffff" stroke="#e4e1d8"></rect>
+        <text x="355" y="62" text-anchor="middle" font-size="17" font-weight="700" fill="#1a1d16">Норма поля</text>
+        <text x="355" y="86" text-anchor="middle" font-size="14" fill="#3d4136">своя история ±8 дней,</text>
+        <text x="355" y="105" text-anchor="middle" font-size="14" fill="#3d4136">текущий год исключён</text>
+        <line x1="466" y1="78" x2="498" y2="78" stroke="#7a7c71" stroke-width="2" marker-end="url(#arw)"></line>
+        <rect x="506" y="30" width="205" height="96" rx="14" fill="#ffffff" stroke="#e4e1d8"></rect>
+        <text x="608" y="62" text-anchor="middle" font-size="17" font-weight="700" fill="#1a1d16">Эпизоды</text>
+        <text x="608" y="86" text-anchor="middle" font-size="14" fill="#3d4136">Z &lt; −1 устойчиво 14 дней</text>
+        <text x="608" y="105" text-anchor="middle" font-size="14" fill="#3d4136">и/или сильно, Z &lt; −2</text>
+        <line x1="719" y1="78" x2="751" y2="78" stroke="#7a7c71" stroke-width="2" marker-end="url(#arw)"></line>
+        <rect x="759" y="30" width="205" height="96" rx="14" fill="#ffffff" stroke="#e4e1d8"></rect>
+        <text x="861" y="62" text-anchor="middle" font-size="17" font-weight="700" fill="#1a1d16">Причина</text>
+        <text x="861" y="86" text-anchor="middle" font-size="14" fill="#3d4136">ERA5 · фенология · соседи</text>
+        <text x="861" y="105" text-anchor="middle" font-size="14" fill="#3d4136">· NDWI · артефакты</text>
+        <line x1="972" y1="78" x2="1004" y2="78" stroke="#7a7c71" stroke-width="2" marker-end="url(#arw)"></line>
+        <rect x="1012" y="30" width="148" height="96" rx="14" fill="#edf3ec" stroke="#cadfc9"></rect>
+        <text x="1086" y="70" text-anchor="middle" font-size="17" font-weight="700" fill="#346538">Текст</text>
+        <text x="1086" y="94" text-anchor="middle" font-size="14" fill="#346538">для агронома</text>
+      </g>
+    </svg>
+    <div class="cols cols-3">
+      <div class="card">
+        <h3>Классы причин</h3>
+        <p>погодный стресс · поле не засеяно · севооборот, яровая вместо озимой · ранний спад ·
+        поздний старт · ослабленный сезон · ошибка данных</p>
+      </div>
+      <div class="card">
+        <h3>Почему это честно</h3>
+        <p>Норму организаторов воспроизвели точно, совпадение статусов <b>99.7 %</b>, и заменили гармонизированной:
+        зависимость Z от сенсора упала с <b>0.18</b> до <b>0.05</b>.</p>
+      </div>
+      <div class="card">
+        <h3>Проверка без разметки</h3>
+        <p>1 248 сезонов: эпизод найден в <b>44 %</b>, precision к точечным статусам ТЗ <b>0.70</b>,
+        полнота по критическим <b>0.73</b>, устойчивость к скрытию 15 % наблюдений <b>91 %</b>.</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>Детекция аномалий</span><span class="mono">7</span></div>
+</section>
+
+<!-- 8. Пример: засуха -->
+<section class="slide">
+  <p class="eyebrow">Показательный случай 1 · погодный стресс</p>
+  <h2>AOI-0065, сезон 2024: засуха, критическая аномалия</h2>
+  <div class="slide-body">
+    <div class="cols cols-1-2">
+      <div class="card">
+        <span class="tag tag--crit">критическая · уверенность 75 %</span>
+        <p>Сезон стартовал нормально, но с середины лета кривая уходит вниз и не возвращается:
+        NDVI <b>0.11</b> при норме <b>0.22</b>.</p>
+        <p><b>Аргументы детектора:</b> осадков 22 мм при норме 63 мм, дефицит 65 %; температура выше нормы
+        на 2.4 °C; сухая серия 38 дней; спад начался на 20 дней раньше обычного; NDWI подтверждает потерю
+        зелёной массы.</p>
+        <p class="small">2020 и 2024 — засушливые сезоны и по независимым данным ERA5: детектор ставит их
+        на первые два места по доле аномалий.</p>
+      </div>
+      <figure class="figure" style="margin:0"><img src="img/AOI-0065_2024.png" alt="График сезона AOI-0065 2024 с выделенным эпизодом угнетения"></figure>
+    </div>
+  </div>
+  <div class="slide-foot"><span>Пример разбора</span><span class="mono">8</span></div>
+</section>
+
+<!-- 9. Нетривиальные случаи -->
+<section class="slide">
+  <p class="eyebrow">Показательные случаи 2 и 3 · нетривиальные</p>
+  <h2>Не всякий провал — беда, и не всякая беда — погода</h2>
+  <div class="slide-body">
+    <div class="cols cols-2">
+      <div class="card" style="padding:14px 16px">
+        <span class="tag tag--warn">поле не засеяно</span>
+        <figure class="figure" style="margin:6px 0"><img src="img/AOI-0043_2019.png" alt="График сезона AOI-0043 2019: сезонного подъёма нет"></figure>
+        <p><b>AOI-0043, 2019:</b> подъёма нет вовсе, погода в норме, соседние поля растут.
+        Значит, поле не засеяно или заброшено — не агрономическая беда, а факт для учёта.</p>
+      </div>
+      <div class="card" style="padding:14px 16px">
+        <span class="tag tag--info">севооборот</span>
+        <figure class="figure" style="margin:6px 0"><img src="img/AOI-0021_2017.png" alt="График сезона AOI-0021 2017: сдвиг сезона из-за смены культуры"></figure>
+        <p><b>AOI-0021, 2017:</b> провал весной, но пик достигнут позже — озимую сменила яровая.
+        Формально Z ниже нормы, по сути угнетения нет: детектор помечает это отдельным классом.</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>Нетривиальные случаи</span><span class="mono">9</span></div>
+</section>
+
+<!-- 10. Сервис: путь пользователя -->
+<section class="slide">
+  <p class="eyebrow">Продукт · пользовательский путь</p>
+  <h2>От точки на карте до вывода «что делать» — без единого файла</h2>
+  <div class="slide-body">
+    <div class="cols cols-3">
+      <div class="card">
+        <span class="tag">шаг 1</span>
+        <h3>Найти место</h3>
+        <p>Поиск по адресу, региону, объекту или координатам. Подложка — спутник или схема.</p>
+      </div>
+      <div class="card">
+        <span class="tag">шаг 2</span>
+        <h3>Взять контур</h3>
+        <p>Готовые сельхозконтуры из OpenStreetMap одной кнопкой — или нарисовать полигон вручную.</p>
+      </div>
+      <div class="card">
+        <span class="tag">шаг 3</span>
+        <h3>Собрать данные</h3>
+        <p>Сервис сам тянет Sentinel-2, Landsat, MODIS и погоду ERA5, показывает прогресс по источникам.</p>
+      </div>
+      <div class="card">
+        <span class="tag">шаг 4</span>
+        <h3>Увидеть сезон</h3>
+        <p>Наблюдения по сенсорам, восстановленная кривая, норма ±1σ, Z-score, погода — общий курсор и зум.</p>
+      </div>
+      <div class="card">
+        <span class="tag">шаг 5</span>
+        <h3>Прочитать вывод</h3>
+        <p>«Светофор» и три вопроса простым языком: как поле сейчас, что было в сезоне, что делать.</p>
+      </div>
+      <div class="card card--sunk">
+        <span class="tag tag--info">шаг 6</span>
+        <h3>Сохранить поле</h3>
+        <p>Набор «Мои поля»: добавить, открыть без пересбора, удалить. Цвет контура на карте — по тяжести состояния.</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>Экраны: Обзор · Поле · Новая территория · Аномалии · Как это работает</span><span class="mono">10</span></div>
+</section>
+
+<!-- 11. Автосбор -->
+<section class="slide">
+  <p class="eyebrow">Продукт · автосбор данных</p>
+  <h2>Любая точка мира, четыре источника, ни одного ключа</h2>
+  <div class="slide-body">
+    <div class="cols cols-2-1">
+      <div class="card">
+        <table>
+          <thead><tr><th>Источник</th><th>Что берём</th><th>Каталог</th></tr></thead>
+          <tbody>
+            <tr><td><b style="color:var(--s2)">Sentinel-2 L2A</b></td><td>NDVI и NDWI, 10 м, маска облаков SCL</td><td class="mono">Earth Search</td></tr>
+            <tr><td><b style="color:var(--landsat)">Landsat C2 L2</b></td><td>NDVI, 30 м, QA_PIXEL</td><td class="mono">Planetary Computer</td></tr>
+            <tr><td><b style="color:var(--modis)">MODIS MOD13Q1</b></td><td>NDVI, композит 16 дней</td><td class="mono">Planetary Computer</td></tr>
+            <tr><td><b>ERA5</b></td><td>осадки, температура, ET₀</td><td class="mono">Open-Meteo</td></tr>
+            <tr><td><b>OpenStreetMap</b></td><td>контуры <span class="mono">landuse=farmland</span></td><td class="mono">Overpass</td></tr>
+          </tbody>
+        </table>
+        <p class="small">Маскирование облаков, агрегация по полигону, расчёт индексов и сборка ряда — на стороне сервиса.</p>
+      </div>
+      <div class="card card--sunk">
+        <h3>Устойчивость пайплайна</h3>
+        <ul>
+          <li>каждый источник изолирован: отказ одного не роняет сбор, в интерфейсе видно, что собрано;</li>
+          <li>Overpass — три публичных зеркала с переключением и кэшем ответов;</li>
+          <li>источники и сезоны идут параллельно: <b>6 сезонов ≈ 2 мин 49 с</b> вместо ~9.5 мин;</li>
+          <li>прогресс по шагам в реальном времени — <span class="mono">/api/analyze/progress</span>;</li>
+          <li>норма строится по истории самого поля — <b>привязки к региону нет</b>.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>Адаптивность под новые регионы</span><span class="mono">11</span></div>
+</section>
+
+<!-- 12. Архитектура -->
+<section class="slide">
+  <p class="eyebrow">Архитектура</p>
+  <h2>Один репозиторий, две точки запуска</h2>
+  <div class="slide-body" style="justify-content:center">
+    <svg viewBox="0 0 1160 300" style="width:100%; height:auto" role="img" aria-label="Схема архитектуры решения">
+      <g font-family="Manrope, system-ui, sans-serif">
+        <rect x="0" y="0" width="360" height="300" rx="18" fill="#ffffff" stroke="#e4e1d8"></rect>
+        <text x="24" y="34" font-size="15" font-weight="700" fill="#7a7c71">ИСТОЧНИКИ</text>
+        <rect x="24" y="52" width="312" height="40" rx="10" fill="#f4f3ef"></rect>
+        <text x="40" y="77" font-size="15" fill="#3d4136">Sentinel-2 · Landsat · MODIS (STAC)</text>
+        <rect x="24" y="100" width="312" height="40" rx="10" fill="#f4f3ef"></rect>
+        <text x="40" y="125" font-size="15" fill="#3d4136">ERA5 Open-Meteo · OSM Overpass</text>
+        <rect x="24" y="148" width="312" height="40" rx="10" fill="#f4f3ef"></rect>
+        <text x="40" y="173" font-size="15" fill="#3d4136">CSV кейса: train + private_features</text>
+        <text x="24" y="222" font-size="15" font-weight="700" fill="#7a7c71">АРТЕФАКТЫ</text>
+        <rect x="24" y="238" width="312" height="40" rx="10" fill="#f4f3ef"></rect>
+        <text x="40" y="263" font-size="15" fill="#3d4136">models/ · artifacts/ · reports/</text>
+
+        <rect x="400" y="0" width="360" height="300" rx="18" fill="#ffffff" stroke="#e4e1d8"></rect>
+        <text x="424" y="34" font-size="15" font-weight="700" fill="#7a7c71">ЯДРО, PYTHON 3.14</text>
+        <rect x="424" y="52" width="312" height="52" rx="10" fill="#edf3ec"></rect>
+        <text x="440" y="74" font-size="15" font-weight="700" fill="#346538">gapfill/</text>
+        <text x="440" y="94" font-size="15" fill="#3d4136">признаки → LightGBM + SeasonNet → смесь</text>
+        <rect x="424" y="112" width="312" height="52" rx="10" fill="#fbf3db"></rect>
+        <text x="440" y="134" font-size="15" font-weight="700" fill="#956400">anomaly/</text>
+        <text x="440" y="154" font-size="15" fill="#3d4136">кривая → норма → эпизоды → причина</text>
+        <rect x="424" y="172" width="312" height="52" rx="10" fill="#e1f3fe"></rect>
+        <text x="440" y="194" font-size="15" font-weight="700" fill="#1f6c9f">service/</text>
+        <text x="440" y="214" font-size="15" fill="#3d4136">FastAPI: сбор, анализ, полигоны</text>
+        <rect x="424" y="232" width="312" height="46" rx="10" fill="#f4f3ef"></rect>
+        <text x="440" y="260" font-size="15" fill="#3d4136">eda/ · experiments/ · tests/ (pytest)</text>
+
+        <rect x="800" y="0" width="360" height="300" rx="18" fill="#ffffff" stroke="#e4e1d8"></rect>
+        <text x="824" y="34" font-size="15" font-weight="700" fill="#7a7c71">ТОЧКИ ЗАПУСКА</text>
+        <rect x="824" y="52" width="312" height="104" rx="12" fill="#edf3ec" stroke="#cadfc9"></rect>
+        <text x="840" y="80" font-size="17" font-weight="700" fill="#346538">Веб-сервис</text>
+        <text x="840" y="104" font-size="14" fill="#3d4136">React 19 + Vite, карта AntV L7,</text>
+        <text x="840" y="124" font-size="14" fill="#3d4136">графики MUI X Charts</text>
+        <text x="840" y="146" font-size="14" font-family="JetBrains Mono, monospace" fill="#346538">docker compose up --build</text>
+        <rect x="824" y="168" width="312" height="110" rx="12" fill="#f4f3ef" stroke="#e4e1d8"></rect>
+        <text x="840" y="196" font-size="17" font-weight="700" fill="#1a1d16">Batch-инференс</text>
+        <text x="840" y="220" font-size="14" fill="#3d4136">private_features.csv → submission.csv</text>
+        <text x="840" y="240" font-size="14" fill="#3d4136">только is_synthetic_gap = True</text>
+        <text x="840" y="262" font-size="13" font-family="JetBrains Mono, monospace" fill="#1a1d16">python -m gapfill.predict_improved</text>
+        <line x1="762" y1="104" x2="820" y2="104" stroke="#7a7c71" stroke-width="2" marker-end="url(#arw)"></line>
+        <line x1="762" y1="222" x2="820" y2="222" stroke="#7a7c71" stroke-width="2" marker-end="url(#arw)"></line>
+        <line x1="362" y1="150" x2="420" y2="150" stroke="#7a7c71" stroke-width="2" marker-end="url(#arw)"></line>
+      </g>
+    </svg>
+  </div>
+  <div class="slide-foot"><span>Окружение зафиксировано: uv (pyproject + uv.lock), Dockerfile, seed 42</span><span class="mono">12</span></div>
+</section>
+
+<!-- 13. Ограничения -->
+<section class="slide">
+  <p class="eyebrow">Честно о границах</p>
+  <h2>Что решение пока не умеет и куда его развивать</h2>
+  <div class="slide-body">
+    <div class="cols cols-2">
+      <div class="card">
+        <h3>Ограничения</h3>
+        <ul>
+          <li>RMSE ниже <b>~0.05</b> недостижим: шум одного наблюдения и выбросы в самих ответах;</li>
+          <li>норме нужно <b>не меньше трёх лет</b> истории поля — для нового поля сервис собирает 2019–2025;</li>
+          <li>ERA5 не видит заморозки, град и суховеи: такие эпизоды получают низкую уверенность;</li>
+          <li>у полей кейса нет координат — внешние снимки к ним не привязать;</li>
+          <li>готовые контуры берём только из OSM: где поля не размечены, полигон рисуется вручную.</li>
+        </ul>
+      </div>
+      <div class="card card--sunk">
+        <h3>Развитие</h3>
+        <ul>
+          <li>K-fold стекинг вместо фиксированной смеси 0.5/0.5;</li>
+          <li>определение культуры года по форме кривой — норма станет точнее;</li>
+          <li>EVI и NDWI прямо в восстанавливаемой кривой;</li>
+          <li>объяснения языковой моделью с рекомендациями — слой готов, нужен ключ;</li>
+          <li>второй источник контуров (WorldCereal) и свой кэш тайлов для публичного развёртывания.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>Ограничения и планы</span><span class="mono">13</span></div>
+</section>
+
+<!-- 14. Итог -->
+<section class="slide">
+  <p class="eyebrow">Итог</p>
+  <h2>Что можно проверить прямо сейчас</h2>
+  <div class="slide-body">
+    <div class="cols cols-3" style="flex:none">
+      <div class="card"><div class="kpi"><span class="kpi-value" style="color:var(--ok-ink)">16.88</span><span class="kpi-label">GapScore на отложенной выборке,<br>RMSE 0.0437 против 0.093 у baseline</span></div></div>
+      <div class="card"><div class="kpi"><span class="kpi-value">617</span><span class="kpi-label">эпизодов угнетения с причиной,<br>1 248 сезонов, 78 полей</span></div></div>
+      <div class="card"><div class="kpi"><span class="kpi-value">5</span><span class="kpi-label">экранов сервиса, поля пользователя<br>переживают перезапуск</span></div></div>
+    </div>
+    <div class="cols cols-2">
+      <div class="card">
+        <h3>Запуск</h3>
+        <p class="mono">docker compose up --build → http://localhost:8000/</p>
+        <p class="mono">python -m gapfill.predict_improved --output submission.csv</p>
+        <p class="mono">python -m gapfill.metrics · python -m anomaly.run</p>
+        <p class="small">Ключей и регистраций не требуется. Веса лежат в репозитории, обучать для проверки ничего не нужно.</p>
+      </div>
+      <div class="card card--sunk">
+        <h3>Где что читать</h3>
+        <ul>
+          <li><span class="mono">README.md</span> — стек, структура, все команды;</li>
+          <li><span class="mono">docs/14</span> — исследовательский отчёт, <span class="mono">docs/08</span> — EDA;</li>
+          <li><span class="mono">docs/12</span> и <span class="mono">docs/16</span> — модель, <span class="mono">docs/13</span> — аномалии;</li>
+          <li><span class="mono">experiments/</span> — журнал с условиями и результатами.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="slide-foot"><span>Спасибо. Готовы к вопросам</span><span class="mono">14</span></div>
+</section>
+
+</div></div>
+<div class="hint">← → или пробел · P — печать в PDF</div>
+<script src="deck.js"></script>
+</body>
+</html>
