@@ -1,0 +1,145 @@
+{
+  "args": {
+    "models": "/Users/felicuss/Documents/ChatGPT/kosmos_hack/kosmohack_rostov/models/improved",
+    "input": "/Users/felicuss/Documents/ChatGPT/kosmos_hack/kosmohack_rostov/data/test_features_new.csv",
+    "train": "/Users/felicuss/Documents/ChatGPT/kosmos_hack/kosmohack_rostov/data/train_dataset.csv",
+    "extra": [
+      "/Users/felicuss/Documents/ChatGPT/kosmos_hack/kosmohack_rostov/data/test_dataset.csv"
+    ],
+    "output": "submission_improved.csv",
+    "device": "cpu",
+    "no_calibration": false,
+    "calibration_mode": null,
+    "model_only_output": "submission_model.csv",
+    "diagnostics": "reports/gapfill/improvement/submission_summary.json"
+  },
+  "rows": 2323,
+  "finite": true,
+  "unique_keys": 2323,
+  "min": -0.1499158301463237,
+  "max": 2.0268370136248275,
+  "mean": 0.3908448865289241,
+  "constraint_evidence": [
+    {
+      "pid": "AOI-0005",
+      "n_unknown": 95,
+      "mean_constraint_rmse": 4.7495657317447966e-15,
+      "square_constraint_rmse": 0.38844779718184225
+    },
+    {
+      "pid": "AOI-0006",
+      "n_unknown": 88,
+      "mean_constraint_rmse": 1.1350250571917635e-14,
+      "square_constraint_rmse": 0.04213951496651296
+    },
+    {
+      "pid": "AOI-0009",
+      "n_unknown": 137,
+      "mean_constraint_rmse": 9.082630152018711e-15,
+      "square_constraint_rmse": 0.010490841564754173
+    },
+    {
+      "pid": "AOI-0012",
+      "n_unknown": 110,
+      "mean_constraint_rmse": 4.8308586746167446e-15,
+      "square_constraint_rmse": 0.019567460400623456
+    },
+    {
+      "pid": "AOI-0016",
+      "n_unknown": 114,
+      "mean_constraint_rmse": 1.5651844464118202e-14,
+      "square_constraint_rmse": 0.033781034242667825
+    },
+    {
+      "pid": "AOI-0018",
+      "n_unknown": 132,
+      "mean_constraint_rmse": 1.1336120709519421e-14,
+      "square_constraint_rmse": 0.047843659694332026
+    },
+    {
+      "pid": "AOI-0024",
+      "n_unknown": 127,
+      "mean_constraint_rmse": 1.083189114029576e-14,
+      "square_constraint_rmse": 0.04105069861780469
+    },
+    {
+      "pid": "AOI-0025",
+      "n_unknown": 86,
+      "mean_constraint_rmse": 5.432809186610442e-15,
+      "square_constraint_rmse": 0.046835035313034644
+    },
+    {
+      "pid": "AOI-0029",
+      "n_unknown": 83,
+      "mean_constraint_rmse": 4.2565842365329006e-15,
+      "square_constraint_rmse": 0.020353351226390377
+    },
+    {
+      "pid": "AOI-0034",
+      "n_unknown": 152,
+      "mean_constraint_rmse": 6.800906533543325e-15,
+      "square_constraint_rmse": 0.024005395195450425
+    },
+    {
+      "pid": "AOI-0036",
+      "n_unknown": 127,
+      "mean_constraint_rmse": 4.301364161477586e-15,
+      "square_constraint_rmse": 0.005201939357358116
+    },
+    {
+      "pid": "AOI-0039",
+      "n_unknown": 122,
+      "mean_constraint_rmse": 2.7703294184833702e-14,
+      "square_constraint_rmse": 0.02280075777948958
+    },
+    {
+      "pid": "AOI-0042",
+      "n_unknown": 135,
+      "mean_constraint_rmse": 6.44737056051246e-15,
+      "square_constraint_rmse": 0.008534762474338643
+    },
+    {
+      "pid": "AOI-0047",
+      "n_unknown": 105,
+      "mean_constraint_rmse": 6.136129438592867e-15,
+      "square_constraint_rmse": 0.021700102384059308
+    },
+    {
+      "pid": "AOI-0049",
+      "n_unknown": 97,
+      "mean_constraint_rmse": 9.83108354630768e-15,
+      "square_constraint_rmse": 0.035633256034396786
+    },
+    {
+      "pid": "AOI-0054",
+      "n_unknown": 128,
+      "mean_constraint_rmse": 1.3687234132143402e-14,
+      "square_constraint_rmse": 0.08025455738812717
+    },
+    {
+      "pid": "AOI-0057",
+      "n_unknown": 108,
+      "mean_constraint_rmse": 1.1317101588555284e-14,
+      "square_constraint_rmse": 0.034196950035670096
+    },
+    {
+      "pid": "AOI-0066",
+      "n_unknown": 105,
+      "mean_constraint_rmse": 9.927782762669389e-15,
+      "square_constraint_rmse": 0.0053866427104245634
+    },
+    {
+      "pid": "AOI-0072",
+      "n_unknown": 120,
+      "mean_constraint_rmse": 1.2125001569924331e-14,
+      "square_constraint_rmse": 0.029625067855575397
+    },
+    {
+      "pid": "AOI-0078",
+      "n_unknown": 132,
+      "mean_constraint_rmse": 8.553762269273612e-15,
+      "square_constraint_rmse": 0.06205032442141253
+    }
+  ],
+  "private_rmse": null
+}
