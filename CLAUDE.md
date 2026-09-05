@@ -27,7 +27,11 @@
   статусы 99.7 %). Детектор: гармонизированная кривая → Z к норме по истории полигона → эпизоды «устойчиво и/или сильно»
   → причина по правилам (ERA5, фенология, региональный контекст «все поля или только это»). LLM-объяснение — `anomaly/llm.py`
   (Claude, ключ `ANTHROPIC_API_KEY`; без ключа текст по правилам).
-- Веб-сервиса ещё нет.
+- **Веб-сервис** — `service/` (FastAPI `service.app:app`, UI `service/static/index.html`, сбор данных для новых полигонов
+  `service/collect.py`: Earth Search S2, Planetary Computer Landsat/MODIS, Open-Meteo ERA5, OSM Overpass; анализ `service/analyze_new.py`).
+  Запуск `uv run uvicorn service.app:app --port 8000`. Готовые веса в `models/` (инференс без обучения — `gapfill.predict_saved`),
+  `Dockerfile`, сводный отчёт `docs/14-research-report.md`.
+- Не сделано: презентация; LLM-объяснения не проверены (нет ключа); сбор данных для нового поля занимает 1–3 мин.
 
 ## Неочевидное про данные
 

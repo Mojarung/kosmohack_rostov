@@ -14,7 +14,7 @@
 - [Критерии оценки](docs/06-evaluation-criteria.md)
 - [Чек-лист сдачи](docs/07-submission-checklist.md)
 - [Отчёт EDA](docs/08-eda-report.md), [обзор open-source](docs/09-open-source-landscape.md), [сравнение двух EDA](docs/10-branch-comparison.md), [заметки первого EDA](docs/11-eda-v1-notes.md)
-- [Модель восстановления пропусков](docs/12-gapfill-model.md), [детекция аномалий](docs/13-anomaly-detection.md)
+- [Модель восстановления пропусков](docs/12-gapfill-model.md), [детекция аномалий](docs/13-anomaly-detection.md), [исследовательский отчёт](docs/14-research-report.md)
 
 ## Разведочный анализ (EDA)
 
