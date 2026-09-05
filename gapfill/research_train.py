@@ -5,7 +5,6 @@ import json
 import time
 
 import lightgbm as lgb
-import numpy as np
 
 from gapfill.config import ARTIFACTS_DIR, TARGET
 from gapfill.data import gap_score, load_all, rmse

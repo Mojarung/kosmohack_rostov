@@ -14,7 +14,7 @@ import html
 from datetime import date
 from typing import Any
 
-from service.facts import CAUSE_LABEL, _by_year, field_facts
+from service.facts import _by_year, field_facts
 
 # Размеры холста графика в единицах SVG; на печати он масштабируется по ширине страницы.
 CHART_W, CHART_H = 900, 260

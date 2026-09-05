@@ -5,7 +5,6 @@ import hashlib
 import json
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 from gapfill.config import ARTIFACTS_DIR, ROOT, TARGET

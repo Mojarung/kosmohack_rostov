@@ -9,9 +9,8 @@ from pathlib import Path
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
-from scipy.linalg import lstsq
 from scipy.optimize import least_squares
-from scipy.special import ive, ndtri, logsumexp
+from scipy.special import ive, logsumexp, ndtri
 from scipy.stats import qmc
 
 from gapfill.config import ARTIFACTS_DIR, TARGET

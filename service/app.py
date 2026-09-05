@@ -24,10 +24,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
 from service import field_store
-from service.anomaly_feed import router as anomaly_router
-from service.geocoding import router as geocoding_router
 from service import polygons as user_polygons
+from service.anomaly_feed import router as anomaly_router
 from service.data import Store
+from service.geocoding import router as geocoding_router
 from service.meta import build_meta
 from service.osm import osm_fields, parse_bbox
 from service.progress import JOB_RE, read_progress
@@ -224,7 +224,7 @@ def refresh_weather(pid: str) -> dict:
 @app.get("/api/polygon/{pid}/imagery")
 def imagery(pid: str, year: int) -> dict:
     """Сохранённая карта пиксельных индексов Sentinel-2, если она уже собрана."""
-    from service.imagery import read, ndmi_context
+    from service.imagery import ndmi_context, read
     manifest = read(pid, year)
     if manifest is None:
         return {"available": False, "year": year}
@@ -233,7 +233,7 @@ def imagery(pid: str, year: int) -> dict:
 
 @app.get("/api/polygon/{pid}/imagery/{year}/{date}/{index}.png")
 def imagery_file(pid: str, year: int, date: str, index: str) -> FileResponse:
-    from service.imagery import image_path, PALETTES
+    from service.imagery import PALETTES, image_path
     if index not in PALETTES:
         raise HTTPException(404, "Неизвестный индекс")
     path = image_path(pid, year, date, index)
@@ -251,8 +251,7 @@ def collect_imagery(pid: str, year: int) -> dict:
         raise HTTPException(400, "У этого примера нет координат поля")
     if str(year) not in {str(y) for y in report["years"]}:
         raise HTTPException(400, "Выберите сезон из отчёта поля")
-    from service.imagery import collect
-    from service.imagery import read
+    from service.imagery import collect, read
     if (cached := read(pid, year)) is not None:
         return {"available": True, "manifest": cached}
     if _pool is None:

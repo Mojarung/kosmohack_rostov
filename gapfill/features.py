@@ -10,8 +10,15 @@ import numpy as np
 import pandas as pd
 
 from gapfill.config import SENSOR_CODE, TARGET
-from gapfill.features_context import (PolygonWeights, climatology_features, day_effect_features, day_tables,
-                                      loo_residuals, polygon_bias_features, weather_features)
+from gapfill.features_context import (
+    PolygonWeights,
+    climatology_features,
+    day_effect_features,
+    day_tables,
+    loo_residuals,
+    polygon_bias_features,
+    weather_features,
+)
 from gapfill.features_cycles import cycle_features, rule_sensor
 from gapfill.features_series import PolygonContext, harmonize, series_features
 

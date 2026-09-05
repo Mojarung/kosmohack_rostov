@@ -50,6 +50,7 @@ def test_user_polygon_endpoints(tmp_path, monkeypatch):
 def test_legacy_fields_visible_with_weather_and_no_duplicates(tmp_path, monkeypatch):
     """Старое поле открывается в React со снимками по прежнему pid, без повторного сбора."""
     from fastapi.testclient import TestClient
+
     from service import field_store, polygons
     from service.app import app
     monkeypatch.setattr(polygons, "POLYGONS_DIR", tmp_path / "polygons")
