@@ -41,13 +41,6 @@ RUN uv sync --frozen --no-dev --no-cache --group infer --group geo --group serve
 # Полная группа dl (Chronos, PyPOTS) нужна только для экспериментов и в образ не входит.
 RUN uv pip install --no-cache "torch==2.14.0" --index-url https://download.pytorch.org/whl/cpu
 
-# libexpat1 нужна GDAL внутри rasterio: без неё падает импорт service/collect.py,
-# а вместе с ним и проверка окружения на старте (service/runtime.py) — сервис не поднимается.
-# Отдельным слоем после зависимостей, чтобы правка не сбрасывала кэш тяжёлой установки.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends libexpat1 \
-    && rm -rf /var/lib/apt/lists/*
-
 COPY . .
 COPY --from=web /web/dist ./web/dist
 
