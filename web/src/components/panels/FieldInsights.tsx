@@ -67,7 +67,8 @@ export function FieldInsights({ detail, year }: { detail: PolygonDetail; year: n
   const index = preferredIndex === "change" && !scene?.change ? "ndvi" : preferredIndex;
   const trend = detail.insights?.[year];
   const change = scene?.change;
-  const period = change ? `${shortDate(change.previous_date)} → ${shortDate(scene!.date)}` : "По двум снимкам Sentinel-2";
+  const period = change ? `${shortDate(change.previous_date)} → ${shortDate(scene!.date)}`
+    : scene ? "По двум снимкам Sentinel-2" : "Считается по двум снимкам Sentinel-2: загрузите их в карте поля";
   function openMap() {
     setIndex(change ? "change" : "ndvi"); setOpened(true);
     mapRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -85,7 +86,7 @@ export function FieldInsights({ detail, year }: { detail: PolygonDetail; year: n
       </details>
       {detail.geometry && <details className="field-insight" data-testid="area-card">
         <summary><span className="meta">Сколько поля потеряло зелень</span>
-          <strong>{change ? `${number(change.drop_area_ha)} га · ${number((change.drop_share ?? 0) * 100)}%` : scene ? "Нужны два снимка" : "Откройте карту поля"}</strong>
+          <strong>{change ? `${number(change.drop_area_ha)} га · ${number((change.drop_share ?? 0) * 100)}%` : scene ? "Нужны два снимка" : "Снимки ещё не загружены"}</strong>
           <span className="meta">{period}</span></summary>
         <div className="insight-evidence"><AreaEvidence scene={scene} />
           <button className="btn btn--sm btn--ghost" onClick={openMap}>Открыть карту поля</button></div>

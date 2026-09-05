@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field, model_validator
 from dotenv import load_dotenv
 
 from service import field_store
+from service.anomaly_feed import router as anomaly_router
 from service.geocoding import router as geocoding_router
 from service import polygons as user_polygons
 from service.data import Store
@@ -424,6 +425,7 @@ def delete_user_polygon(uid: str) -> dict:
     return {"deleted": uid}
 
 
+app.include_router(anomaly_router(store))
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 if WEB_INDEX.exists():

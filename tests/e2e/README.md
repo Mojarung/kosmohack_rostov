@@ -1,5 +1,22 @@
 # E2E интерфейса и погодных графиков
 
+## Упрощённые аномалии и мои поля
+
+```bash
+npm --prefix web run typecheck
+npm --prefix web run build
+uv run --no-sync --with pytest python -m pytest tests/test_anomaly_feed.py -q
+# Отдельный терминал: реальные API и кейс, временное хранилище только для тестовых своих полей
+uv run --no-sync python -m tests.e2e.anomalies_server
+E2E_ANOMALIES=1 E2E_BASE=http://127.0.0.1:8015 node tests/e2e/run_geocoding.mjs
+```
+
+Нужны Chrome и Playwright (внешняя установка задаётся `E2E_PLAYWRIGHT_MODULE`). Проверяются
+объединение нового и прежнего хранилищ без дублей, отсутствие данных/эпизодов, исторический год,
+выбор эпизода и окно графика, возврат, поиск, фильтры, источники, ошибка/повтор, запоздалый ответ,
+пустой набор и экран 390 px. Только ошибка, задержка и пустой набор явно подменяются в браузере.
+Пользовательские файлы не меняются. Скриншоты: `artifacts/e2e/anomalies-{desktop,mobile}.png`.
+
 ## Поиск улицы, адреса, области и координат
 
 `geocoding.js` проходит через настоящий собранный React, WebGL-карту и FastAPI. Только внешний

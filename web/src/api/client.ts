@@ -14,6 +14,7 @@ import type {
   UserPolygon,
 } from "./types";
 import type { AgroContext, ImageryResponse } from "./analytics";
+import type { AnomalyFeed, FieldSource } from "./anomalies";
 
 // Повторное открытие поля во время сбора присоединяется к уже запущенному запросу.
 const collecting = new Map<string, Promise<ImageryResponse>>();
@@ -50,6 +51,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  anomalyFields: (source: FieldSource, year?: number, signal?: AbortSignal) =>
+    request<AnomalyFeed>(`/api/anomaly-fields?source=${source}${year ? `&year=${year}` : ""}`, { signal }),
   places: (query: string, signal?: AbortSignal) =>
     request<PlaceResult[]>(`/api/places?q=${encodeURIComponent(query)}`, { signal }),
   polygons: () => request<PolygonSummary[]>("/api/polygons"),

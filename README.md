@@ -8,6 +8,21 @@
 Vite, TypeScript, MUI X Charts, AntV L7 (карта на тайлах OpenStreetMap), GSAP, TanStack Query.
 Окружение и зависимости: uv (`pyproject.toml` + `uv.lock`) и npm (`web/package-lock.json`), образ — Docker.
 
+## Быстрый старт для проверяющего
+
+Ключи, регистрации и обучение моделей не нужны: веса лежат в репозитории, внешние каталоги данных открытые.
+
+```bash
+docker compose up --build                                   # 1. весь продукт → http://localhost:8000/
+docker compose exec app uv run --no-sync python -m gapfill.predict_improved --output artifacts/submission.csv --device cpu   # 2. batch-инференс
+```
+
+Без Docker: `uv sync --group service --group torch`, затем `cd web && npm ci && npm run build && cd ..` и
+`uv run uvicorn service.app:app --port 8000`. Проверить метрику задачи 1 за доли секунды —
+`uv run --no-sync python -m gapfill.metrics`. Что смотреть по шагам: экран «Новая территория» (карта →
+контуры OSM или свой полигон → сбор данных), затем экран «Поле» (ряд NDVI, восстановленные точки, эпизоды и
+объяснения). Слайды защиты — [`presentation/index.html`](presentation/index.html).
+
 ## Документация
 
 Полное ТЗ, критерии оценки, чек-лист сдачи и отчёты — в папке [`docs/`](docs/README.md). Рабочие заметки для команды и Claude Code — в [`CLAUDE.md`](CLAUDE.md).
@@ -54,15 +69,25 @@ uv run python -m gapfill.ensemble lgb_v4 nn_v4                               # �
 uv run python -m gapfill.predict --input data/test_features_new.csv --output submission.csv --n-masks 30 --rounds 5500 --seeds 0 1 2 --out final_lgb   # обучение LightGBM + предсказание
 for s in 0 1 2 3 4; do uv run python -m gapfill.nn_model --final --epochs 600 --dropout 0.25 --seed $s --out final_nn; done
 uv run python -m gapfill.make_submission final_lgb:0.5 final_nn:0.5          # → submission.csv (2 323 строки)
-# batch-инференс без обучения, из сохранённых моделей models/ (LightGBM .txt.gz + SeasonNet .pt, ~60 МБ, в репозитории):
+# batch-инференс без обучения, из сохранённых моделей models/ (LightGBM .txt.gz + SeasonNet .pt, ~103 МБ, в репозитории):
 uv run --no-sync python -m gapfill.predict_improved --output submission.csv --device cpu
 uv run pytest tests -q
 ```
 
-Готовый [`submission.csv`](submission.csv) лежит в корне (для первой версии test —
-[`reports/gapfill/submission_v1_test_dataset.csv`](reports/gapfill/submission_v1_test_dataset.csv)). На валидации,
-имитирующей контрольные точки (15 % известных точек всех файлов, 9 199 точек), смесь даёт RMSE 0.054, на страте
-состава test (новые полигоны с историей) 0.056 → GapScore ≈ 13, против 0.093 у baseline «среднее соседей» (exp-007).
+Готовый [`submission.csv`](submission.csv) лежит в корне — это предсказания финальной модели exp-008
+(для первой версии test — [`reports/gapfill/submission_v1_test_dataset.csv`](reports/gapfill/submission_v1_test_dataset.csv),
+предыдущая версия — `reports/gapfill/submission_prev_exp007.csv`).
+
+Результаты на отложенной выборке (15 % известных точек скрыты как контрольные, 9 199 точек; это **не** приватный
+лидерборд):
+
+| Вариант | RMSE | GapScore |
+|---|---|---|
+| baseline «среднее двух соседей» (ТЗ) | 0.093 | 2.1 |
+| ансамбль exp-007 (LightGBM + SeasonNet, 0.5/0.5) | 0.0553 | 13.41 |
+| **финал exp-008** (kriging-признаки + остаточная сеть + калибровка) | **0.0437** | **16.88** |
+
+Разброс по трём маскам (seed 2026 / 777 / 999) — 0.0036. Пересчёт метрики — `uv run python -m gapfill.metrics`.
 
 ### Улучшенная модель — exp-008
 
@@ -113,7 +138,7 @@ docker compose up --build      # соберёт интерфейс и бэкен
 ```
 
 Образ собирается в два этапа: `node:24-alpine` собирает интерфейс (`web/`), затем образ `uv` с Python 3.14
-ставит зависимости (`infer`, `geo`, `service` плюс CPU-сборка torch) и получает готовую статику. Поля,
+ставит зависимости (`infer`, `geo`, `serve` плюс CPU-сборка torch) и получает готовую статику. Поля,
 добавленные пользователем, лежат в именованном томе и переживают перезапуск. Нужен только интернет для внешних
 каталогов данных; ключи и регистрация не требуются.
 
@@ -186,7 +211,7 @@ React 19 + Vite, графики — MUI X Charts, карта — AntV L7 (WebGL)
 | Обзор | Метрики решения, причины угнетения по всем полям, список полей кейса с поиском и фильтром |
 | Поле | Сезон по годам: наблюдения по сенсорам, восстановленная кривая, норма ±1σ, восстановленные контрольные точки, Z-score, погода ERA5, эпизоды с объяснением |
 | Новая территория | Карта, поиск контуров OSM, рисование полигона, сбор данных, набор «Мои поля» |
-| Аномалии | Все эпизоды с фильтрами по году, причине и тяжести |
+| Аномалии | Мои поля / поля кейса / все: сезон, поиск по имени, компактный список полей с раскрытием эпизодов и переходом к периоду на графике |
 | Как это работает | Пайплайн, метрики обеих задач, источники данных |
 
 Альтернативный запуск бэкенда — `uv run --locked --group service python -m service`: тот же сервер плюс
@@ -200,6 +225,21 @@ JP2-дубликаты и сцены, доступные только через
 При отказе Overpass поиск переключается между публичными серверами VK Maps, Private.coffee и overpass-api.de;
 успешные ответы по рамке карты кэшируются до пяти минут. При слишком широком обзоре кнопка поиска
 сама приближает карту вокруг её центра до допустимого размера области.
+
+### Разбор отклонений
+
+На `/anomalies` по умолчанию открываются **Мои поля** из «Новой территории» и последний доступный
+сезон. Один ряд — одно поле; внутри можно выбрать эпизод, прочитать возможную причину и рекомендацию.
+Числа и методика скрыты под раскрытием. «Показать период на графике» открывает правильный отчёт,
+год и временное окно. Источник, сезон, поиск и фильтр сохраняются в URL и восстанавливаются после «Назад».
+Поля без найденных отклонений остаются в списке; отсутствие сезона или оценки обозначается отдельно.
+
+`GET /api/anomaly-fields?source=mine|case|all&year=2025` возвращает `{years, year, fields}`.
+Год необязателен (последний доступный для источника), источник по умолчанию `mine`. Каждое поле
+содержит имя, `pid`, `uid`, источник, доступные годы, `has_season`, статус `level` и эпизоды выбранного
+года. Сохранённые отчёты читаются из того же набора, что карта, с удалением дублей по `pid`;
+спутниковый сбор и пересчёт модели не запускаются. Статусы: `high`, `medium`, `data`, `context`,
+`unknown`, `clear`. Историческая аномалия не означает текущую угрозу; причина остаётся гипотезой.
 
 ### Поиск места на карте
 
@@ -229,8 +269,8 @@ API: `GET /api/places?q=...`, от 2 до 200 символов. Ответ — �
    OpenStreetMap (Overpass API), клик по контуру выбирает поле.
 2. **Произвольный полигон**: контур рисуется на карте (`@antv/l7-draw`).
 
-После выбора «Собрать данные и проанализировать» сервис сам получает Sentinel-2 L2A (Earth Search STAC,
-маска облаков по SCL), Landsat 8/9 C2 L2 и MODIS MOD13Q1 (Planetary Computer STAC), ERA5 (Open-Meteo,
+После выбора «Собрать данные и проанализировать» сервис сам получает Sentinel-2 L2A, Landsat 8/9 C2 L2 и MODIS MOD13Q1
+(Planetary Computer STAC; для Sentinel-2 маска облаков по SCL, запасной каталог — Earth Search), ERA5 (Open-Meteo,
 по центроиду поля), строит ряд `primary_ndvi` по приоритету S2 → Landsat → MODIS, восстановленную кривую,
 норму по собственной истории поля, находит эпизоды угнетения и объясняет их. Четыре источника грузятся
 одновременно, внутри каждого — по восемь сезонов параллельно; из каталогов берутся сцены с облачностью
@@ -305,6 +345,20 @@ API графиков: `GET /api/polygon/{pid}/agro?year=2025`, `POST /api/polygo
 Формулы и границы изменений — в [плане дополнения графиков](docs/18-farmer-report-implementation.md).
 E2E-проверки через Playwright: [tests/e2e/README.md](tests/e2e/README.md).
 
+## Презентация
+
+Дек защиты — [`presentation/index.html`](presentation/index.html): 14 слайдов (проблематика, данные и EDA,
+baseline и его ограничения, эксперименты, результат задачи 1, логика детекции аномалий, три показательных
+сезона, пользовательский путь, автосбор, архитектура, ограничения и итог). Открывается в браузере без сборки
+и без интернета, ходит стрелками/пробелом, `P` — печать в PDF (один слайд = одна страница A4-landscape).
+
+```bash
+uv run python -m http.server 8899   # затем http://127.0.0.1:8899/presentation/index.html
+```
+
+Числа на слайдах взяты из `reports/gapfill/validation.json` и `reports/anomalies/`; графики сезонов —
+копии из `reports/anomalies/figures/` в `presentation/img/`.
+
 ## Зависимости
 
 Базовые зависимости ставятся `uv sync`. Остальное разбито на группы в `pyproject.toml` (все версии актуальны на сентябрь 2026 и имеют wheels под Python 3.14):
@@ -315,22 +369,23 @@ E2E-проверки через Playwright: [tests/e2e/README.md](tests/e2e/READ
 | `infer` | только LightGBM и scikit-learn — минимум для инференса и детекции, эту группу берёт образ Docker | `uv sync --group infer` |
 | `dl` | torch, PyPOTS, pygrinder, chronos-forecasting (эксперименты) | `uv sync --group dl` |
 | `torch` | только torch — хватает для инференса SeasonNet из `models/` | `uv sync --group torch` |
+| `geo` | pystac-client, odc-stac, stackstac, planetary-computer, rasterio, rioxarray, xarray, geopandas, shapely, earthengine-api, openmeteo-requests, osmnx, overpy | `uv sync --group geo` |
+| `openeo` | клиент Copernicus Data Space (конфликтует с `geo` по xarray) | `uv sync --group openeo` |
+| `serve` | только веб-слой: FastAPI, uvicorn, pydantic, httpx, Plotly, duckdb — эта группа идёт в образ Docker | `uv sync --group serve` |
+| `service` | всё для разработки сервиса: `serve` + `geo` + `ml` | `uv sync --group service` |
+| `agent` | pydantic-ai, anthropic, mcp | `uv sync --group agent` |
+| `dev` | ruff, pytest, pytest-cov, mypy | ставится по умолчанию |
 
 Индекс сборки torch задаётся переменной `UV_TORCH_BACKEND`: `UV_TORCH_BACKEND=cu130 uv sync --group dl` — сборка
 под CUDA 13.0 (RTX 5070, для обучения нейросети), `UV_TORCH_BACKEND=cpu uv sync --group torch` — CPU. В образе
 Docker torch ставится из индекса CPU отдельной строкой, чтобы в контейнер не попадали пакеты `nvidia-*`.
-| `geo` | pystac-client, odc-stac, stackstac, planetary-computer, rasterio, rioxarray, xarray, geopandas, shapely, earthengine-api, openmeteo-requests, osmnx, overpy | `uv sync --group geo` |
-| `openeo` | клиент Copernicus Data Space (конфликтует с `geo` по xarray) | `uv sync --group openeo` |
-| `service` | FastAPI, uvicorn, pydantic, httpx, Plotly + группы `geo` и `ml` | `uv sync --group service` |
-| `agent` | pydantic-ai, anthropic, mcp | `uv sync --group agent` |
-| `dev` | ruff, pytest, pytest-cov, mypy | ставится по умолчанию |
 
 Обзор моделей, источников данных и обоснование выбора — в [docs/09-open-source-landscape.md](docs/09-open-source-landscape.md).
 
 Системные зависимости: только `uv` (сам ставит Python 3.14 по `.python-version`); GDAL/PROJ приходят внутри wheels
 `rasterio`/`pyproj`, отдельная установка не нужна. GPU не обязателен: инференс `gapfill.predict_saved`, сервис и
 детекция аномалий работают на CPU; обучение SeasonNet на GPU (CUDA 13.0) занимает ~8 минут на seed, на CPU — дольше.
-Внешние сервисы (Earth Search, Planetary Computer, Open-Meteo, Overpass) — без ключей; единственная необязательная
+Внешние сервисы (Planetary Computer, Earth Search, Open-Meteo, Overpass) — без ключей; единственная необязательная
 переменная окружения — `ANTHROPIC_API_KEY`.
 
 ## Структура репозитория
@@ -343,16 +398,23 @@ Docker torch ставится из индекса CPU отдельной стр�
 │   ├── train_dataset.csv        # обучающий датасет (99 955 строк)
 │   ├── test_features_new.csv    # тестовый датасет = private_features.csv, вторая версия (49 190 строк, 2 323 контрольные точки)
 │   └── test_dataset.csv         # первая версия test (57 185 строк): только дополнительные известные точки
-├── docs/                   # ТЗ, критерии, чек-лист, отчёты 08–15, исходные PDF в source/
+├── docs/                   # ТЗ, критерии, чек-лист, отчёты 08–19, исходные PDF в source/
 ├── eda/                    # модули разведочного анализа (uv run python -m eda.run_all)
 │   └── v1/                 # скрипты первого прохода EDA и сборка дашборда
 ├── gapfill/                # восстановление primary_ndvi: признаки, LightGBM, SeasonNet, смесь, submission
+│                           карта модулей — gapfill/README.md
 ├── anomaly/                # детекция и интерпретация аномалий: кривые, нормы, эпизоды, погода, причины
+│                           карта модулей — anomaly/README.md
 ├── service/                # бэкенд: FastAPI (app.py), данные (data.py), сбор (collect.py), набор полигонов (polygons.py), сводка (meta.py), резервный UI (static/)
+│                           карта модулей — service/README.md
+├── mcp_server/             # MCP-инструменты поверх service/facts.py (claude mcp add vegetation)
 ├── web/                    # интерфейс: React 19 + Vite, MUI X Charts, AntV L7, GSAP (src/pages, src/components)
-├── experiments/            # журнал экспериментов (exp-000…007 задача 1, exp-100…104 задача 2 и сервис)
+├── presentation/           # дек защиты: index.html (14 слайдов), style.css, deck.js, img/
+├── scripts/                # вспомогательные скрипты (замер скорости автосбора)
+├── experiments/            # журнал экспериментов (exp-000…008 задача 1, exp-100…105 задача 2, сервис и интерфейс)
 ├── tests/                  # pytest: ядро gapfill, детектор аномалий, набор полигонов сервиса
-├── models/                 # готовые веса: 3 LightGBM (gzip) + 5 SeasonNet (.pt) для инференса без обучения
+├── models/                 # готовые веса (~103 МБ): LightGBM (gzip) + SeasonNet (.pt), инференс без обучения
+│   └── improved/           # веса финальной модели exp-008 (gapfill.predict_improved)
 ├── Dockerfile              # образ всего продукта: сборка интерфейса + сервис (uv, CPU)
 ├── docker-compose.yml      # запуск одной командой: docker compose up --build
 ├── submission.csv          # предсказания контрольных точек test (задача 1, вторая версия test)

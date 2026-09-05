@@ -1,5 +1,6 @@
 /** Единая панель сезона: оформление main, погодные показатели и карты из field-insights. */
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../api/client";
 import type { PolygonDetail } from "../../api/types";
@@ -9,10 +10,11 @@ import { WeatherChart } from "../charts/WeatherChart";
 import { ZChart } from "../charts/ZChart";
 import { useDateRange } from "../charts/range";
 import { useExplanations } from "../../lib/useExplanations";
+import { RangeToolbar } from "../charts/RangeToolbar";
 import { EpisodeCard } from "./EpisodeCard";
 import { FieldVerdict } from "./FieldVerdict";
-import { SeasonMetrics } from "./SeasonMetrics";
-import { AgroPanel } from "./AgroPanel";
+import { SeasonMetrics, type MetricZoom } from "./SeasonMetrics";
+import { AgroPanel, type WeatherMode } from "./AgroPanel";
 import { FieldInsights } from "./FieldInsights";
 
 function Legend() {
@@ -28,9 +30,30 @@ function SeasonContent({ detail, year, onYear, aside }: { detail: PolygonDetail;
   const shape = (detail.shape ?? []).filter(s => s.year === year);
   const bounds = useMemo(() => ({ from: ms(`${year}-04-01`), to: ms(`${year}-10-30`) }), [year]);
   const control = useDateRange(bounds);
+  const ndviTarget = useRef<HTMLDivElement>(null), weatherTarget = useRef<HTMLDivElement>(null);
+  const [weatherMode, setWeatherMode] = useState<WeatherMode>("rain");
+  const [params] = useSearchParams();
+  const requestedFrom = params.get("from"), requestedTo = params.get("to");
+  useEffect(() => {
+    // Прямой переход из эпизода открывает именно его период, только в выбранном сезоне.
+    if (Number(params.get("year")) !== year || !requestedFrom || !requestedTo) return;
+    const from = ms(requestedFrom), to = ms(requestedTo);
+    if (Number.isFinite(from) && Number.isFinite(to) && from <= to && from >= bounds.from && to <= bounds.to) {
+      control.select(from - 7 * 86400000, to + 7 * 86400000);
+    }
+  }, [requestedFrom, requestedTo, year, bounds.from, bounds.to, control.select, params]);
   const [hover, setHover] = useState<number | null>(null), [showDetails, setShowDetails] = useState(false);
   // объяснения модели догружаются после анализа: карточки подменяют текст, когда те готовы
   const explanations = useExplanations(detail.pid, year);
+  function zoomMetric({ chart, from, to }: MetricZoom) {
+    if (!Number.isFinite(from) || !Number.isFinite(to)) return;
+    setHover(null);
+    control.select(from, Math.max(to, from + 5 * 86400000));
+    if (chart !== "ndvi") setWeatherMode(chart);
+    const target = chart === "ndvi" ? ndviTarget.current : weatherTarget.current;
+    target?.focus({ preventScroll: true });
+    target?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
+  }
   const agro = useQuery({ queryKey: ["agro", detail.pid, year, detail.saved_at],
     queryFn: ({ signal }) => api.agro(detail.pid, year, signal), retry: false });
   if (!season) return <p className="meta">Нет наблюдений за этот сезон.</p>;
@@ -39,19 +62,23 @@ function SeasonContent({ detail, year, onYear, aside }: { detail: PolygonDetail;
     <SeasonHeader detail={detail} year={year} onYear={onYear} />
     <div className="pane-body season-content">
       <FieldVerdict season={season} episodes={episodes} trend={detail.insights?.[year]} weather={agro.data} />
-      <SeasonMetrics season={season} weather={agro.data} hover={hover} />
+      <SeasonMetrics season={season} weather={agro.data} hover={hover} onZoom={zoomMetric} />
+      <div ref={ndviTarget} tabIndex={-1} role="region" aria-label="График зелени поля" className="metric-chart-target">
       <div className="season-toolbar">
         <h3>Как росло поле по снимкам</h3>
-        <button type="button" className="btn btn--sm btn--ghost" onClick={control.reset} disabled={!control.zoomed}>Весь сезон</button>
+        <RangeToolbar control={control} />
       </div>
       <Legend />
       <div data-testid="ndvi-chart" data-from={control.view.from} data-to={control.view.to}>
         <SeasonChart season={season} episodes={episodes} control={control} hover={hover} onHover={setHover} />
       </div>
       <p className="meta chart-instruction">Линия — зелень поля, серая полоса — как бывает обычно. Выделите период мышью, чтобы приблизить; двойной клик — весь сезон.</p>
+      </div>
       <FieldInsights detail={detail} year={year} />
+      <div ref={weatherTarget} tabIndex={-1} role="region" aria-label="График погоды" className="metric-chart-target">
       <AgroPanel context={agro.data} loading={agro.isPending} error={agro.isError} retry={() => void agro.refetch()}
-        year={year} control={control} hover={hover} onHover={setHover} />
+        year={year} control={control} hover={hover} onHover={setHover} preferred={weatherMode} onMode={setWeatherMode} />
+      </div>
       <details className="season-calculation" onToggle={e => setShowDetails(e.currentTarget.open)}>
         <summary>Подробности для агронома: данные и расчёт</summary>
         {showDetails && <div className="stack" style={{ gap: 12 }}>
@@ -97,7 +124,7 @@ function SeasonHeader({ detail, year, onYear }: { detail: PolygonDetail; year: n
   return <div className="pane-head season-heading">
       <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
         <span className="pane-title">Сезон {year}</span>
-        <span className="meta">{season ? `${season.observations.length} наблюдений · ${season.norm_source}` : "Нет данных"}</span>
+        <span className="meta">{season ? `${season.observations.length} ${plural(season.observations.length, "наблюдение", "наблюдения", "наблюдений")} · ${season.norm_source}` : "Нет данных"}</span>
       </div>
       <div className="season-years" role="group" aria-label="Сезон">
         {years.map(y => {
@@ -112,7 +139,9 @@ function SeasonHeader({ detail, year, onYear }: { detail: PolygonDetail; year: n
 
 export function SeasonPanel({ detail, aside }: { detail: PolygonDetail; aside?: (year: number) => ReactNode }) {
   const years = Object.keys(detail.years).map(Number).sort((a, b) => a - b);
-  const [year, setYear] = useState(() => years.at(-1) ?? 0);
+  const [params] = useSearchParams();
+  const requested = Number(params.get("year"));
+  const [year, setYear] = useState(() => years.includes(requested) ? requested : years.at(-1) ?? 0);
   return <div className="season-layout season-panel" data-testid="season-panel" data-pid={detail.pid} data-year={year}>
     <SeasonContent key={`${detail.pid}:${year}`} detail={detail} year={year} onYear={setYear} aside={aside} />
   </div>;

@@ -8,7 +8,7 @@
 .season-years button[aria-pressed=true] { color: white; background: var(--ink); border-color: var(--ink); }
 .season-years button[data-level=moderate] { box-shadow: inset 0 -2px #e8a33d; }
 .season-years button[data-level=critical] { box-shadow: inset 0 -2px #c8423f; }
-.season-content { padding: 16px var(--pad) 0; }
+.season-content { padding: 16px var(--pad) 0; container: season-content / inline-size; }
 .season-content h3 { font-family: var(--font-sans); font-size: 14px; font-weight: 600; margin: 0; }
 .season-content .season-toolbar { padding: 0; }
 /* Светофор поля: плашка с выводом и три вопроса фермера */
@@ -34,11 +34,23 @@
 .episode-plain { margin: 0; font-size: 13.5px; line-height: 1.45; color: var(--ink); }
 .episode-advice { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-soft); }
 .episode-advice .eyebrow { display: inline; margin-right: 4px; }
-.season-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 20px; }
+.season-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 20px; }
 .season-metric { display: flex; flex-direction: column; min-width: 0; gap: 4px; padding: 12px; background: var(--surface-sunk); border: 1px solid var(--line); border-radius: var(--radius-sm); }
 .season-metric > .num { font-size: clamp(19px, 1.8vw, 26px); font-weight: 500; line-height: 1.3; }
 .season-metric small { font-size: .65em; white-space: nowrap; }
 .season-metric .meta { font-size: 11px; }
+.season-metric { width: 100%; font: inherit; color: var(--ink); text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.season-metric > * { min-width: 0; max-width: 100%; flex-shrink: 0; }
+button.season-metric { cursor: pointer; transition: border-color .15s, background .15s; }
+button.season-metric:hover { border-color: var(--ink-soft); background: var(--surface); }
+.season-metric-action { margin-top: auto; padding-top: 8px; font-size: 11px; color: var(--ink-soft); }
+.range-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; min-width: 0; max-width: 100%; gap: 6px 12px; }
+.range-toolbar > .meta { white-space: nowrap; }
+.range-toolbar-actions { display: inline-flex; flex: none; align-items: center; gap: 4px; }
+.range-toolbar button { min-width: 36px; min-height: 36px; }
+.season-weather > .range-toolbar { justify-content: flex-start; margin: 10px 0 8px; }
+.metric-chart-target { min-width: 0; max-width: 100%; scroll-margin-top: 12px; }
+.metric-chart-target:focus-visible { outline: 2px solid var(--ink-soft); outline-offset: 3px; }
 .metric-legend { display: flex; flex-wrap: wrap; gap: 5px 14px; margin-top: 10px; color: var(--muted); font-size: 11px; }
 .chart-instruction { font-size: 11px; margin: 0 0 12px; }
 .insight-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -82,7 +94,17 @@
 .imagery-legend > div:first-child { height: 8px; border-radius: 5px; }
 .imagery-legend .meta { font-size: 10px; }
 .season-panel summary:focus-visible, .season-panel button:focus-visible { outline: 2px solid var(--ink-soft); outline-offset: 3px; }
-@media (max-width: 1050px) { .season-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .verdict-questions { grid-template-columns: 1fr; } }
+/* Число карточек зависит от ширины панели, а не окна с боковой колонкой. */
+@container season-content (min-width: 960px) {
+  .season-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@container season-content (max-width: 460px) {
+  .season-metrics { grid-template-columns: minmax(0, 1fr); }
+  .season-content .season-toolbar { align-items: stretch; }
+  .season-toolbar > h3, .season-toolbar > .range-toolbar { width: 100%; }
+  .range-toolbar button { min-width: 44px; min-height: 44px; }
+}
+@media (max-width: 1050px) { .verdict-questions { grid-template-columns: 1fr; } }
 @media (max-width: 600px) {
   .season-content { padding: 12px 10px 0; }
   .season-heading { padding: 14px 12px; }
