@@ -37,10 +37,13 @@ def ndwi_anomaly(series: pd.DataFrame, year: int, start: str, end: str) -> dict:
 
 
 def ndwi_note(facts: dict) -> str | None:
-    """Формулировка для объяснения: заметное отклонение NDWI (порог 0.05)."""
+    """Формулировка для объяснения. В данных NDWI (Green−NIR) антикоррелирует с NDVI: растёт при потере зелёной
+    массы, поэтому рост NDWI подтверждает угнетение вторым индексом, а его отсутствие — повод сомневаться."""
     a = facts.get("ndwi_anomaly")
     if a is None or abs(a) < 0.05:
         return None
-    direction = "ниже" if a < 0 else "выше"
-    hint = "растительность суше обычного (водный стресс)" if a < 0 else "влажность выше обычного"
-    return f"индекс влажности NDWI {direction} нормы на {abs(a):.2f} ({facts['ndwi_n']} набл.) — {hint}"
+    if a > 0:
+        return (f"водный индекс NDWI выше нормы на {a:.2f} ({facts['ndwi_n']} набл.) — второй индекс подтверждает "
+                "потерю зелёной массы")
+    return (f"NDWI ниже нормы на {abs(a):.2f} ({facts['ndwi_n']} набл.) — расходится с NDVI, возможен артефакт "
+            "или смена сенсора")

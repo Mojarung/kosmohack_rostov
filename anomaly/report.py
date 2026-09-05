@@ -31,6 +31,7 @@ def severity_label(ep: dict) -> str:
 
 
 MIN_WEATHER_DAYS = 20   # решение о погодном стрессе принимается по окну не короче этого
+LONG_DRY_SPELL_DAYS = 20  # сухая серия (< 1 мм/день) такой длины считается погодным стрессом сама по себе
 
 
 def _weather_signal(weather: dict) -> tuple[bool, list[str]]:
@@ -40,7 +41,8 @@ def _weather_signal(weather: dict) -> tuple[bool, list[str]]:
     if "precip_deficit_pct" in comb and comb.get("n_days", 0) >= MIN_WEATHER_DAYS:
         dry = comb["precip_deficit_pct"] >= PRECIP_DEFICIT_PCT
         hot = comb["temp_anomaly_c"] >= TEMP_ANOMALY_C and comb["hot_days"] >= 5
-        stress = dry or hot
+        long_dry_spell = comb.get("max_dry_spell", 0) >= LONG_DRY_SPELL_DAYS   # затяжная сухая серия — тоже стресс
+        stress = dry or hot or long_dry_spell
         if dry:
             notes.append(f"за 30 дней до и во время эпизода осадков {comb['precip_mm']:.0f} мм при норме "
                          f"{comb['precip_norm_mm']:.0f} мм (дефицит {comb['precip_deficit_pct']:.0f} %)")
@@ -73,39 +75,37 @@ def _region_note(region: dict) -> tuple[str, list[str]]:
 def classify(ep: dict, pheno_dev: dict, pheno: dict, weather: dict, artifacts_near: int,
              region: dict | None = None) -> tuple[str, float, list[str]]:
     """Причина эпизода, уверенность 0–1 и список аргументов."""
-    reasons = []
     stress, notes = _weather_signal(weather)
-    reasons += notes
     scope, rnotes = _region_note(region or {})
-    reasons += rnotes
+    context = rnotes + notes            # региональный контекст, затем погода — после главного аргумента причины
     peak_ratio = pheno_dev.get("peak_ratio")
     if ep["n_obs"] <= 2 and artifacts_near >= 2:
-        return "data_suspect", 0.4, reasons + [f"внутри эпизода всего {ep['n_obs']} наблюдений, рядом {artifacts_near} артефактов"]
+        return "data_suspect", 0.4, [f"внутри эпизода всего {ep['n_obs']} наблюдений, рядом {artifacts_near} артефактов"] + context
     if (peak_ratio is not None and peak_ratio >= 0.85 and pheno_dev.get("peak_shift_days", 0) >= ROTATION_PEAK_SHIFT
             and ep["end_doy"] <= 200):
-        return "crop_rotation", 0.7, reasons + [f"пик достигнут ({peak_ratio:.0%} нормы), но на {pheno_dev['peak_shift_days']} дней "
-                                                 "позже обычного: на поле яровая культура вместо привычной озимой, весеннее "
-                                                 "отставание — смена фазы, а не угнетение"]
+        return "crop_rotation", 0.7, [f"пик достигнут ({peak_ratio:.0%} нормы), но на {pheno_dev['peak_shift_days']} дней "
+                                      "позже обычного: на поле яровая культура вместо привычной озимой, весеннее "
+                                      "отставание — смена фазы, а не угнетение"] + context
     flat = pheno.get("valid") and (pheno["peak"] < FLAT_PEAK_NDVI or (peak_ratio is not None and peak_ratio < 0.6))
     if flat and ep["start_doy"] <= 165:
         norm_peak = pheno["peak"] / max(peak_ratio, 1e-6) if peak_ratio else float("nan")
-        return "unsown_or_changed", 0.8, reasons + [f"пик главного сезона всего {pheno['peak']:.2f} при норме {norm_peak:.2f}: "
-                                                    "кривая плоская с весны — поле не засеяно, под паром или занято другой культурой"]
+        return "unsown_or_changed", 0.8, [f"пик главного сезона всего {pheno['peak']:.2f} при норме {norm_peak:.2f}: "
+                                          "кривая плоская с весны — поле не засеяно, под паром или занято другой культурой"] + context
     if peak_ratio is not None and peak_ratio >= 0.85 and pheno_dev.get("decline_shift_days", 0) <= -EARLY_DECLINE_DAYS:
         cause = "weather_drought" if stress else "early_decline"
-        return cause, 0.75 if stress else 0.6, reasons + [f"пик на уровне нормы ({peak_ratio:.0%}), но спад начался на "
-                                                            f"{-pheno_dev['decline_shift_days']} дней раньше обычного"]
+        main = [f"пик на уровне нормы ({peak_ratio:.0%}), но спад начался на {-pheno_dev['decline_shift_days']} дней раньше обычного"]
+        return cause, 0.75 if stress else 0.6, (notes + main + rnotes) if stress else (main + context)
     if pheno_dev.get("sos_shift_days", 0) >= 15 and ep["start_doy"] <= 150 and (peak_ratio or 0) >= LOW_PEAK_RATIO:
-        return "late_start", 0.6, reasons + [f"рост начался на {pheno_dev['sos_shift_days']} дней позже нормы, "
-                                              f"но пик достигнут ({peak_ratio:.0%} нормы)"]
+        return "late_start", 0.6, [f"рост начался на {pheno_dev['sos_shift_days']} дней позже нормы, "
+                                   f"но пик достигнут ({peak_ratio:.0%} нормы)"] + context
     if stress:
-        return "weather_drought", 0.8 if scope == "regional" else 0.65, reasons
+        return "weather_drought", 0.8 if scope == "regional" else 0.65, notes + rnotes
     if scope == "regional":
-        return "weather_drought", 0.5, reasons + ["явного дефицита осадков в ERA5 нет, но угнетены все поля региона — "
-                                                   "вероятен региональный погодный фактор (заморозки, суховей, град)"]
+        return "weather_drought", 0.5, ["явного дефицита осадков в ERA5 нет, но угнетены все поля региона — "
+                                        "вероятен региональный погодный фактор (заморозки, суховей, град)"] + context
     if peak_ratio is not None and peak_ratio < LOW_PEAK_RATIO:
-        return "weak_season", 0.6 if scope == "local" else 0.55, reasons + [f"пик сезона {peak_ratio:.0%} от нормы без явного погодного сигнала"]
-    return "weak_season", 0.45 if scope == "local" else 0.4, reasons + ["погодного сигнала нет; вероятны агротехнические причины"]
+        return "weak_season", 0.6 if scope == "local" else 0.55, [f"пик сезона {peak_ratio:.0%} от нормы без явного погодного сигнала"] + context
+    return "weak_season", 0.45 if scope == "local" else 0.4, ["погодного сигнала нет; вероятны агротехнические причины"] + context
 
 
 CAUSE_TEXT = {

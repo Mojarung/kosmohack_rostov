@@ -3,11 +3,11 @@
   "n_seasons": 948,
   "n_episodes": 480,
   "episodes_by_cause": {
-    "weather_drought": 120,
-    "early_decline": 100,
+    "weather_drought": 173,
     "crop_rotation": 96,
-    "weak_season": 69,
+    "early_decline": 73,
     "unsown_or_changed": 54,
+    "weak_season": 43,
     "late_start": 35,
     "data_suspect": 6
   },
