@@ -24,7 +24,7 @@ import pandas as pd
 
 from ndvi.climatology import Climatology
 from ndvi.data import NDVI_MAX, NDVI_MIN
-from ndvi.sensors import DEFAULT_OFFSETS
+from ndvi.sensors import DEFAULT_OFFSETS, SensorHarmonizer
 from ndvi.smoothing import robust_local_linear
 
 #: пороги по z-score, совпадают с логикой поля ``status`` в исходных данных
@@ -92,12 +92,27 @@ class Episode:
 # --------------------------------------------------------------------------- #
 
 def harmonize(series: pd.DataFrame, offsets: dict[str, float] | None = None,
-              value_col: str = "primary_ndvi", src_col: str = "src") -> pd.DataFrame:
-    """Приводит NDVI всех сенсоров к шкале Sentinel-2 и клиппит физически невозможные значения."""
-    offsets = offsets or DEFAULT_OFFSETS
+              value_col: str = "primary_ndvi", src_col: str = "src",
+              harmonizer: SensorHarmonizer | None = None) -> pd.DataFrame:
+    """Приводит NDVI всех сенсоров к шкале Sentinel-2 и клиппит физически невозможные значения.
+
+    Пересчёт линейный (``SensorHarmonizer``): смещение MODIS на низком NDVI +0.125, на высоком
+    −0.033, и константа здесь давала бы ложные аномалии на пике сезона. Если пар одного дня
+    для оценки наклона нет (короткий ряд), откат на константные смещения.
+    """
     out = series.copy()
-    off = out[src_col].map(offsets).fillna(0.0) if src_col in out else 0.0
-    out["ndvi_s2"] = out[value_col].clip(NDVI_MIN, NDVI_MAX) - off
+    vals = out[value_col].clip(NDVI_MIN, NDVI_MAX).to_numpy(float)
+    src = out[src_col].to_numpy() if src_col in out else np.full(len(out), "s2", dtype=object)
+    if harmonizer is None and {"s2_ndvi", "landsat_ndvi", "modis_ndvi"} <= set(out.columns):
+        harmonizer = SensorHarmonizer().fit(out[out[value_col].notna()])
+    if harmonizer is not None and any(k in harmonizer.by_year or harmonizer.global_.get(k, (1, 0)) != (1.0, DEFAULT_OFFSETS[k])
+                                      for k in ("landsat", "modis")):
+        years = out["year"].to_numpy() if "year" in out else None
+        pids = out["anon_polygon_id"].to_numpy() if "anon_polygon_id" in out else None
+        out["ndvi_s2"] = harmonizer.to_s2(vals, src, years, pids)
+    else:
+        offsets = offsets or DEFAULT_OFFSETS
+        out["ndvi_s2"] = vals - pd.Series(src).map(offsets).fillna(0.0).to_numpy()
     return out
 
 

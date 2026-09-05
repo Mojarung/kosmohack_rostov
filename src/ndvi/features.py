@@ -24,6 +24,7 @@ import pandas as pd
 from ndvi.climatology import Climatology
 from ndvi.data import NDVI_MAX, NDVI_MIN
 from ndvi.regional import RegionalContext
+from ndvi.scenes import SceneCatalog
 from ndvi.sensors import DEFAULT_OFFSETS, AcquisitionCalendar, SensorHarmonizer, infer_hidden_sensors
 from ndvi.smoothing import robust_local_linear
 
@@ -151,6 +152,24 @@ def build_features(context: pd.DataFrame, targets: pd.DataFrame,
             f[f"next{j+1}_dt"] = nd[:, j]
             f[f"next{j+1}_off"] = no[:, j]
 
+        # MOD13Q1 — композит «максимум за 16 дней ВПЕРЁД от номинальной даты» (CV-MVC):
+        # значение с датой t на самом деле снято в один из дней t..t+15 и выбрано как максимум.
+        # Поэтому для скрытых MODIS-точек честнее смотреть на максимум соседей в окне вперёд.
+        fwd_max = np.full(n_t, np.nan); fwd_mean = np.full(n_t, np.nan); fwd_n = np.zeros(n_t)
+        bwd_max = np.full(n_t, np.nan)
+        if od.size:
+            for i, t in enumerate(t_days):
+                m = (od >= t) & (od <= t + 15)
+                if m.any():
+                    fwd_max[i] = ov[m].max(); fwd_mean[i] = ov[m].mean(); fwd_n[i] = m.sum()
+                mb = (od >= t - 15) & (od < t)
+                if mb.any():
+                    bwd_max[i] = ov[mb].max()
+        f["fwd15_max_s2"] = fwd_max
+        f["fwd15_mean_s2"] = fwd_mean
+        f["fwd15_n"] = fwd_n
+        f["bwd15_max_s2"] = bwd_max
+
         # линейная интерполяция в шкале S2 по ближайшим соседям
         w = nd[:, 0] / (pd_[:, 0] + nd[:, 0])
         both = np.isfinite(pv[:, 0]) & np.isfinite(nv[:, 0])
@@ -235,9 +254,19 @@ def build_features(context: pd.DataFrame, targets: pd.DataFrame,
         cal[[f"close_{s}" for s in ("s2", "landsat", "modis")]].max(axis=1) / close_total.replace(0, np.nan),
         np.nan)
 
+    # внешний признак: облачность сцен над областью в этот день (если каталог собран)
+    scenes = SceneCatalog()
+    if scenes.available:
+        sc = pd.DataFrame([scenes.features(pid, dt) for pid, dt in zip(tg.anon_polygon_id.values, tg.date)],
+                          index=tg.index)
+        feats = feats.join(sc)
+
     # контекст точки
     feats["doy"] = tg.doy.astype(float).values
     feats["year"] = tg.year.astype(float).values
+    # поколение Landsat: до 2013 — TM/ETM+ (5/7), 2013–2021 — OLI + ETM+, с 2022 — только OLI (8/9)
+    feats["landsat_epoch"] = np.select([tg.year.values < 2013, tg.year.values < 2022], [0.0, 1.0], 2.0)
+    feats["is_modis_date"] = (tg.doy.values % 16 == 1).astype(float)
     feats["hidden_off"] = tg.hidden_off.values
     for s in ("s2", "landsat", "modis"):
         feats[f"hidden_is_{s}"] = (tg.hidden_src == s).astype(float).values
