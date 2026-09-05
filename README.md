@@ -75,14 +75,14 @@ uv run --no-sync python -m gapfill.metrics                                      
 ```bash
 UV_TORCH_BACKEND=cu130 uv sync --group ml --group dl
 # 1. подбор и проверка на отложенной маске 777
-uv run --no-sync python -m gapfill.research_train --val-seed 777 --n-masks 30 --modes all --kriging --rounds 8500 --threads 5 --out kriging30_777
-uv run --no-sync python -m gapfill.research_nn --kind residual --epochs 260 --schedule-epochs 400 --fixed-epoch 260 --hidden 96 --val-seed 777 --out nn_residual777
-uv run --no-sync python -m gapfill.research_uncertainty --model artifacts/research/kriging30_777/all/model.txt --n-masks 30 --val-seed 777 --kriging --out uncertainty_kriging777
-uv run --no-sync python -m gapfill.research_blend --model artifacts/research/kriging30_777/all/model.txt --nn nn_residual777 --val-seed 777 --weights 0.6 --sigma 0.04 --calibration posterior --uncertainty artifacts/research/uncertainty_kriging777/model.txt --out posterior_blend777
+uv run --no-sync python -m gapfill.research.train --val-seed 777 --n-masks 30 --modes all --kriging --rounds 8500 --threads 5 --out kriging30_777
+uv run --no-sync python -m gapfill.research.nn --kind residual --epochs 260 --schedule-epochs 400 --fixed-epoch 260 --hidden 96 --val-seed 777 --out nn_residual777
+uv run --no-sync python -m gapfill.research.uncertainty --model artifacts/research/kriging30_777/all/model.txt --n-masks 30 --val-seed 777 --kriging --out uncertainty_kriging777
+uv run --no-sync python -m gapfill.research.blend --model artifacts/research/kriging30_777/all/model.txt --nn nn_residual777 --val-seed 777 --weights 0.6 --sigma 0.04 --calibration posterior --uncertainty artifacts/research/uncertainty_kriging777/model.txt --out posterior_blend777
 # 2. обучение на всех известных точках и сборка пакета весов models/improved/
-uv run --no-sync python -m gapfill.research_final --source artifacts/research/kriging30_777/all/result.json --n-masks 30 --rounds 8500 --seeds 42 137 --threads 5 --out final_kriging --uncertainty
-uv run --no-sync python -m gapfill.research_nn --kind residual --epochs 260 --schedule-epochs 400 --hidden 96 --final --seed 0 --out final_nn_s0
-uv run --no-sync python -m gapfill.research_package --lgb final_kriging --nn final_nn_s0 --calibration posterior
+uv run --no-sync python -m gapfill.research.final --source artifacts/research/kriging30_777/all/result.json --n-masks 30 --rounds 8500 --seeds 42 137 --threads 5 --out final_kriging --uncertainty
+uv run --no-sync python -m gapfill.research.nn --kind residual --epochs 260 --schedule-epochs 400 --hidden 96 --final --seed 0 --out final_nn_s0
+uv run --no-sync python -m gapfill.research.package --lgb final_kriging --nn final_nn_s0 --calibration posterior
 ```
 
 Предыдущая конфигурация exp-007 (смесь LightGBM + SeasonNet 0.5/0.5, веса в `models/`) обучается так:

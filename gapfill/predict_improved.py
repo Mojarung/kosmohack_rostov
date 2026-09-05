@@ -19,10 +19,10 @@ from gapfill.config import EXTRA_PATHS, ROOT, TEST_PATH, TRAIN_PATH
 from gapfill.data import load_all
 from gapfill.nn_data import EpochInputs, build_tensors, loo_residual_array
 from gapfill.nn_model import SeasonNet, gap_query_days
-from gapfill.research_calibrate import calibrate
-from gapfill.research_constraints import published_norms
-from gapfill.research_data import features
-from gapfill.research_nn import ResidualSeasonNet, inference, inputs
+from gapfill.research.calibrate import calibrate
+from gapfill.research.constraints import published_norms
+from gapfill.research.data import features
+from gapfill.research.nn import ResidualSeasonNet, inference, inputs
 
 
 def load_booster(path):

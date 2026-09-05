@@ -12,7 +12,7 @@ import numpy as np
 from gapfill.config import ARTIFACTS_DIR, TARGET
 from gapfill.data import load_all
 from gapfill.dataset import groups_of
-from gapfill.research_data import examples, features
+from gapfill.research.data import examples, features
 from gapfill.train import LGB_PARAMS, holdout_groups
 
 

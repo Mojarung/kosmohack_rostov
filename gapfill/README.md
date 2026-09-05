@@ -26,20 +26,20 @@ uv run --no-sync python -m gapfill.predict_improved --output submission.csv --de
 uv run --no-sync python -m gapfill.metrics
 ```
 
-## Модули `research_*`
+## Модули `research/`
 
-Это код экспериментов улучшенной модели (exp-008): изолированный кэш признаков, отдельные схемы
-маскирования, калибровка по опубликованным историческим агрегатам и проверки альтернатив.
-Четыре из них участвуют и в конкурсном инференсе, поэтому пакет их не выносит отдельно:
+Исследовательская часть вынесена в отдельный подпакет: в корне `gapfill/` остались только модули
+конкурсного пути. Здесь — изолированный кэш признаков, схемы маскирования, калибровка по опубликованным
+историческим агрегатам и проверки альтернатив. Четыре модуля участвуют и в конкурсном инференсе:
 
-- `research_data.py` — признаки и честное маскирование для экспериментов (импортируется `predict_improved`);
-- `research_nn.py` — `ResidualSeasonNet`, сеть на остатке дерева (импортируется `predict_improved`);
-- `research_calibrate.py`, `research_constraints.py` — калибровка по историческим агрегатам (импортируются `predict_improved`);
-- `research_final.py`, `research_package.py` — финальное обучение и сборка пакета весов;
-- остальные (`research_kriging`, `research_mcmc`, `research_robust_linear`, `research_truncated`,
-  `research_variational`, `research_uncertainty`, `research_blend`, `research_mix_trees`, `research_analog`,
-  `research_refine`, `research_audit`, `research_results`, `research_features`, `research_train`,
-  `research_calibration_sweep`, `chronos_member`, `calibration_posterior`) — проверенные гипотезы,
+- `research/data.py` — признаки и честное маскирование для экспериментов (импортируется `predict_improved`);
+- `research/nn.py` — `ResidualSeasonNet`, сеть на остатке дерева (импортируется `predict_improved`);
+- `research/calibrate.py`, `research/constraints.py` — калибровка по историческим агрегатам (импортируются `predict_improved`);
+- `research/final.py`, `research/package.py` — финальное обучение и сборка пакета весов;
+- остальные (`research.kriging`, `research.mcmc`, `research.robust_linear`, `research.truncated`,
+  `research.variational`, `research.uncertainty`, `research.blend`, `research.mix_trees`, `research.analog`,
+  `research.refine`, `research.audit`, `research.results`, `research.features`, `research.train`,
+  `research.calibration_sweep`, `chronos_member`, `calibration_posterior`) — проверенные гипотезы,
   оставлены ради воспроизводимости журнала экспериментов; в инференсе не используются.
 
 У каждого модуля в первой строке docstring на русском с назначением.

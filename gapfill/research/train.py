@@ -9,7 +9,7 @@ import lightgbm as lgb
 from gapfill.config import ARTIFACTS_DIR, TARGET
 from gapfill.data import gap_score, load_all, rmse
 from gapfill.dataset import groups_of
-from gapfill.research_data import examples
+from gapfill.research.data import examples
 from gapfill.train import LGB_PARAMS, evaluate, holdout_groups, importance
 
 
