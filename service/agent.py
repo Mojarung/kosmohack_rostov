@@ -4,21 +4,20 @@
 дозапросить подробности через инструменты (сезон, эпизоды, метод). Всё, что она говорит,
 опирается на уже проверенные числа.
 
-Без ключа `ANTHROPIC_API_KEY` работает разбор по правилам: он отвечает на частые вопросы
-теми же фактами, только без связного текста. Модель задаётся переменной ANOMALY_LLM_MODEL.
-Установка: uv sync --group agent.
+Без ключа модели (см. service.llm) работает разбор по правилам: он отвечает на частые вопросы
+теми же фактами, только без связного текста. Провайдер и модель настраиваются переменными
+окружения NVIDIA_API_KEY и NDVI_LLM_MODEL. Установка: uv sync --group agent.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import re
 from typing import Any, Callable
 
-from service.facts import _by_year, episode_facts, field_facts, method_facts, season_facts
+from service import llm
+from service.facts import _by_year, episode_facts, field_brief, field_facts, method_facts, season_facts
 
-DEFAULT_MODEL = "claude-opus-5"
 MAX_TOOL_STEPS = 4          # больше четырёх дозапросов на один вопрос не нужно и дорого
 MAX_TOKENS = 1500
 
@@ -38,7 +37,7 @@ TOOLS = [
     {
         "name": "season",
         "description": "Сводка по одному сезону поля: наблюдения, пик кривой, худшее отклонение, осадки и температура.",
-        "input_schema": {
+        "parameters": {
             "type": "object",
             "properties": {"year": {"type": "integer", "description": "год сезона"}},
             "required": ["year"],
@@ -47,7 +46,7 @@ TOOLS = [
     {
         "name": "episodes",
         "description": "Периоды снижения на поле с причинами и аргументами. Без года — все, с годом — только за него.",
-        "input_schema": {
+        "parameters": {
             "type": "object",
             "properties": {"year": {"type": "integer", "description": "год, необязательно"}},
         },
@@ -55,7 +54,7 @@ TOOLS = [
     {
         "name": "method",
         "description": "Как получены числа: метрики восстановления пропусков, статистика эпизодов и источники данных.",
-        "input_schema": {"type": "object", "properties": {}},
+        "parameters": {"type": "object", "properties": {}},
     },
 ]
 
@@ -173,37 +172,36 @@ def rule_based_answer(facts: dict, question: str) -> str:
             "Спросите про конкретный год, про причины или про погоду — отвечу подробнее.")
 
 
-def _call_model(client, model: str, messages: list, tools: list) -> Any:
-    """Один запрос к модели. Вынесен отдельно, чтобы подменяться в тестах."""
-    return client.messages.create(model=model, max_tokens=MAX_TOKENS, system=SYSTEM_PROMPT,
-                                  tools=tools, messages=messages)
+def _run_tool_loop(messages: list, handlers: dict, facts: dict, question: str, model: str | None) -> dict:
+    """Диалог с моделью: пока она просит инструменты — отдаём факты, иначе возвращаем ответ.
 
-
-def _run_tool_loop(client, model: str, messages: list, handlers: dict, facts: dict, question: str) -> dict:
-    """Диалог с моделью: пока она просит инструменты — отдаём факты, иначе возвращаем ответ."""
+    Формат сообщений — OpenAI (service.llm сам переводит его под провайдера).
+    """
     used: list[str] = []
     for _ in range(MAX_TOOL_STEPS):
         try:
-            response = _call_model(client, model, messages, TOOLS)
+            reply = llm.chat(messages, SYSTEM_PROMPT, TOOLS, model=model, max_tokens=MAX_TOKENS)
         except Exception:                       # сеть, лимиты, отказ модели — отвечаем по правилам
             return {"answer": rule_based_answer(facts, question), "source": "rules", "tools_used": used}
-        if response.stop_reason != "tool_use":
-            text = "".join(b.text for b in response.content if b.type == "text").strip()
-            if not text:
+        if not reply.wants_tools:
+            text = (reply.text or "").strip()
+            if not text:            # пустой ответ модели считаем неудачей
                 break
             return {"answer": text, "source": "llm", "tools_used": used}
 
-        messages.append({"role": "assistant", "content": response.content})
-        results = []
-        for block in response.content:
-            if block.type != "tool_use":
-                continue
-            used.append(block.name)
-            handler = handlers.get(block.name)
-            payload = handler(dict(block.input)) if handler else {"ошибка": "неизвестный инструмент"}
-            results.append({"type": "tool_result", "tool_use_id": block.id,
-                            "content": json.dumps(payload, ensure_ascii=False)})
-        messages.append({"role": "user", "content": results})
+        messages.append({
+            "role": "assistant",
+            "content": reply.text or None,
+            "tool_calls": [{"id": c.id, "type": "function",
+                            "function": {"name": c.name, "arguments": json.dumps(c.arguments, ensure_ascii=False)}}
+                           for c in reply.tool_calls],
+        })
+        for call in reply.tool_calls:
+            used.append(call.name)
+            handler = handlers.get(call.name)
+            payload = handler(call.arguments) if handler else {"ошибка": "неизвестный инструмент"}
+            messages.append({"role": "tool", "tool_call_id": call.id,
+                             "content": json.dumps(payload, ensure_ascii=False, default=str)})
     # шаги кончились, а ответа нет — не оставляем пользователя ни с чем
     return {"answer": rule_based_answer(facts, question), "source": "rules", "tools_used": used}
 
@@ -215,11 +213,7 @@ def ask(detail: dict, question: str, meta: dict | None = None, year: int | None 
     facts = field_facts(detail, year)
     if not question:
         return {"answer": "Задайте вопрос о поле.", "source": "rules", "tools_used": []}
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        return {"answer": rule_based_answer(facts, question), "source": "rules", "tools_used": []}
-    try:
-        import anthropic
-    except ImportError:
+    if not llm.available():
         return {"answer": rule_based_answer(facts, question), "source": "rules", "tools_used": []}
 
     messages: list[dict] = [{
@@ -227,5 +221,4 @@ def ask(detail: dict, question: str, meta: dict | None = None, year: int | None 
         "content": ("Факты о поле (JSON):\n" + json.dumps(facts, ensure_ascii=False)
                     + f"\n\nВопрос владельца поля: {question}"),
     }]
-    return _run_tool_loop(anthropic.Anthropic(), model or os.environ.get("ANOMALY_LLM_MODEL", DEFAULT_MODEL),
-                          messages, make_tools(detail, meta), facts, question)
+    return _run_tool_loop(messages, make_tools(detail, meta), facts, question, model)

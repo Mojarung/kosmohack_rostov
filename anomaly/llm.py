@@ -1,16 +1,15 @@
 """Объяснение эпизода языковой моделью по структурированным фактам (Claude через официальный SDK).
 
-Без ключа (`ANTHROPIC_API_KEY`) или при ошибке API возвращается текст по правилам из anomaly.report —
-детектор и интерпретация работают и без LLM, модель лишь делает объяснение связным и добавляет рекомендации.
-Установка: uv sync --group agent. Модель задаётся переменной окружения ANOMALY_LLM_MODEL (по умолчанию claude-opus-5).
+Без ключа модели или при ошибке API возвращается текст по правилам из anomaly.report — детектор
+и интерпретация работают и без модели, она лишь делает объяснение связным и добавляет рекомендации.
+Ключ и модель настраиваются в service.llm (NVIDIA_API_KEY, NDVI_LLM_MODEL).
+Установка: uv sync --group agent.
 """
 
 from __future__ import annotations
 
 import json
-import os
 
-DEFAULT_MODEL = "claude-opus-5"
 SYSTEM_PROMPT = """Ты агроном-аналитик спутникового мониторинга полей. Тебе дают структурированные факты об эпизоде
 снижения NDVI на поле: даты, глубину отклонения от климатической нормы поля, фенологию сезона, погоду ERA5
 (осадки и температура против нормы тех же дат), поведение соседних полей региона и предварительную причину,
@@ -38,26 +37,19 @@ def facts_for_llm(row: dict) -> dict:
 
 
 def explain_with_llm(row: dict, fallback_text: str, model: str | None = None) -> tuple[str, str]:
-    """Возвращает (текст, источник): источник 'llm' при успехе, иначе 'rules' с текстом по правилам."""
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+    """Возвращает (текст, источник): источник 'llm' при успехе, иначе 'rules' с текстом по правилам.
+
+    Провайдер и модель выбираются в service.llm по переменным окружения; здесь только промпт.
+    """
+    from service import llm
+
+    if not llm.available():
         return fallback_text, "rules"
+    prompt = ("Факты эпизода (JSON):" + chr(10) + json.dumps(facts_for_llm(row), ensure_ascii=False, indent=1)
+              + chr(10) * 2 + "Черновик объяснения по правилам:" + chr(10) + fallback_text)
     try:
-        import anthropic
-    except ImportError:
+        reply = llm.chat([{"role": "user", "content": prompt}], SYSTEM_PROMPT, model=model, max_tokens=2000)
+    except Exception:
         return fallback_text, "rules"
-    client = anthropic.Anthropic()
-    prompt = ("Факты эпизода (JSON):\n" + json.dumps(facts_for_llm(row), ensure_ascii=False, indent=1)
-              + "\n\nЧерновик объяснения по правилам:\n" + fallback_text)
-    try:
-        response = client.messages.create(
-            model=model or os.environ.get("ANOMALY_LLM_MODEL", DEFAULT_MODEL),
-            max_tokens=2000,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": prompt}],
-        )
-    except anthropic.APIError:
-        return fallback_text, "rules"
-    if response.stop_reason == "refusal":
-        return fallback_text, "rules"
-    text = "".join(block.text for block in response.content if block.type == "text").strip()
+    text = (reply.text or "").strip()
     return (text, "llm") if text else (fallback_text, "rules")

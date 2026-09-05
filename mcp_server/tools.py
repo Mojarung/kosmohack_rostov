@@ -78,7 +78,7 @@ def find_episodes(year: int | None = None, cause: str | None = None, severity: s
 
 
 def ask_about_field(pid: str, question: str, year: int | None = None) -> dict:
-    """Вопрос о поле своими словами. С ключом ANTHROPIC_API_KEY отвечает модель, иначе — правила."""
+    """Вопрос о поле своими словами. С ключом OLLAMA_API_KEY отвечает модель, иначе — правила."""
     from service.agent import ask
     store = _store()
     if pid not in set(store.obs["pid"]):

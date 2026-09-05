@@ -1,12 +1,12 @@
 """Тесты агента-агронома: ответы по правилам, инструменты и диалог с моделью без сети.
 
 Модель не вызывается ни разу: ветка с языковой моделью проверяется подменой
-service.agent._call_model, ветка правил — снятой переменной ANTHROPIC_API_KEY.
+service.llm.chat, ветка правил — снятой переменной NVIDIA_API_KEY.
 """
 
 import pytest
 
-from service import agent
+from service import agent, llm
 from service.agent import (
     MAX_TOOL_STEPS,
     ask,
@@ -52,19 +52,14 @@ META = {"task1": {"rmse_val": 0.0543, "gap_score": 13.7, "n_gaps": 2323},
         "task2": {"n_episodes": 318}, "sources": [{"name": "ERA5", "detail": "Open-Meteo"}]}
 
 
-class _Block:
-    """Блок ответа модели: текст или запрос инструмента (форма как у SDK anthropic)."""
-
-    def __init__(self, type: str, text: str | None = None, name: str | None = None,
-                 input: dict | None = None, id: str | None = None) -> None:
-        self.type, self.text, self.name, self.input, self.id = type, text, name, input or {}, id
+def _text_reply(text: str) -> llm.Reply:
+    """Ответ модели обычным текстом."""
+    return llm.Reply(text=text)
 
 
-class _Response:
-    """Ответ модели: причина остановки и список блоков."""
-
-    def __init__(self, stop_reason: str, content: list[_Block]) -> None:
-        self.stop_reason, self.content = stop_reason, content
+def _tool_reply(name: str, arguments: dict, call_id: str = "t1") -> llm.Reply:
+    """Ответ модели с запросом инструмента."""
+    return llm.Reply(tool_calls=[llm.ToolCall(id=call_id, name=name, arguments=arguments)])
 
 
 @pytest.fixture
@@ -75,8 +70,8 @@ def facts() -> dict:
 @pytest.fixture
 def no_key(monkeypatch):
     """Ключа модели нет: агент обязан отвечать по правилам и никуда не ходить."""
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.setattr(agent, "_call_model", lambda *a: pytest.fail("модель не должна вызываться"))
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    monkeypatch.setattr(llm, "chat", lambda *a, **k: pytest.fail("модель не должна вызываться"))
 
 
 @pytest.mark.parametrize("question", [
@@ -179,34 +174,35 @@ def test_episodes_tool_answers_when_nothing_found():
 
 def test_model_calls_tool_and_returns_its_own_answer(monkeypatch):
     """Модель просит инструмент, получает факты и отвечает текстом: источник — llm."""
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "ключ-для-теста")
+    monkeypatch.setattr(llm, "available", lambda: True)
     seen: list[dict] = []
 
-    def fake_call(client, model, messages, tools):
+    def fake_chat(messages, system, tools=None, model=None, **kwargs):
         seen.append(messages[-1])
-        assert model == "claude-test" and [t["name"] for t in tools] == ["season", "episodes", "method"]
+        assert model == "модель-для-теста"
+        assert [t["name"] for t in tools] == ["season", "episodes", "method"]
         if len(seen) == 1:
-            return _Response("tool_use", [_Block("tool_use", name="season", input={"year": 2024}, id="t1")])
-        return _Response("end_turn", [_Block("text", text="Сезон 2024 прошёл ниже нормы.")])
+            return _tool_reply("season", {"year": 2024})
+        return _text_reply("Сезон 2024 прошёл ниже нормы.")
 
-    monkeypatch.setattr(agent, "_call_model", fake_call)
-    result = ask(DETAIL, "Что было в 2024 году?", meta=META, model="claude-test")
+    monkeypatch.setattr(llm, "chat", fake_chat)
+    result = ask(DETAIL, "Что было в 2024 году?", meta=META, model="модель-для-теста")
 
     assert result == {"answer": "Сезон 2024 прошёл ниже нормы.", "source": "llm", "tools_used": ["season"]}
     assert "Факты о поле" in seen[0]["content"] and "Поле у балки" in seen[0]["content"]
-    tool_result = seen[1]["content"][0]
-    assert tool_result["type"] == "tool_result" and tool_result["tool_use_id"] == "t1"
+    tool_result = seen[1]
+    assert tool_result["role"] == "tool" and tool_result["tool_call_id"] == "t1"
     assert '"год": 2024' in tool_result["content"]          # инструменту вернулись факты сезона
 
 
 def test_model_failure_falls_back_to_rules(monkeypatch):
     """Отказ модели (сеть, лимиты) не оставляет пользователя без ответа."""
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "ключ-для-теста")
+    monkeypatch.setattr(llm, "available", lambda: True)
 
-    def boom(*args):
+    def boom(*args, **kwargs):
         raise RuntimeError("нет сети")
 
-    monkeypatch.setattr(agent, "_call_model", boom)
+    monkeypatch.setattr(llm, "chat", boom)
     result = ask(DETAIL, "Почему просела зелёность?", meta=META)
     assert result["source"] == "rules" and result["tools_used"] == []
     assert "вероятные причины" in result["answer"]
@@ -214,18 +210,16 @@ def test_model_failure_falls_back_to_rules(monkeypatch):
 
 def test_empty_model_text_falls_back_to_rules(monkeypatch):
     """Ответ модели без текста считается неудачей: отвечаем правилами."""
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "ключ-для-теста")
-    monkeypatch.setattr(agent, "_call_model",
-                        lambda *a: _Response("end_turn", [_Block("text", text="   ")]))
+    monkeypatch.setattr(llm, "available", lambda: True)
+    monkeypatch.setattr(llm, "chat", lambda *a, **k: _text_reply("   "))
     result = ask(DETAIL, "Какой год самый тяжёлый?", meta=META)
     assert result["source"] == "rules" and "Самый тяжёлый период" in result["answer"]
 
 
 def test_endless_tool_requests_are_stopped(monkeypatch):
     """Модель, которая только просит инструменты, останавливается на MAX_TOOL_STEPS."""
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "ключ-для-теста")
-    monkeypatch.setattr(agent, "_call_model", lambda *a: _Response(
-        "tool_use", [_Block("tool_use", name="нет_такого", input={}, id="t9")]))
+    monkeypatch.setattr(llm, "available", lambda: True)
+    monkeypatch.setattr(llm, "chat", lambda *a, **k: _tool_reply("нет_такого", {}, "t9"))
     result = ask(DETAIL, "Привет", meta=META)
     assert result["source"] == "rules"
     assert result["tools_used"] == ["нет_такого"] * MAX_TOOL_STEPS

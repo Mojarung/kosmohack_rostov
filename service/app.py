@@ -23,6 +23,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
+from dotenv import load_dotenv
+
 from service import field_store
 from service.geocoding import router as geocoding_router
 from service import polygons as user_polygons
@@ -33,6 +35,9 @@ from service.progress import JOB_RE, read_progress
 from service.reporting import legacy_weather_records
 from service.runtime import check_runtime, plotly_bundle
 from service.weather_metrics import PROFILES, weather_context
+
+# ключ модели читается из .env, если он там есть; переменные окружения имеют приоритет
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 WEB_DIST = Path(__file__).resolve().parents[1] / "web" / "dist"
@@ -308,7 +313,7 @@ def ask_about_field(req: AskRequest) -> dict:
     """Ответ агронома-агента о конкретном поле.
 
     Модель получает выжимку фактов (service.facts) и может дозапросить сезон, эпизоды или метод.
-    Без ключа ANTHROPIC_API_KEY отвечает разбор по правилам — теми же числами, только без связного текста.
+    Без ключа OLLAMA_API_KEY отвечает разбор по правилам — теми же числами, только без связного текста.
     """
     from service.agent import ask
     detail = polygon(req.pid)
@@ -317,6 +322,23 @@ def ask_about_field(req: AskRequest) -> dict:
     except Exception as exc:        # ошибка модели не должна ронять экран поля
         logging.getLogger("service.agent").exception("Агент не ответил")
         raise HTTPException(502, f"не удалось ответить: {type(exc).__name__}: {exc}") from exc
+
+
+@app.get("/api/explanations/{pid}")
+def field_explanations(pid: str, year: int | None = None, start: bool = True) -> dict:
+    """Объяснения периодов снижения, написанные моделью, — отдельно от анализа.
+
+    Анализ отдаёт правиловый текст сразу, а модель отвечает десятками секунд, поэтому
+    интерфейс забирает её тексты этим маршрутом и подменяет их, когда те готовы.
+    Год задаёт, что объяснять: на экране виден один сезон, объяснять остальные незачем.
+    status: off — нет ключа, pending — считается, ready — готово, error — не получилось.
+    """
+    from service import explain
+    episodes = polygon(pid).get("episodes") or []
+    if year is not None:
+        episodes = [e for e in episodes if e.get("year") == year]
+    key = f"{pid}:{year}" if year is not None else pid
+    return explain.request(key, episodes) if start else explain.state(key)
 
 
 @app.get("/api/report/{pid}", response_class=HTMLResponse)

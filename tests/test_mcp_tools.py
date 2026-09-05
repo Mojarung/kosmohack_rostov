@@ -180,7 +180,7 @@ def test_solution_metrics_describes_method(store):
 
 def test_ask_about_field_without_key_uses_rules(store, monkeypatch):
     """Без ключа модели инструмент отвечает по правилам и не ходит в сеть."""
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
     payload = json.loads(server.call_tool("ask_about_field",
                                           {"pid": "AOI-0001", "question": "Почему поле просело?"}))
     assert payload["source"] == "rules" and payload["tools_used"] == []

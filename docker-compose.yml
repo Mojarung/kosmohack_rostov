@@ -9,9 +9,10 @@ services:
     environment:
       NOMINATIM_URL: ${NOMINATIM_URL:-https://nominatim.openstreetmap.org/search}
       GEOCODING_USER_AGENT: ${GEOCODING_USER_AGENT:-kosmohack-ndvi-monitor/1.0}
-      # Ключ нужен только для связного объяснения аномалий языковой моделью;
-      # без него текст формируется по правилам.
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Ключ нужен только для связных объяснений и ответов агента;
+      # без него текст формируется по правилам, сервис работает полностью.
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      NDVI_LLM_MODEL: ${NDVI_LLM_MODEL:-}
     volumes:
       # Всё, что сервис пишет во время работы, переживает перезапуск контейнера:
       # набор полей пользователя (artifacts/service), отчёты собранных полей (artifacts/fields)

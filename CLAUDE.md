@@ -29,7 +29,7 @@
   метод `docs/13-anomaly-detection.md`, журнал exp-100…102. Норма организаторов воспроизведена (LOO по году, ±8 дней doy,
   статусы 99.7 %). Детектор: гармонизированная кривая → Z к норме по истории полигона → эпизоды «устойчиво и/или сильно»
   → причина по правилам (ERA5, фенология, региональный контекст «все поля или только это»). LLM-объяснение — `anomaly/llm.py`
-  (Claude, ключ `ANTHROPIC_API_KEY`; без ключа текст по правилам).
+  (Ollama Cloud, ключ `OLLAMA_API_KEY`; без ключа текст по правилам).
 - **Веб-сервис** — `service/` (FastAPI `service.app:app`, сбор данных для новых полигонов
   `service/collect.py`: Earth Search S2, Planetary Computer Landsat/MODIS, Open-Meteo ERA5, OSM Overpass; анализ `service/analyze_new.py`)
   плюс интерфейс `web/` (React 19 + Vite + MUI X Charts + AntV L7 на тайлах OSM + GSAP, exp-105).
@@ -53,9 +53,14 @@
   все формулировки в `web/src/lib/plain.ts` (проценты зелени к ориентиру, дожди к норме, тепло в днях
   опережения, уверенность словами, советы по причине). Карточки показателей и эпизодов: крупно фраза,
   число мелко, техника под «подробности для агронома». Резервный `/legacy` не трогали.
+- **Объяснения эпизодов пишет модель, но не в анализе**: `service/explain.py` запускает их фоном,
+  интерфейс забирает готовые тексты маршрутом `GET /api/explanations/{pid}?year=` и подменяет
+  правиловый черновик. Так анализ не ждёт модель: она отвечает десятками секунд на эпизод.
+  Модель — Ollama Cloud `gemma4:31b` (замер: 0.8 с на короткий ответ против 2.7 с у `gpt-oss:20b`
+  и минут у `kimi-k3`). Ключ в `.env` (`OLLAMA_API_KEY`), файл в git не попадает.
 - **Агент, MCP и отчёт (2026-09-05)**: общий слой фактов `service/facts.py` — из него берут числа
   и интерфейс, и модель, и отчёт. Агент `service/agent.py` (маршрут `POST /api/ask`, панель «Спросить про поле»
-  на экране поля): с ключом `ANTHROPIC_API_KEY` отвечает модель с тремя инструментами, без ключа — разбор
+  на экране поля): с ключом `OLLAMA_API_KEY` отвечает модель с тремя инструментами, без ключа — разбор
   по правилам теми же фактами. MCP-сервер `mcp_server/` с шестью инструментами:
   `claude mcp add vegetation -- uv run --no-sync python -m mcp_server`.
   Отчёт `service/report_html.py` (`GET /api/report/{pid}`) — самодостаточный HTML без внешних ссылок,
@@ -113,7 +118,7 @@ UV_TORCH_BACKEND=cu130 uv sync --group dl   # torch (CUDA 13.0 для RTX 5070),
 uv sync --group torch            # только torch (по умолчанию CPU-сборка) — хватает для инференса из models/
 uv sync --group serve            # только веб-слой: FastAPI, uvicorn, plotly, duckdb (эта группа идёт в образ)
 uv sync --group service          # всё для запуска сервиса на разработке: serve + geo + infer + ml
-uv sync --group agent            # anthropic и mcp: агент и MCP-сервер
+uv sync --group agent            # openai (клиент Ollama Cloud) и mcp: агент и MCP-сервер
 uv sync --group openeo           # отдельно: конфликтует с geo по xarray
 ```
 
