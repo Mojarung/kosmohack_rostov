@@ -1,7 +1,8 @@
 """Автоматический сбор данных для произвольного полигона: Sentinel-2, Landsat, MODIS (STAC) и ERA5 (Open-Meteo).
 
 Источники (без ключей и регистрации):
-- Sentinel-2 L2A: Earth Search v1 (Element84), коллекция sentinel-2-l2a, маска облаков по SCL;
+- Sentinel-2 L2A: Microsoft Planetary Computer (Azure, Западная Европа), коллекция sentinel-2-l2a, маска облаков по SCL;
+  запасной источник — Earth Search v1 (Element84, S3 us-west-2): из-за длинного маршрута он в 5–8 раз медленнее;
 - Landsat 8/9 C2 L2: Microsoft Planetary Computer, коллекция landsat-c2-l2, маска по qa_pixel;
 - MODIS MOD13Q1 v061: Planetary Computer, коллекция modis-13Q1-061 (16-дневный композит, датируется началом окна);
 - ERA5 (среднесуточная температура, осадки): Open-Meteo Historical Weather API по центроиду полигона.
@@ -13,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -37,6 +39,9 @@ OPEN_METEO = "https://archive-api.open-meteo.com/v1/archive"
 SEASON = ("04-01", "10-30")
 MAX_CLOUD_COVER = 60           # % облачности сцены по каталогу; более облачные всё равно не проходят MIN_VALID_SHARE
 WORKERS = 8                    # сезонов одного источника, загружаемых одновременно (ограничивает сеть, не CPU)
+LOAD_LIMIT = 3                 # одновременных загрузок снимков на все источники: больше — обрывы чтения и повторы GDAL
+# Одинаковые полосы Sentinel-2 в двух каталогах называются по-разному: Planetary Computer — по номеру, Earth Search — по смыслу
+S2_BANDS = {PLANETARY: ("B04", "B08", "SCL"), EARTH_SEARCH: ("red", "nir", "scl")}
 MIN_VALID_SHARE = 0.6          # доля чистых пикселей в полигоне, ниже — сцена отбрасывается
 MIN_PIXELS = 6
 S2_CLEAR_SCL = (4, 5, 6)       # растительность, открытая почва, вода
@@ -88,12 +93,40 @@ def _season_range(year: int) -> str:
     return f"{year}-{SEASON[0]}/{year}-{SEASON[1]}"
 
 
+class ReadFailures(logging.Handler):
+    """Считает обрывы чтения, которые odc-stac при fail_on_error=False проглатывает молча: сцена просто пропадает,
+    и без счётчика пользователь не узнает, что сезон собран не полностью."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.count = 0
+        self._lock = threading.Lock()
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if "read failure" in record.getMessage():
+            with self._lock:
+                self.count += 1
+
+    def reset(self) -> int:
+        with self._lock:
+            count, self.count = self.count, 0
+        return count
+
+
+read_failures = ReadFailures()
+_load_gate = threading.Semaphore(LOAD_LIMIT)
+
+
 def configure_gdal() -> None:
     """Настройки GDAL для чтения COG из облака: без листинга каталога при открытии файла и с объединением
-    соседних диапазонов; иначе на каждую из сотен сцен уходят лишние HTTP-запросы. Действует на процесс сборщика."""
+    соседних диапазонов; иначе на каждую из сотен сцен уходят лишние HTTP-запросы. Действует на процесс сборщика.
+    Здесь же вешаем счётчик обрывов чтения на журнал odc-stac."""
     configure_rio(cloud_defaults=True, GDAL_HTTP_MERGE_CONSECUTIVE_RANGES="YES", GDAL_HTTP_MULTIPLEX="YES",
                   GDAL_HTTP_VERSION="2", VSI_CACHE="TRUE", GDAL_HTTP_TIMEOUT=60,
                   GDAL_HTTP_MAX_RETRY=3, GDAL_HTTP_RETRY_DELAY=1)
+    odc_log = logging.getLogger("odc")
+    if read_failures not in odc_log.handlers:
+        odc_log.addHandler(read_failures)
 
 
 def utm_crs(geom) -> str:
@@ -108,8 +141,11 @@ def _load_parallel(items, bands: list[str], geom, resolution: int, dtype=None):
 
     Чанк — одна сцена: при чанке из четырёх одна задача читала подряд четыре снимка,
     и пул простаивал в ожидании сети. Замер на 68 сценах: чанк 4 — 39 с, чанк 1 — 24 с.
+    Поиск в каталоге идёт без ограничений, а сами загрузки — не больше LOAD_LIMIT одновременно на процесс:
+    у каждой загрузки свой пул из READ_THREADS потоков, и без лимита 24 сезона × 24 потока рвут канал.
     """
-    return _plan_load(items, bands, geom, resolution, dtype).compute()
+    with _load_gate:
+        return _plan_load(items, bands, geom, resolution, dtype).compute()
 
 
 def _plan_load(items, bands: list[str], geom, resolution: int, dtype=None):
@@ -167,28 +203,48 @@ def _mean_index(num, den, clear, inside) -> tuple[float, float, float]:
     return float(np.clip(ndvi.mean(), -1, 1)), float(valid.sum() / n_inside), n_inside
 
 
-def _s2_year(geom, year: int) -> pd.DataFrame:
-    client = pystac_client.Client.open(EARTH_SEARCH)
+def _s2_items(catalog: str, geom, year: int) -> list:
+    """Сцены сезона из одного каталога Sentinel-2; для Earth Search убираем платные JP2-дубликаты."""
+    if catalog == PLANETARY:
+        client = pystac_client.Client.open(PLANETARY, modifier=planetary_computer.sign_inplace)
+    else:
+        client = pystac_client.Client.open(EARTH_SEARCH)
     items = list(client.search(collections=["sentinel-2-l2a"], intersects=geom.__geo_interface__,
                                datetime=_season_range(year), query={"eo:cloud_cover": {"lt": MAX_CLOUD_COVER}}).items())
+    return items if catalog == PLANETARY else public_s2_items(items)
+
+
+def _s2_year_from(catalog: str, geom, year: int) -> pd.DataFrame:
+    """NDVI Sentinel-2 за сезон из указанного каталога."""
+    items = _s2_items(catalog, geom, year)
     if not items:
         return pd.DataFrame()
-    items = public_s2_items(items)
-    if not items:
-        return pd.DataFrame()
-    lazy = _plan_load(items, ["red", "nir", "scl"], geom, resolution=20)
+    red, nir, scl = S2_BANDS[catalog]
+    lazy = _plan_load(items, [red, nir, scl], geom, resolution=20)
     inside = _polygon_mask(lazy, geom)
-    # Для контрольного замера прежнего пути: NDVI_S2_CLOUD_FIRST=0.
-    data = (load_clear_days(lazy, inside, MIN_PIXELS, MIN_VALID_SHARE, S2_CLEAR_SCL)
-            if os.environ.get("NDVI_S2_CLOUD_FIRST", "1") == "1" else lazy.compute())
+    # Сначала читаем только SCL и отбрасываем облачные дни, red/nir — лишь для оставшихся.
+    # Для контрольного замера прежнего пути: NDVI_S2_CLOUD_FIRST=0. Загрузка — под общим лимитом LOAD_LIMIT.
+    with _load_gate:
+        data = (load_clear_days(lazy, inside, MIN_PIXELS, MIN_VALID_SHARE, S2_CLEAR_SCL, bands=(red, nir, scl))
+                if os.environ.get("NDVI_S2_CLOUD_FIRST", "1") == "1" else lazy.compute())
     rows = []
     for t in data.time.values:
         frame = data.sel(time=t)
-        ndvi, share, _ = _mean_index(frame["nir"].values.astype(float), frame["red"].values.astype(float),
-                                     np.isin(frame["scl"].values, S2_CLEAR_SCL), inside)
+        ndvi, share, _ = _mean_index(frame[nir].values.astype(float), frame[red].values.astype(float),
+                                     np.isin(frame[scl].values, S2_CLEAR_SCL), inside)
         if np.isfinite(ndvi):
             rows.append({"date": pd.Timestamp(t).normalize(), "s2_ndvi": ndvi, "s2_clear_share": share})
     return pd.DataFrame(rows)
+
+
+def _s2_year(geom, year: int) -> pd.DataFrame:
+    """Сначала Planetary Computer (сезон за 25–45 с), при отказе — Earth Search (тот же сезон за 3–6 мин)."""
+    try:
+        return _s2_year_from(PLANETARY, geom, year)
+    except Exception as exc:    # каталог недоступен, подпись ссылок не выдана, обрыв на середине загрузки
+        log.warning("S2 %s: Planetary Computer не ответил (%s), пробуем Earth Search", year, type(exc).__name__,
+                    exc_info=True)
+        return _s2_year_from(EARTH_SEARCH, geom, year)
 
 
 def public_s2_items(items):
@@ -326,6 +382,8 @@ def collect_all(geom, years: range, pid: str, progress: Progress) -> tuple[dict,
     frames = {label: frame for label, (frame, _, _) in results.items()}
     notes = [note for _, note, _ in results.values()]
     warnings = [w for _, _, ws in results.values() for w in ws]
+    if failures := read_failures.reset():
+        warnings.append(f"Обрывов чтения снимков: {failures}, часть сцен могла не попасть в ряд")
     return frames, notes, warnings
 
 

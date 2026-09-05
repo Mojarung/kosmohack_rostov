@@ -104,7 +104,7 @@ function SeasonHeader({ detail, year, onYear }: { detail: PolygonDetail; year: n
   return <div className="pane-head season-heading">
       <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
         <span className="pane-title">Сезон {year}</span>
-        <span className="meta">{season ? `${season.observations.length} наблюдений · ${season.norm_source}` : "Нет данных"}</span>
+        <span className="meta">{season ? `${season.observations.length} ${plural(season.observations.length, "наблюдение", "наблюдения", "наблюдений")} · ${season.norm_source}` : "Нет данных"}</span>
       </div>
       <div className="season-years" role="group" aria-label="Сезон">
         {years.map(y => {
