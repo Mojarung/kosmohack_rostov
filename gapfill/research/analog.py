@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from gapfill.config import SENSOR_CODE
-from gapfill.research_features import _pair_statistics, sensor_rows
+from gapfill.research.features import _pair_statistics, sensor_rows
 from gapfill.smooth import local_linear
 
 

@@ -337,11 +337,21 @@ def assemble_observations(pid: str, s2: pd.DataFrame, ls: pd.DataFrame, md: pd.D
     return df.loc[in_season].dropna(subset=["primary_ndvi"]).reset_index(drop=True)
 
 
-def weather_note(weather: pd.DataFrame) -> str:
-    """Подпись об источнике погоды для шапки поля: не число дней (история с 1989 г. пугает), а начальный год."""
+def weather_note(weather: pd.DataFrame, years: range | None = None) -> str:
+    """Подпись об источнике погоды для шапки поля: не число дней (история с 1989 г. пугает), а годы.
+
+    Историю Open-Meteo отдаёт блоками по десять лет, и частый случай — старые блоки берутся из кэша,
+    а блок анализируемых сезонов отваливается по лимиту запросов (429). Раньше подпись в этом случае
+    говорила «ERA5 с 1992 г.», хотя погоды за нужные годы не было вовсе, — теперь пропуск виден.
+    """
     if not len(weather):
         return "ERA5 пуст"
-    return f"ERA5 с {weather['date'].min().year} г."
+    covered = set(weather["date"].dt.year.unique())
+    note = f"ERA5 {min(covered)}–{max(covered)} г."
+    missing = sorted(set(years) - covered) if years is not None else []
+    if missing:
+        note += f"; нет данных за {missing[0]}" + (f"–{missing[-1]}" if len(missing) > 1 else "")
+    return note
 
 
 def _collect_source(label: str, fn, geom, years: range, progress: Progress) -> tuple[pd.DataFrame, str, list[str]]:
@@ -363,8 +373,16 @@ def _collect_era5(geom, years: range, pid: str, progress: Progress) -> tuple[pd.
     centroid = geom.centroid
     try:
         weather = collect_weather(centroid.y, centroid.x, years).assign(pid=pid)
-        progress.finish_source("ERA5", weather_note(weather), ok=True)
-        return weather, weather_note(weather), list(weather.attrs.get("warnings", []))
+        note = weather_note(weather, years)
+        gaps = sorted(set(years) - set(weather["date"].dt.year.unique()))
+        warnings = list(weather.attrs.get("warnings", []))
+        if gaps:                 # часть анализируемых сезонов без погоды — это отказ, а не успех
+            warnings.append(f"ERA5 не отдала погоду за {', '.join(str(y) for y in gaps)}: "
+                            "объяснения эпизодов этих сезонов останутся без погодных доводов")
+        # Источник ответил, поэтому сбор не считается провалившимся; пропуск лет виден в самой подписи
+        # и отдельным предупреждением — молчать о нём нельзя, но и ронять статус всего задания не за что.
+        progress.finish_source("ERA5", note, ok=True)
+        return weather, note, warnings
     except Exception as exc:
         log.exception("Метеоданные недоступны")
         progress.finish_source("ERA5", f"недоступен ({type(exc).__name__})", ok=False)

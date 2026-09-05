@@ -12,7 +12,7 @@ from gapfill.config import ARTIFACTS_DIR, TARGET
 from gapfill.data import load_all, make_mask, polygon_kinds, rmse
 from gapfill.nn_data import N_CHANNELS, EpochInputs, assemble, build_tensors, loo_residual_array
 from gapfill.nn_model import ResBlock, SeasonNet, gap_query_days, query_days_from_obs, to_batches, val_metrics
-from gapfill.research_data import hidden_grid
+from gapfill.research.data import hidden_grid
 
 
 def interpolate_channels(t, visible):

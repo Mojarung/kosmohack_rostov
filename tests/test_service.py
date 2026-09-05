@@ -212,6 +212,42 @@ def test_invalid_collection_inputs_fail_before_collection(service_client, payloa
     assert service_client.post("/api/analyze", json=payload).status_code == 422
 
 
+def test_oversized_field_is_rejected_before_collection(service_client):
+    """Участок в сотни квадратных километров отсекается до сборщика: снимки не влезают в память."""
+    huge = {"geometry": {"type": "Polygon",
+                         "coordinates": [[[39.0, 47.0], [39.4, 47.0], [39.4, 47.4], [39.0, 47.4], [39.0, 47.0]]]},
+            "start_year": 2019, "end_year": 2025}
+    response = service_client.post("/api/analyze", json=huge)
+    assert response.status_code == 422
+    assert "слишком большой" in response.text
+
+
+def test_broken_collector_pool_is_recreated(monkeypatch):
+    """Упавший дочерний процесс не должен ломать сбор навсегда: пул сбрасывается, ответ понятный."""
+    from concurrent.futures.process import BrokenProcessPool
+
+    from fastapi import HTTPException
+
+    import service.app as module
+
+    class DeadPool:
+        """Пул, который уже сломан: так ведёт себя настоящий после гибели дочернего процесса."""
+
+        def submit(self, *args, **kwargs):
+            raise BrokenProcessPool("процесс сборщика убит")
+
+        def shutdown(self, **kwargs):
+            self.closed = True
+
+    dead = DeadPool()
+    monkeypatch.setattr(module, "_pool", dead)
+    with pytest.raises(HTTPException) as exc:
+        module.run_in_collector(lambda: None)
+    assert exc.value.status_code == 503
+    assert module._pool is None          # следующий запрос создаст новый пул
+    assert getattr(dead, "closed", False)
+
+
 def test_cors_survives_app_initialization(service_client):
     """После слияния CORS не должен теряться из-за повторного создания FastAPI."""
     response = service_client.get("/api/health", headers={"Origin": "http://localhost:5173"})
@@ -308,7 +344,11 @@ def test_sources_are_collected_in_parallel_and_failures_are_noted(monkeypatch, t
     geometry = {"type": "Polygon", "coordinates": [[[39, 47], [39.01, 47], [39.01, 47.01], [39, 47]]]}
     result = collect.analyze_geometry(geometry, "поле", 2019, 2022, job="job-parallel-1")
     assert result["n_obs"] == 4 and "Landsat недоступен: ConnectionError" in result["warnings"]
-    assert "S2 4 сцен" in result["collected"] and "ERA5 с 2020 г." in result["collected"]
+    # В подмене погода есть только за 2020 год, а запрошены 2019–2022: подпись обязана показать пропуск,
+    # иначе отказ Open-Meteo по лимиту запросов выглядит как успешно собранная история.
+    assert "S2 4 сцен" in result["collected"] and "ERA5 2020–2020 г." in result["collected"]
+    assert "нет данных за 2019–2022" in result["collected"]
+    assert any("ERA5 не отдала погоду" in w for w in result["warnings"])
     state = module.read_progress("job-parallel-1")
     assert state["stage"] == "done" and state["sources"]["Landsat"]["status"] == "failed"
     assert state["sources"]["S2"]["done"] == 4 and state["sources"]["ERA5"]["status"] == "done"

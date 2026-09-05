@@ -14,10 +14,10 @@ from gapfill.data import load_all, make_mask, rmse
 from gapfill.dataset import groups_of
 from gapfill.nn_data import EpochInputs, build_tensors, loo_residual_array
 from gapfill.nn_model import gap_query_days
-from gapfill.research_calibrate import calibrate
-from gapfill.research_constraints import published_norms, system
-from gapfill.research_data import examples, features, hidden_grid
-from gapfill.research_nn import ResidualSeasonNet, inference, inputs
+from gapfill.research.calibrate import calibrate
+from gapfill.research.constraints import published_norms, system
+from gapfill.research.data import examples, features, hidden_grid
+from gapfill.research.nn import ResidualSeasonNet, inference, inputs
 from gapfill.train import holdout_groups
 
 

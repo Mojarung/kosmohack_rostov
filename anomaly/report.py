@@ -58,13 +58,23 @@ LONG_DRY_SPELL_DAYS = 20  # сухая серия (< 1 мм/день) такой
 WET_DEFICIT_PCT = 0.0   # дефицит ниже нуля означает, что осадков выпало больше нормы
 
 
-def _weather_signal(weather: dict) -> tuple[bool, list[str]]:
+def _stress_confidence(strength: float, scope: str) -> float:
+    """Уверенность в погодной причине: сила самого сигнала плюс поправка на соседние поля.
+
+    Раньше это была константа правила (0.65/0.8), и интерфейс переводил её в «почти наверняка»
+    даже там, где дефицит осадков едва дотягивал до порога.
+    """
+    bonus = {"regional": 0.10, "local": -0.10}.get(scope, 0.0)
+    return round(min(0.85, max(0.40, 0.45 + strength + bonus)), 2)
+
+
+def _weather_signal(weather: dict) -> tuple[bool, list[str], float]:
     """Есть ли погодный стресс: решение по объединённому окну (30 дней до + эпизод), детали — по частям.
 
     Сухая серия сама по себе засухой не считается: в дождливом сезоне 20 бездождевых дней подряд —
     обычное дело, и раньше это давало «засуху» там, где осадков выпало вдвое больше нормы.
     """
-    notes, stress = [], False
+    notes, stress, strength = [], False, 0.0
     comb = weather.get("combined") or {}
     if "precip_deficit_pct" in comb and comb.get("n_days", 0) >= MIN_WEATHER_DAYS:
         wet = comb["precip_deficit_pct"] <= WET_DEFICIT_PCT      # осадков не меньше нормы окна
@@ -72,6 +82,10 @@ def _weather_signal(weather: dict) -> tuple[bool, list[str]]:
         hot = comb["temp_anomaly_c"] >= TEMP_ANOMALY_C and comb["hot_days"] >= 5
         long_dry_spell = comb.get("max_dry_spell", 0) >= LONG_DRY_SPELL_DAYS and not wet
         stress = dry or hot or long_dry_spell
+        # Сила сигнала: сильный дефицит и жара весомее, чем едва перейденный порог или одна сухая серия.
+        strength = (0.20 * dry + 0.15 * (comb["precip_deficit_pct"] >= 2 * PRECIP_DEFICIT_PCT)
+                    + 0.15 * hot + 0.10 * (comb["temp_anomaly_c"] >= 2 * TEMP_ANOMALY_C)
+                    + 0.05 * long_dry_spell)
         if dry:
             notes.append(f"за 30 дней до и во время эпизода осадков {comb['precip_mm']:.0f} мм при норме "
                          f"{comb['precip_norm_mm']:.0f} мм (дефицит {comb['precip_deficit_pct']:.0f} %)")
@@ -84,7 +98,7 @@ def _weather_signal(weather: dict) -> tuple[bool, list[str]]:
         b = weather.get(name)
         if stress and b and "precip_deficit_pct" in b and abs(b["precip_deficit_pct"]) >= PRECIP_DEFICIT_PCT:
             notes.append(f"{label}: осадков {b['precip_mm']:.0f} мм при норме {b['precip_norm_mm']:.0f} мм")
-    return stress, notes
+    return stress, notes, round(strength, 3)
 
 
 def _region_note(region: dict) -> tuple[str, list[str]]:
@@ -104,7 +118,7 @@ def _region_note(region: dict) -> tuple[str, list[str]]:
 def classify(ep: dict, pheno_dev: dict, pheno: dict, weather: dict, artifacts_near: int,
              region: dict | None = None) -> tuple[str, float, list[str]]:
     """Причина эпизода, уверенность 0–1 и список аргументов."""
-    stress, notes = _weather_signal(weather)
+    stress, notes, strength = _weather_signal(weather)
     scope, rnotes = _region_note(region or {})
     context = rnotes + notes            # региональный контекст, затем погода — после главного аргумента причины
     peak_ratio = pheno_dev.get("peak_ratio")
@@ -117,6 +131,13 @@ def classify(ep: dict, pheno_dev: dict, pheno: dict, weather: dict, artifacts_ne
         return "crop_rotation", 0.7, [f"пик достигнут ({peak_ratio:.0%} нормы), но на {days(pheno_dev['peak_shift_days'])} "
                                       "позже обычного: на поле яровая культура вместо привычной озимой, весеннее "
                                       "отставание — смена фазы, а не угнетение"] + context
+    # Обратный севооборот: пик не ниже нормы, но достигнут заметно раньше — озимая вместо привычной яровой.
+    # Летний провал после ранней уборки — смена культуры, а не угнетение; раньше это шло в «критическую засуху».
+    if (peak_ratio is not None and peak_ratio >= 0.85 and pheno_dev.get("peak_shift_days", 0) <= -ROTATION_PEAK_SHIFT
+            and ep["start_doy"] >= 150 and not stress):
+        return "crop_rotation", 0.65, [f"пик достигнут ({peak_ratio:.0%} нормы), но на "
+                                       f"{days(-pheno_dev['peak_shift_days'])} раньше обычного: на поле озимая "
+                                       "вместо привычной яровой, летний спад — ранняя уборка, а не угнетение"] + context
     flat = pheno.get("valid") and (pheno["peak"] < FLAT_PEAK_NDVI or (peak_ratio is not None and peak_ratio < 0.6))
     if flat and ep["start_doy"] <= 165:
         norm_peak = pheno["peak"] / max(peak_ratio, 1e-6) if peak_ratio else float("nan")
@@ -128,12 +149,13 @@ def classify(ep: dict, pheno_dev: dict, pheno: dict, weather: dict, artifacts_ne
             and ep["start_doy"] <= MAIN_SEASON_DOY[1]):
         cause = "weather_drought" if stress else "early_decline"
         main = [f"пик на уровне нормы ({peak_ratio:.0%}), но спад начался на {days(-pheno_dev['decline_shift_days'])} раньше обычного"]
-        return cause, 0.75 if stress else 0.6, (notes + main + rnotes) if stress else (main + context)
+        confidence = _stress_confidence(strength, scope) if stress else 0.6
+        return cause, confidence, (notes + main + rnotes) if stress else (main + context)
     if pheno_dev.get("sos_shift_days", 0) >= 15 and ep["start_doy"] <= 150 and (peak_ratio or 0) >= LOW_PEAK_RATIO:
         return "late_start", 0.6, [f"рост начался на {days(pheno_dev['sos_shift_days'])} позже нормы, "
                                    f"но пик достигнут ({peak_ratio:.0%} нормы)"] + context
     if stress:
-        return "weather_drought", 0.8 if scope == "regional" else 0.65, notes + rnotes
+        return "weather_drought", _stress_confidence(strength, scope), notes + rnotes
     if scope == "regional":
         return "weather_drought", 0.5, ["явного дефицита осадков в ERA5 нет, но угнетены все поля региона — "
                                         "вероятен региональный погодный фактор (заморозки, суховей, град)"] + context

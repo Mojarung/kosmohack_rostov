@@ -237,10 +237,10 @@ export DYLD_LIBRARY_PATH="$PWD/.venv/lib/python3.14/site-packages/torch/lib${DYL
 Валидационная модель и оценка неопределённости (для других разбиений заменить `--val-seed` и имена `--out`):
 
 ```bash
-uv run --no-sync python -m gapfill.research_train --val-seed 777 --n-masks 30 --modes all --kriging --rounds 8500 --threads 5 --out kriging30_777
-uv run --no-sync python -m gapfill.research_nn --kind residual --epochs 260 --schedule-epochs 400 --fixed-epoch 260 --hidden 96 --val-seed 777 --out nn_residual777
-uv run --no-sync python -m gapfill.research_uncertainty --model artifacts/research/kriging30_777/all/model.txt --n-masks 30 --val-seed 777 --kriging --out uncertainty_kriging777
-uv run --no-sync python -m gapfill.research_blend --model artifacts/research/kriging30_777/all/model.txt --nn nn_residual777 --val-seed 777 --weights 0.6 --sigma 0.04 --calibration posterior --uncertainty artifacts/research/uncertainty_kriging777/model.txt --out posterior_blend777
+uv run --no-sync python -m gapfill.research.train --val-seed 777 --n-masks 30 --modes all --kriging --rounds 8500 --threads 5 --out kriging30_777
+uv run --no-sync python -m gapfill.research.nn --kind residual --epochs 260 --schedule-epochs 400 --fixed-epoch 260 --hidden 96 --val-seed 777 --out nn_residual777
+uv run --no-sync python -m gapfill.research.uncertainty --model artifacts/research/kriging30_777/all/model.txt --n-masks 30 --val-seed 777 --kriging --out uncertainty_kriging777
+uv run --no-sync python -m gapfill.research.blend --model artifacts/research/kriging30_777/all/model.txt --nn nn_residual777 --val-seed 777 --weights 0.6 --sigma 0.04 --calibration posterior --uncertainty artifacts/research/uncertainty_kriging777/model.txt --out posterior_blend777
 ```
 
 На разработочной маске исходно было 400 эпох с выбором лучшей 260-й. Команда выше воспроизводит обучение
@@ -250,9 +250,9 @@ uv run --no-sync python -m gapfill.research_blend --model artifacts/research/kri
 Финальное обучение на всех известных данных, без внешнего holdout:
 
 ```bash
-uv run --no-sync python -m gapfill.research_final --source artifacts/research/kriging30_777/all/result.json --n-masks 30 --rounds 8500 --seeds 42 137 --threads 5 --out final_kriging --uncertainty
-uv run --no-sync python -m gapfill.research_nn --kind residual --epochs 260 --schedule-epochs 400 --hidden 96 --final --seed 0 --out final_nn_s0
-uv run --no-sync python -m gapfill.research_package --lgb final_kriging --nn final_nn_s0 --calibration posterior
+uv run --no-sync python -m gapfill.research.final --source artifacts/research/kriging30_777/all/result.json --n-masks 30 --rounds 8500 --seeds 42 137 --threads 5 --out final_kriging --uncertainty
+uv run --no-sync python -m gapfill.research.nn --kind residual --epochs 260 --schedule-epochs 400 --hidden 96 --final --seed 0 --out final_nn_s0
+uv run --no-sync python -m gapfill.research.package --lgb final_kriging --nn final_nn_s0 --calibration posterior
 ```
 
 Финальный ансамбль усредняет две инициализации бустинга (вес по 0.3), вес сети — 0.4.
