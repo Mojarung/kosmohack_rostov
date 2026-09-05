@@ -1,7 +1,7 @@
-/** Экран сезона: переключатель годов, три графика и список эпизодов с объяснениями.
- *  Используется и для полигонов кейса, и для территорий, собранных сервисом. */
+/** Экран сезона: слева графики, справа список эпизодов. Обе колонки во всю высоту рабочей области,
+ *  прокручивается только содержимое. Используется и для полигонов кейса, и для собранных территорий. */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { PolygonDetail, SeasonYear, WeatherYear } from "../../api/types";
 import { SENSOR_COLOR, ms, plural } from "../../lib/format";
@@ -11,16 +11,18 @@ import { ZChart } from "../charts/ZChart";
 import { useDateRange, type DateRange } from "../charts/range";
 import { EpisodeCard } from "./EpisodeCard";
 
+/** Высоты вспомогательных графиков; остальное место отдаётся главному. */
+const Z_HEIGHT = 104;
+const WEATHER_HEIGHT = 116;
+const NDVI_MIN = 180;
+
 /** Границы сезона по всем рядам: кривая, наблюдения и погода на одной шкале. */
 function seasonBounds(season: SeasonYear | undefined, weather: WeatherYear | undefined): DateRange {
   const times: number[] = [];
   season?.curve.forEach((p) => times.push(ms(p.date)));
   season?.observations.forEach((p) => times.push(ms(p.date)));
   weather?.date.forEach((d) => times.push(ms(d)));
-  if (!times.length) {
-    const now = Date.now();
-    return { from: now, to: now + 1 };
-  }
+  if (!times.length) return { from: 0, to: 1 };
   return { from: Math.min(...times), to: Math.max(...times) };
 }
 
@@ -39,60 +41,33 @@ function nearest(points: { date: string; value: number }[] | undefined, at: numb
   return bestGap > 5 * 24 * 3600 * 1000 ? null : best;
 }
 
-/** Строка показателей под курсором: то же, что видно на графиках, но числами. */
-function Readout({
-  season,
-  weather,
-  at,
-}: {
-  season: SeasonYear;
-  weather: WeatherYear | undefined;
-  at: number | null;
-}) {
-  const curve = nearest(season.curve, at);
-  const norm = nearest(season.norm_mean, at);
-  const z = nearest(season.z, at);
-  const rain = weather ? nearest(weather.date.map((d, i) => ({ date: d, value: weather.precip[i] })), at) : null;
-  const temp = weather ? nearest(weather.date.map((d, i) => ({ date: d, value: weather.temp[i] })), at) : null;
-
-  const cells = [
-    { label: "NDVI", value: curve ? curve.value.toFixed(3) : "—" },
-    { label: "норма", value: norm ? norm.value.toFixed(3) : "—" },
-    { label: "отклонение", value: z ? `${z.value.toFixed(1)} σ` : "—" },
-    { label: "осадки", value: rain ? `${rain.value.toFixed(1)} мм` : "—" },
-    { label: "температура", value: temp ? `${temp.value.toFixed(1)} °C` : "—" },
-  ];
-
-  return (
-    <div className="season-readout">
-      <span className="season-readout-date mono">
-        {at === null
-          ? "наведите на график"
-          : new Date(at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}
-      </span>
-      {cells.map((cell) => (
-        <span key={cell.label} className="season-readout-cell">
-          <span className="eyebrow">{cell.label}</span>
-          <span className="num">{cell.value}</span>
-        </span>
-      ))}
-    </div>
-  );
+/** Высота блока: главный график занимает всё, что осталось от вспомогательных. */
+function useAvailableHeight(): [React.RefObject<HTMLDivElement | null>, number] {
+  const ref = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(340);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const observer = new ResizeObserver(([entry]) => setHeight(entry.contentRect.height));
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  return [ref, height];
 }
 
 function Legend() {
   const items = [
     ...Object.entries(SENSOR_COLOR).map(([name, color]) => ({ name, color, shape: "dot" as const })),
-    { name: "восстановленная кривая", color: "#1a1d16", shape: "line" as const },
-    { name: "восстановленные пропуски", color: "#b03a76", shape: "diamond" as const },
+    { name: "кривая", color: "#1a1d16", shape: "line" as const },
+    { name: "восстановлено", color: "#b03a76", shape: "diamond" as const },
     { name: "норма ±1σ", color: "#9aa091", shape: "band" as const },
-    { name: "артефакт, исключён", color: "#c8423f", shape: "cross" as const },
+    { name: "артефакт", color: "#c8423f", shape: "cross" as const },
   ];
   return (
-    <div className="row" style={{ gap: 14, flexWrap: "wrap" }}>
+    <div className="season-legend">
       {items.map((item) => (
-        <span key={item.name} className="row meta" style={{ gap: 6 }}>
-          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
+        <span key={item.name} className="season-legend-item">
+          <svg width="12" height="12" viewBox="0 0 14 14" aria-hidden>
             {item.shape === "dot" && <circle cx="7" cy="7" r="4" fill={item.color} />}
             {item.shape === "line" && <path d="M1 9c3-6 9 2 12-4" stroke={item.color} strokeWidth="1.8" fill="none" />}
             {item.shape === "diamond" && (
@@ -112,11 +87,41 @@ function Legend() {
   );
 }
 
-export function SeasonPanel({ detail }: { detail: PolygonDetail }) {
-  const years = useMemo(
-    () => Object.keys(detail.years).map(Number).sort((a, b) => a - b),
-    [detail.years],
+/** Строка показателей под курсором: то же, что на графиках, но числами. */
+function Readout({ season, weather, at }: { season: SeasonYear; weather?: WeatherYear; at: number | null }) {
+  const curve = nearest(season.curve, at);
+  const norm = nearest(season.norm_mean, at);
+  const z = nearest(season.z, at);
+  const rain = weather ? nearest(weather.date.map((d, i) => ({ date: d, value: weather.precip[i] })), at) : null;
+  const temp = weather ? nearest(weather.date.map((d, i) => ({ date: d, value: weather.temp[i] })), at) : null;
+
+  const cells = [
+    { label: "NDVI", value: curve ? curve.value.toFixed(3) : "—" },
+    { label: "норма", value: norm ? norm.value.toFixed(3) : "—" },
+    { label: "отклонение", value: z ? `${z.value.toFixed(1)} σ` : "—" },
+    { label: "осадки", value: rain ? `${rain.value.toFixed(1)} мм` : "—" },
+    { label: "температура", value: temp ? `${temp.value.toFixed(1)} °C` : "—" },
+  ];
+
+  return (
+    <div className="season-readout">
+      <span className="season-readout-date mono">
+        {at === null
+          ? "наведите на график"
+          : new Date(at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" })}
+      </span>
+      {cells.map((cell) => (
+        <span key={cell.label} className="season-readout-cell">
+          <span className="eyebrow">{cell.label}</span>
+          <span className="num">{cell.value}</span>
+        </span>
+      ))}
+    </div>
   );
+}
+
+export function SeasonPanel({ detail }: { detail: PolygonDetail }) {
+  const years = useMemo(() => Object.keys(detail.years).map(Number).sort((a, b) => a - b), [detail.years]);
   const withEpisodes = useMemo(() => new Set(detail.episodes.map((e) => e.year)), [detail.episodes]);
   const critical = useMemo(
     () => new Set(detail.episodes.filter((e) => e.severity === "критическая").map((e) => e.year)),
@@ -130,68 +135,45 @@ export function SeasonPanel({ detail }: { detail: PolygonDetail }) {
   const season = detail.years[String(year)];
   const episodes = detail.episodes.filter((e) => e.year === year);
   const weather = detail.weather?.[String(year)];
-  const shape = (detail.shape ?? []).filter((s) => s.year === year);
+  const shape = (detail.shape ?? []).filter((item) => item.year === year);
 
-  // общее окно просмотра и общий курсор трёх графиков
   const bounds = useMemo(() => seasonBounds(season, weather), [season, weather]);
   const control = useDateRange(bounds);
   const [hover, setHover] = useState<number | null>(null);
+  const [chartsRef, chartsHeight] = useAvailableHeight();
+
+  const ndviHeight = Math.max(
+    NDVI_MIN,
+    chartsHeight - Z_HEIGHT - (weather ? WEATHER_HEIGHT : 34) - 26,
+  );
 
   return (
-    <div className="stack" style={{ gap: 16 }}>
-      <div className="card card--flush">
-        <div
-          className="spread"
-          style={{ padding: "14px var(--pad)", borderBottom: "1px solid var(--line)", flexWrap: "wrap", gap: 10 }}
-        >
-          <div>
-            <div className="eyebrow">Сезон</div>
-            <div className="row" style={{ gap: 8, marginTop: 2 }}>
-              <span style={{ fontFamily: "var(--font-serif)", fontSize: 22 }}>{year}</span>
-              <span className="meta">
-                {season ? `${season.observations.length} наблюдений · норма: ${season.norm_source}` : "нет данных"}
-              </span>
-            </div>
-          </div>
-          <div className="row" style={{ gap: 4, flexWrap: "wrap" }}>
+    <div className="season-layout">
+      <section className="pane">
+        <div className="pane-head">
+          <span className="row" style={{ gap: 10 }}>
+            <span className="pane-title">Сезон {year}</span>
+            <span className="meta">
+              {season ? `${season.observations.length} наблюдений · норма: ${season.norm_source}` : "нет данных"}
+            </span>
+          </span>
+          <div className="chips season-years">
             {years.map((y) => (
               <button
                 key={y}
                 type="button"
+                className={"chip chip--year" + (y === year ? " is-active" : "")}
                 onClick={() => setYear(y)}
-                className="mono"
-                style={{
-                  cursor: "pointer",
-                  border: `1px solid ${y === year ? "var(--ink)" : "var(--line)"}`,
-                  background: y === year ? "var(--ink)" : "var(--surface)",
-                  color: y === year ? "#fff" : "var(--ink-soft)",
-                  borderRadius: 6,
-                  padding: "3px 8px",
-                  fontSize: 12,
-                  position: "relative",
-                  transition: "background .16s var(--ease), color .16s var(--ease)",
-                }}
                 title={
-                  critical.has(y)
-                    ? "есть критический эпизод"
-                    : withEpisodes.has(y)
-                      ? "есть эпизод угнетения"
-                      : "без эпизодов"
+                  critical.has(y) ? "есть критический эпизод" : withEpisodes.has(y) ? "есть эпизод" : "без эпизодов"
                 }
               >
-                {y}
+                {String(y).slice(2)}
                 {(withEpisodes.has(y) || critical.has(y)) && (
                   <span
                     aria-hidden
-                    style={{
-                      position: "absolute",
-                      left: 6,
-                      right: 6,
-                      bottom: 2,
-                      height: 2,
-                      borderRadius: 2,
-                      background: critical.has(y) ? "#c8423f" : "#e8a33d",
-                    }}
+                    className="chip-mark"
+                    style={{ background: critical.has(y) ? "#c8423f" : "#e8a33d" }}
                   />
                 )}
               </button>
@@ -199,86 +181,83 @@ export function SeasonPanel({ detail }: { detail: PolygonDetail }) {
           </div>
         </div>
 
-        <div style={{ padding: "12px var(--pad) 4px" }}>
-          <Legend />
-        </div>
-
         {season ? (
           <>
             <Readout season={season} weather={weather} at={hover} />
-
             <div className="season-toolbar">
-              <span className="meta">
-                Выделите период мышью, чтобы приблизить. Колесо — масштаб, двойной клик — весь сезон.
-              </span>
-              <button
-                type="button"
-                className="btn btn--sm btn--ghost"
-                onClick={control.reset}
-                disabled={!control.zoomed}
-              >
+              <Legend />
+              <button type="button" className="btn btn--sm btn--ghost" onClick={control.reset} disabled={!control.zoomed}>
                 Весь сезон
               </button>
             </div>
 
-            <div style={{ padding: "0 8px" }}>
-              <SeasonChart season={season} episodes={episodes} control={control} hover={hover} onHover={setHover} />
-            </div>
-            <div style={{ padding: "0 8px 8px" }}>
-              <ZChart season={season} episodes={episodes} control={control} hover={hover} onHover={setHover} />
-            </div>
-            <div style={{ padding: "8px var(--pad) 14px" }}>
-              <div className="eyebrow">Погода ERA5</div>
+            <div ref={chartsRef} className="season-charts">
+              <SeasonChart
+                season={season}
+                episodes={episodes}
+                height={ndviHeight}
+                control={control}
+                hover={hover}
+                onHover={setHover}
+              />
+              <ZChart
+                season={season}
+                episodes={episodes}
+                height={Z_HEIGHT}
+                control={control}
+                hover={hover}
+                onHover={setHover}
+              />
               {weather ? (
-                <WeatherChart weather={weather} control={control} hover={hover} onHover={setHover} />
+                <WeatherChart weather={weather} height={WEATHER_HEIGHT} control={control} hover={hover} onHover={setHover} />
               ) : (
-                <p className="meta" style={{ marginTop: 6 }}>
-                  Для этого поля метеоряда нет: погода в объяснениях берётся по соседним полям региона.
+                <p className="meta" style={{ padding: "6px 16px" }}>
+                  Метеоряда для этого поля нет: погода в объяснениях берётся по соседним полям региона.
                 </p>
               )}
             </div>
           </>
         ) : (
-          <p className="meta" style={{ padding: "var(--pad)" }}>
+          <p className="meta" style={{ padding: 16 }}>
             Нет наблюдений за этот сезон.
           </p>
         )}
-      </div>
+      </section>
 
-      <div className="stack" style={{ gap: 10 }}>
-        <div className="spread">
-          <h2>Эпизоды угнетения</h2>
+      <section className="pane">
+        <div className="pane-head">
+          <span className="pane-title">Эпизоды угнетения</span>
           <span className="meta">
             {episodes.length
-              ? `${episodes.length} ${plural(episodes.length, "эпизод", "эпизода", "эпизодов")} в ${year} году`
-              : `в ${year} году не найдено`}
+              ? `${episodes.length} ${plural(episodes.length, "эпизод", "эпизода", "эпизодов")}`
+              : "не найдено"}
           </span>
         </div>
-        {episodes.length === 0 && (
-          <div className="card card--sunk">
+        <div className="pane-body pane-body--pad stack" style={{ gap: 10 }}>
+          {episodes.length === 0 && (
             <p className="meta">
-              Устойчивых или сильных отклонений ниже нормы не обнаружено: кривая сезона держится в пределах ±1σ
-              от нормы этого поля.
+              Устойчивых отклонений ниже нормы нет: кривая сезона держится в пределах ±1σ от нормы этого поля.
             </p>
-          </div>
-        )}
-        {episodes
-          .slice()
-          .sort((a, b) => a.min_z - b.min_z)
-          .map((episode) => (
-            <EpisodeCard
-              key={`${episode.start}-${episode.end}`}
-              episode={episode}
-              onZoom={() => control.select(ms(episode.start), ms(episode.end))}
-            />
+          )}
+          {episodes
+            .slice()
+            .sort((a, b) => a.min_z - b.min_z)
+            .map((episode) => (
+              <EpisodeCard
+                key={`${episode.start}-${episode.end}`}
+                episode={episode}
+                compact
+                onZoom={() => control.select(ms(episode.start), ms(episode.end))}
+              />
+            ))}
+          {shape.map((item) => (
+            <div key={`${item.year}-${item.shape_direction}`} className="card card--sunk">
+              <div className="eyebrow">Нетипичная форма сезона · {item.shape_direction}</div>
+              <p style={{ marginTop: 6, color: "var(--ink-soft)", fontSize: 13 }}>{item.shape_reasons}</p>
+            </div>
           ))}
-        {shape.map((item) => (
-          <div key={`${item.year}-${item.shape_direction}`} className="card card--sunk">
-            <div className="eyebrow">Нетипичная форма сезона · {item.shape_direction}</div>
-            <p style={{ marginTop: 6, color: "var(--ink-soft)" }}>{item.shape_reasons}</p>
-          </div>
-        ))}
-      </div>
+        </div>
+      </section>
     </div>
   );
 }

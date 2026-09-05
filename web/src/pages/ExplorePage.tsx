@@ -10,7 +10,8 @@ import type { OsmField, PolygonDetail } from "../api/types";
 import { severityTone } from "../lib/format";
 import { FieldArt, SearchFieldsArt } from "../components/art/Art";
 import { SeasonPanel } from "../components/panels/SeasonPanel";
-import { ErrorNote, Loader } from "../components/ui/Loader";
+import { ErrorNote } from "../components/ui/Loader";
+import { PagePending } from "../components/ui/PagePending";
 
 const FieldMap = lazy(() => import("../components/map/FieldMap"));
 
@@ -148,82 +149,89 @@ export default function ExplorePage() {
   const area = selection ? areaHa(selection) : 0;
   const savedList = useMemo(() => saved.data ?? [], [saved.data]);
 
-  return (
-    <div className="stack" style={{ gap: 18 }}>
-      <div className="stack" style={{ gap: 6 }}>
-        <span className="eyebrow">Сценарий без подготовки данных</span>
-        <h1 style={{ fontSize: 34 }}>Новая территория</h1>
-        <p className="meta" style={{ maxWidth: "70ch" }}>
-          Найдите готовые сельхозконтуры OpenStreetMap в видимой области карты или обведите участок сами.
-          Сервис сам соберёт снимки и погоду за {YEARS.start}–{YEARS.end} годы, построит ряд NDVI, восстановит
-          пропуски и найдёт периоды угнетения.
-        </p>
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gap: 16,
-          gridTemplateColumns: "minmax(0, 1fr) minmax(280px, 340px)",
-          alignItems: "start",
-        }}
-      >
-        <div className="card card--flush" style={{ height: 536 }}>
-          <Suspense fallback={<Loader label="Инициализируем карту" />}>
-            <FieldMap
-              saved={savedList}
-              osmFields={osmFields}
-              selection={selection}
-              drawing={drawing}
-              onDrawn={(geometry) => {
-                setSelection(geometry);
-                setDrawing(false);
-              }}
-              onPickOsm={(field) => {
-                setSelection(field.geometry);
-                setName(field.name);
-                setDrawing(false);
-              }}
-              onPickSaved={(target) => navigate(`/explore/${target}`)}
-              onViewportChange={(bbox) => {
-                bboxRef.current = bbox;
-              }}
-              height="100%"
-            />
-          </Suspense>
+  // открытое поле показываем вместо карты: экран остаётся один, без прокрутки
+  if (detail) {
+    return (
+      <div className="workspace workspace--field">
+        <div className="screen-head">
+          <button type="button" className="back-link" onClick={() => { setResult(null); navigate("/explore"); }}>
+            ← к карте
+          </button>
+          <span className="screen-title">{detail.name ?? detail.pid}</span>
+          <span className="meta">{detail.collected ?? detail.kind}</span>
+          <span className="head-facts">
+            <span className="head-fact">
+              <span className="num">{Object.keys(detail.years).length}</span>
+              <span className="eyebrow">сезонов собрано</span>
+            </span>
+            <span className="head-fact">
+              <span className="num">{detail.episodes.length}</span>
+              <span className="eyebrow">эпизодов</span>
+            </span>
+          </span>
         </div>
+        <SeasonPanel detail={detail} />
+      </div>
+    );
+  }
 
-        <div className="stack" style={{ gap: 14 }}>
-          <div className="card stack" style={{ gap: 12 }}>
-            <div className="row" style={{ gap: 10 }}>
-              <SearchFieldsArt size={34} />
+  return (
+    <div className="workspace workspace--explore">
+      <section className="pane pane--plain">
+        <Suspense fallback={<PagePending label="Инициализируем карту" />}>
+          <FieldMap
+            saved={savedList}
+            osmFields={osmFields}
+            selection={selection}
+            drawing={drawing}
+            onDrawn={(geometry) => {
+              setSelection(geometry);
+              setDrawing(false);
+            }}
+            onPickOsm={(field) => {
+              setSelection(field.geometry);
+              setName(field.name);
+              setDrawing(false);
+            }}
+            onPickSaved={(target) => navigate(`/explore/${target}`)}
+            onViewportChange={(bbox) => {
+              bboxRef.current = bbox;
+            }}
+            height="100%"
+          />
+        </Suspense>
+      </section>
+
+      <div className="workspace-side">
+        <section className="pane">
+          <div className="step">
+            <div className="step-head">
+              <SearchFieldsArt size={28} />
               <div>
                 <div className="eyebrow">Шаг 1</div>
-                <div style={{ fontSize: 14 }}>Выберите контур</div>
+                <div style={{ fontSize: 13.5 }}>Выберите контур</div>
               </div>
             </div>
-            <button type="button" className="btn btn--ghost" onClick={findFields} disabled={osmLoading}>
+            <button type="button" className="btn btn--ghost btn--sm" onClick={findFields} disabled={osmLoading}>
               {osmLoading ? "Ищем контуры…" : "Найти поля OSM в видимой области"}
             </button>
             <button
               type="button"
-              className={drawing ? "btn" : "btn btn--ghost"}
+              className={drawing ? "btn btn--sm" : "btn btn--ghost btn--sm"}
               onClick={() => setDrawing((value) => !value)}
             >
               {drawing ? "Рисование включено — кликайте по карте" : "Нарисовать контур вручную"}
             </button>
-            {osmFields.length > 0 && (
-              <p className="meta">Найдено контуров: {osmFields.length}. Кликните по любому на карте.</p>
-            )}
+            {osmFields.length > 0 && <p className="meta">Найдено контуров: {osmFields.length}. Кликните по любому.</p>}
             {osmError && <p className="meta">{osmError}</p>}
           </div>
 
-          <div className="card stack" style={{ gap: 12 }}>
-            <div className="row" style={{ gap: 10 }}>
-              <FieldArt size={34} />
+          <div className="step">
+            <div className="step-head">
+              <FieldArt size={28} />
               <div>
                 <div className="eyebrow">Шаг 2</div>
-                <div style={{ fontSize: 14 }}>Соберите данные</div>
+                <div style={{ fontSize: 13.5 }}>Соберите данные</div>
               </div>
             </div>
             <input
@@ -232,93 +240,62 @@ export default function ExplorePage() {
               onChange={(event) => setName(event.target.value)}
               placeholder="название поля"
             />
-            <p className="meta">
-              {selection ? `Контур задан, около ${area.toFixed(1)} га.` : "Контур ещё не выбран."}
-            </p>
+            <p className="meta">{selection ? `Контур задан, около ${area.toFixed(1)} га.` : "Контур ещё не выбран."}</p>
             <button
               type="button"
-              className="btn"
+              className="btn btn--sm"
               disabled={!selection || analyze.isPending}
               onClick={() => analyze.mutate()}
             >
-              {analyze.isPending ? "Собираем…" : "Собрать данные и проанализировать"}
+              {analyze.isPending ? "Собираем…" : `Собрать за ${YEARS.start}–${YEARS.end} и разобрать`}
             </button>
             {analyze.isPending && <CollectProgress startedAt={startedAt} />}
             {analyze.isError && <ErrorNote error={analyze.error} />}
           </div>
+        </section>
 
-          <div className="card stack" style={{ gap: 10 }}>
-            <div className="spread">
-              <div className="eyebrow">Мои поля</div>
-              <span className="meta">{savedList.length}</span>
-            </div>
+        <section className="pane">
+          <div className="pane-head">
+            <span className="pane-title">Мои поля</span>
+            <span className="meta">{savedList.length}</span>
+          </div>
+          <div className="pane-body pane-body--pad stack" style={{ gap: 5 }}>
             {savedList.length === 0 && (
               <p className="meta">
                 Пока пусто. Проанализированные территории сохраняются здесь и подсвечиваются на карте цветом
                 состояния последнего сезона.
               </p>
             )}
-            <div className="stack scroll" style={{ gap: 6, maxHeight: 260 }}>
-              {savedList.map((item) => (
-                <div
-                  key={item.uid}
-                  className="spread"
-                  style={{
-                    gap: 8,
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: `1px solid ${uid === item.uid ? "var(--line-strong)" : "var(--line)"}`,
-                    background: uid === item.uid ? "var(--surface-sunk)" : "transparent",
-                    cursor: "pointer",
-                  }}
-                  onClick={() => navigate(`/explore/${item.uid}`)}
-                >
-                  <div className="stack" style={{ gap: 2, minWidth: 0 }}>
-                    <span style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {item.name}
-                    </span>
-                    <span className="meta" style={{ fontSize: 11.5 }}>
-                      {item.years.length ? `${item.years[0]}–${item.years.at(-1)}` : "нет сезонов"} · эпизодов{" "}
-                      {item.n_episodes}
-                    </span>
-                  </div>
-                  <div className="row" style={{ gap: 6 }}>
-                    <span className={`tag tag--${severityTone(item.last_year_status)}`}>{item.last_year_status}</span>
-                    <button
-                      type="button"
-                      aria-label={`удалить ${item.name}`}
-                      className="btn btn--ghost btn--sm"
-                      style={{ padding: "2px 7px", borderColor: "transparent" }}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        remove.mutate(item.uid);
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </div>
+            {savedList.map((item) => (
+              <div key={item.uid} className="saved-row" onClick={() => navigate(`/explore/${item.uid}`)}>
+                <div className="stack" style={{ gap: 1, minWidth: 0 }}>
+                  <span className="saved-name">{item.name}</span>
+                  <span className="meta" style={{ fontSize: 11 }}>
+                    {item.years.length ? `${item.years[0]}–${item.years.at(-1)}` : "нет сезонов"} · эпизодов{" "}
+                    {item.n_episodes}
+                  </span>
                 </div>
-              ))}
-            </div>
+                <div className="row" style={{ gap: 6 }}>
+                  <span className={`tag tag--${severityTone(item.last_year_status)}`}>{item.last_year_status}</span>
+                  <button
+                    type="button"
+                    aria-label={`удалить ${item.name}`}
+                    className="saved-remove"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      remove.mutate(item.uid);
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
+        </section>
       </div>
 
-      {opened.isLoading && <Loader label="Открываем сохранённое поле" />}
       {opened.isError && <ErrorNote error={opened.error} />}
-
-      {detail && (
-        <section className="stack" style={{ gap: 12 }}>
-          <div className="spread" style={{ flexWrap: "wrap", gap: 10 }}>
-            <div>
-              <h2>{detail.name ?? detail.pid}</h2>
-              <p className="meta">{detail.collected ?? detail.kind}</p>
-            </div>
-            <span className="meta">{Object.keys(detail.years).length} сезонов собрано</span>
-          </div>
-          <SeasonPanel detail={detail} />
-        </section>
-      )}
     </div>
   );
 }

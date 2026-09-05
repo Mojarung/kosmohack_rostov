@@ -8,7 +8,6 @@ import { useEffect, useLayoutEffect, useRef, useTransition, type ReactNode } fro
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import gsap from "gsap";
 
-import { BubbleLayer, burstBubbles } from "../motion/Bubbles";
 import { SproutArt } from "../art/Art";
 
 const NAV = [
@@ -17,9 +16,6 @@ const NAV = [
   { to: "/anomalies", label: "Аномалии" },
   { to: "/method", label: "Как это работает" },
 ];
-
-/** Оттенки пузырьков внутренних экранов: те же, что на главной. */
-const PALETTE = ["#f6ead6", "#f0e2cc", "#e7eee0", "#e4ecf4", "#fbf4e8"];
 
 /** Вкладка. Переход запускается через startTransition: React дорисовывает новый экран в фоне,
  *  старый остаётся на месте и кликабельным, поэтому смены вкладки не «проваливается» в пустоту. */
@@ -95,7 +91,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (previous.current === pathname) return;
     previous.current = pathname;
     window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
-    burstBubbles({ palette: PALETTE, count: 18 });
     if (mainRef.current && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       gsap.fromTo(mainRef.current, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.6, ease: "expo.out" });
     }
@@ -108,8 +103,6 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="shell">
-      <BubbleLayer count={14} palette={PALETTE} opacity={0.45} intro={false} />
-
       {/* тонкая полоса сверху, пока новый экран дорисовывается */}
       <span className={"shell-progress" + (isPending ? " is-on" : "")} aria-hidden />
 
@@ -136,15 +129,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </main>
 
-      <footer className="shell-footer">
-        <div className="shell-footer-inner">
-          <span className="meta" style={{ maxWidth: "72ch" }}>
-            Данные: Sentinel-2 и Landsat (Earth Search, Planetary Computer), MODIS MOD13Q1, ERA5 через Open-Meteo,
-            контуры полей OpenStreetMap.
-          </span>
-          <span className="mono meta">Космохакатон · Ростовская область</span>
-        </div>
-      </footer>
     </div>
   );
 }
