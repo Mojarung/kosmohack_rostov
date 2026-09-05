@@ -46,12 +46,5 @@ export function AgroPanel({ context, loading, error, retry, year, control, hover
     <AgroChart metric={metric} color={spec.color} units={spec.units} year={year}
       control={control} hover={hover} onHover={onHover} showKolobok={mode === "rain"} />
     <RangeToolbar control={control} />
-    <details className="metric-help"><summary>Как читать погодный график</summary><div className="stack">
-      <p>Сравниваем одинаковые календарные даты прошлых лет, без текущего года. Для ориентира нужны минимум 3 года. Пропуски остаются разрывами.</p>
-      <p>Тепло: сумма max(Tср − 10 °C, 0) от 1 апреля. Это общий показатель сезона, без привязки к фазам конкретной культуры.</p>
-      <p>Сухой период: максимум дней подряд с осадками менее 1 мм за сезон. Неизвестный день прерывает серию.</p>
-      {context.water.available && <p>Баланс влаги: осадки − ET₀. ET₀ учитывает температуру, влажность воздуха, ветер и солнечную радиацию. Ниже среднего — погода суше обычного. Это не влажность почвы и не норма полива.</p>}
-      <p>{context.source || "ERA5 из данных кейса"}. Погода помогает объяснить NDVI и не меняет пороги аномалий.</p>
-    </div></details>
   </section>;
 }
