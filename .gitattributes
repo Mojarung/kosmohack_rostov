@@ -1,0 +1,20 @@
+# Артефакты моделей и данных Git не должен трогать переводом строк.
+# Иначе на Windows (core.autocrlf=true) LF превращается в CRLF, и текстовая модель LightGBM
+# перестаёт читаться: «Model format error, expect a tree here». Проверяется по sha256 в manifest.json.
+models/** -text
+*.gz -text
+*.pt -text
+*.parquet -text
+*.sqlite -text
+
+# Данные и отчёты: содержимое сверяется по хешам, конвертация ломает сверку.
+data/** -text
+submission*.csv -text
+reports/**/*.csv -text
+
+# Медиа и шрифты
+*.mp4 -text
+*.jpg -text
+*.png -text
+*.woff2 -text
+*.svg -text

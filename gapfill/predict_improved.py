@@ -26,11 +26,19 @@ from gapfill.research_nn import ResidualSeasonNet, inference, inputs
 
 
 def load_booster(path):
-    """Читает сжатые и обычные модели LightGBM."""
+    """Читает сжатые и обычные модели LightGBM.
+
+    Перевод строк нормализуется: на Windows Git с core.autocrlf=true превращает LF в CRLF,
+    и парсер LightGBM перестаёт видеть деревья («Model format error, expect a tree here»).
+    От этого же защищает .gitattributes, но файл может приехать и мимо Git.
+    """
     if path.suffix == ".gz":
-        with gzip.open(path, "rt", encoding="utf-8") as stream:
-            return lgb.Booster(model_str=stream.read())
-    return lgb.Booster(model_file=str(path))
+        with gzip.open(path, "rb") as stream:
+            text = stream.read().decode("utf-8")
+    else:
+        text = path.read_bytes().decode("utf-8")
+    return lgb.Booster(model_str=text.replace(chr(13) + chr(10), chr(10)))
+
 
 
 def check_calibration_inputs(manifest, train_path, input_path, extra_paths):
