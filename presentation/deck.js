@@ -58,5 +58,11 @@ document.addEventListener('touchend', (event) => {
   touchStartX = null;
 });
 
+// Смена номера в адресной строке вручную (ссылка на конкретный слайд) тоже листает дек.
+window.addEventListener('hashchange', () => {
+  const target = Number(location.hash.replace('#', '')) - 1;
+  if (Number.isFinite(target) && target !== current) show(target);
+});
+
 fit();
 show(Number(location.hash.replace('#', '')) - 1 || 0);

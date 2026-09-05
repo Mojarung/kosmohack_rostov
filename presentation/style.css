@@ -147,6 +147,7 @@ li b, p b { color: var(--ink); font-weight: 700; }
 
 .tag {
   display: inline-block;
+  align-self: flex-start;   /* бейдж по ширине текста, а не во всю карточку */
   font-size: 13px;
   font-weight: 700;
   padding: 3px 10px;

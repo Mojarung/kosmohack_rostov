@@ -393,16 +393,20 @@ Docker torch ставится из индекса CPU отдельной стр�
 │   ├── train_dataset.csv        # обучающий датасет (99 955 строк)
 │   ├── test_features_new.csv    # тестовый датасет = private_features.csv, вторая версия (49 190 строк, 2 323 контрольные точки)
 │   └── test_dataset.csv         # первая версия test (57 185 строк): только дополнительные известные точки
-├── docs/                   # ТЗ, критерии, чек-лист, отчёты 08–15, исходные PDF в source/
+├── docs/                   # ТЗ, критерии, чек-лист, отчёты 08–19, исходные PDF в source/
 ├── eda/                    # модули разведочного анализа (uv run python -m eda.run_all)
 │   └── v1/                 # скрипты первого прохода EDA и сборка дашборда
 ├── gapfill/                # восстановление primary_ndvi: признаки, LightGBM, SeasonNet, смесь, submission
+│                           карта модулей — gapfill/README.md
 ├── anomaly/                # детекция и интерпретация аномалий: кривые, нормы, эпизоды, погода, причины
+│                           карта модулей — anomaly/README.md
 ├── service/                # бэкенд: FastAPI (app.py), данные (data.py), сбор (collect.py), набор полигонов (polygons.py), сводка (meta.py), резервный UI (static/)
+│                           карта модулей — service/README.md
+├── mcp_server/             # MCP-инструменты поверх service/facts.py (claude mcp add vegetation)
 ├── web/                    # интерфейс: React 19 + Vite, MUI X Charts, AntV L7, GSAP (src/pages, src/components)
 ├── presentation/           # дек защиты: index.html (14 слайдов), style.css, deck.js, img/
 ├── scripts/                # вспомогательные скрипты (замер скорости автосбора)
-├── experiments/            # журнал экспериментов (exp-000…007 задача 1, exp-100…104 задача 2 и сервис)
+├── experiments/            # журнал экспериментов (exp-000…008 задача 1, exp-100…105 задача 2, сервис и интерфейс)
 ├── tests/                  # pytest: ядро gapfill, детектор аномалий, набор полигонов сервиса
 ├── models/                 # готовые веса (~103 МБ): LightGBM (gzip) + SeasonNet (.pt), инференс без обучения
 │   └── improved/           # веса финальной модели exp-008 (gapfill.predict_improved)
