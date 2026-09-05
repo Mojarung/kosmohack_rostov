@@ -9,6 +9,7 @@ import { SeasonChart } from "../charts/SeasonChart";
 import { WeatherChart } from "../charts/WeatherChart";
 import { ZChart } from "../charts/ZChart";
 import { useDateRange } from "../charts/range";
+import { useExplanations } from "../../lib/useExplanations";
 import { RangeToolbar } from "../charts/RangeToolbar";
 import { EpisodeCard } from "./EpisodeCard";
 import { FieldVerdict } from "./FieldVerdict";
@@ -42,6 +43,8 @@ function SeasonContent({ detail, year, onYear, aside }: { detail: PolygonDetail;
     }
   }, [requestedFrom, requestedTo, year, bounds.from, bounds.to, control.select, params]);
   const [hover, setHover] = useState<number | null>(null), [showDetails, setShowDetails] = useState(false);
+  // объяснения модели догружаются после анализа: карточки подменяют текст, когда те готовы
+  const explanations = useExplanations(detail.pid, year);
   function zoomMetric({ chart, from, to }: MetricZoom) {
     if (!Number.isFinite(from) || !Number.isFinite(to)) return;
     setHover(null);
@@ -100,7 +103,8 @@ function SeasonContent({ detail, year, onYear, aside }: { detail: PolygonDetail;
       {!episodes.length && <p className="meta">{season.z.some(p => Number.isFinite(p.value))
         ? "Поле весь сезон держалось в пределах обычного." : "Недостаточно снимков, чтобы судить о поле."}</p>}
       {[...episodes].sort((a, b) => a.min_z - b.min_z).map(e =>
-        <EpisodeCard compact key={`${e.start}-${e.end}`} episode={e} onZoom={() => {
+        <EpisodeCard compact key={`${e.start}-${e.end}`} episode={e}
+          modelText={explanations.textFor(e)} modelPending={explanations.pending} onZoom={() => {
           control.select(ms(e.start) - 30 * 86400000, ms(e.end) + 10 * 86400000);
           document.querySelector('[data-testid="ndvi-chart"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
         }} />)}

@@ -3,6 +3,7 @@
 import type {
   AskAnswer,
   CollectProgressState,
+  Explanations,
   Episode,
   Meta,
   OsmField,
@@ -82,6 +83,9 @@ export const api = {
   /** Вопрос о поле своими словами: с ключом отвечает модель, без ключа — разбор по правилам. */
   ask: (body: { pid: string; question: string; year?: number }) =>
     request<AskAnswer>("/api/ask", { method: "POST", body: JSON.stringify(body) }),
+  /** Объяснения от модели: догружаются после анализа, пока модель их пишет. */
+  explanations: (pid: string, year?: number) =>
+    request<Explanations>(`/api/explanations/${encodeURIComponent(pid)}${year ? `?year=${year}` : ""}`),
   /** Ссылка на отчёт по полю: самодостаточный HTML, печатается в PDF из браузера. */
   reportUrl: (pid: string, year?: number) =>
     `/api/report/${encodeURIComponent(pid)}${year ? `?year=${year}` : ""}`,

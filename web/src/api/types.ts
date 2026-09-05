@@ -57,6 +57,8 @@ export interface Episode {
   region_share_depressed?: number | null;
   reasons: string;
   text: string;
+  /** Кто написал объяснение: llm — языковая модель по фактам, rules — правила. */
+  text_source?: "llm" | "rules";
   ndwi_anomaly?: number | null;
 }
 
@@ -185,4 +187,10 @@ export interface PlaceResult {
   bbox: [number, number, number, number] | null;
   address: Record<string, string>;
   kind: string;
+}
+
+/** Объяснения периодов снижения, написанные моделью. Приходят отдельно от анализа. */
+export interface Explanations {
+  status: "off" | "idle" | "pending" | "ready" | "error";
+  items: Record<string, { text: string; source: "llm" | "rules" }>;
 }

@@ -97,12 +97,12 @@ uv run pytest tests -q
 
 ```bash
 uv sync --frozen --no-default-groups --group infer --group torch
-uv run --no-sync python -m gapfill.predict_improved --output submission_improved.csv --model-only-output submission_model.csv
+uv run --no-sync python -m gapfill.predict_improved --output submission.csv --model-only-output submission_model.csv
 # Только обычный ML, без опубликованных исторических агрегатов:
 uv run --no-sync python -m gapfill.predict_improved --no-calibration --output submission_model.csv
 ```
 
-**Важно:** `submission_improved.csv` использует mean/std из первой версии `data/test_dataset.csv`,
+**Важно:** `submission.csv` использует mean/std из первой версии `data/test_dataset.csv`,
 которые содержат информацию о скрытых значениях новой версии. Это специфичная для данного набора
 калибровка, не переносимая на новые поля. Перед конкурсной отправкой её допустимость нужно подтвердить
 у организаторов. `submission_model.csv` — тот же ансамбль **без этой калибровки**. Результат закрытой
@@ -151,13 +151,18 @@ docker compose exec app uv run --no-sync python -m gapfill.predict_improved   --
 ### Вопросы о поле и отчёт
 
 На экране поля есть панель «Спросить про поле»: вопрос своими словами, ответ — по тем же числам,
-что показаны на экране. С ключом `ANTHROPIC_API_KEY` (`uv sync --group agent`) отвечает языковая модель,
-у которой есть три инструмента: сводка сезона, периоды снижения и метод. Без ключа отвечает разбор
+что показаны на экране. С ключом `OLLAMA_API_KEY` (`uv sync --group agent`) отвечает языковая модель Ollama Cloud,
+у которой есть три инструмента: сводка сезона, периоды снижения и метод. Ключ кладётся в `.env`
+(см. `.env.example`), модель по умолчанию — `gemma4:31b`. Без ключа отвечает разбор
 по правилам — теми же фактами, только без связного текста. Модель не считает NDVI и не видит сырых данных.
 
 Кнопка «Отчёт для печати» открывает `GET /api/report/{pid}` — самодостаточный HTML без внешних ссылок,
 с графиком сезона в SVG. Он свёрстан под печать, поэтому PDF получается прямо из браузера:
 «Печать» → «Сохранить как PDF».
+
+Объяснения периодов снижения тоже пишет модель, но **не** в момент анализа: она отвечает
+десятками секунд на эпизод, поэтому анализ отдаёт текст по правилам сразу, а объяснения
+догружаются фоном (`GET /api/explanations/{pid}?year=`) и подменяются в карточках, когда готовы.
 
 ### MCP-инструменты
 

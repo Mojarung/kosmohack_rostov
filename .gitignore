@@ -27,3 +27,6 @@ reports/anomalies/organizer_norm.parquet
 web/node_modules/
 web/dist/
 web/shot.mjs
+
+# Ключи модели
+.env

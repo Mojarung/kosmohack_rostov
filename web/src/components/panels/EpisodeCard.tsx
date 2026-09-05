@@ -19,6 +19,10 @@ interface EpisodeCardProps {
   compact?: boolean;
   /** Приблизить период эпизода на графиках сезона. */
   onZoom?: () => void;
+  /** Текст объяснения от модели: приходит позже анализа, подменяет правиловый. */
+  modelText?: string | null;
+  /** Модель ещё пишет объяснения. */
+  modelPending?: boolean;
 }
 
 /** Доля соседей ниже нормы словами: «соседи в порядке, просело только это поле» или «просели все поля вокруг».
@@ -31,7 +35,7 @@ function neighboursPlain(episode: Episode): string | null {
   return "Соседние поля в это время были в порядке: просело только это.";
 }
 
-export function EpisodeCard({ episode, compact = false, onZoom }: EpisodeCardProps) {
+export function EpisodeCard({ episode, compact = false, onZoom, modelText, modelPending }: EpisodeCardProps) {
   const tone = severityTone(episode.severity);
   const Art = CAUSE_ART[episode.cause] ?? CurveArt;
   const reasons = episode.reasons ? episode.reasons.split(" | ").filter(Boolean) : [];
@@ -88,7 +92,17 @@ export function EpisodeCard({ episode, compact = false, onZoom }: EpisodeCardPro
                 {episode.n_obs} {plural(episode.n_obs, "наблюдение", "наблюдения", "наблюдений")}
               </span>
             </div>
-            <p style={{ color: "var(--ink-soft)", fontSize: 12.5, margin: 0 }}>{episode.text}</p>
+            <p style={{ color: "var(--ink-soft)", fontSize: 12.5, margin: 0 }}>{modelText ?? episode.text}</p>
+            {modelText && (
+              <p className="meta" style={{ fontSize: 11, marginTop: 4 }}>
+                текст написан моделью по фактам эпизода; числа посчитаны сервисом
+              </p>
+            )}
+            {!modelText && modelPending && (
+              <p className="meta" style={{ fontSize: 11, marginTop: 4 }}>
+                модель дописывает подробное объяснение…
+              </p>
+            )}
             {reasons.length > 0 && (
               <ul className="stack" style={{ gap: 4, margin: 0, paddingLeft: 16, color: "var(--muted)", fontSize: 12.5 }}>
                 {reasons.map((reason, index) => (
