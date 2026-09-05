@@ -1,0 +1,189 @@
+{
+  "format_version": 1,
+  "feature_version": "kriging",
+  "lightgbm": [
+    {
+      "file": "lgb_seed42.txt.gz",
+      "sha256": "abb2de9670e222f04d84b50e854ba5e6914cc0b9f16e2605c8aca0bde2522836",
+      "weight": 0.3
+    },
+    {
+      "file": "lgb_seed137.txt.gz",
+      "sha256": "001315a905ae008825e48c75270d3247dc2674977f3cfcc72ce7748e7891ff7c",
+      "weight": 0.3
+    }
+  ],
+  "neural": [
+    {
+      "file": "residual_seed0.pt",
+      "sha256": "bbe67e120ce81b8f02ab4efc8e11c1083ed412dd9a01aac98a8851c7d587a939",
+      "kind": "residual",
+      "hidden": 96,
+      "dropout": 0.25,
+      "weight": 0.4
+    }
+  ],
+  "calibration": {
+    "mode": "posterior",
+    "sigma": 0.04,
+    "warning": "Агрегаты старой версии содержат информацию о скрытых ответах."
+  },
+  "data_sha256_lf": [
+    "a75e530d0fb51581ad6800f84b3875233778801491f02236917862faf9b424ec",
+    "a4ca0b0cce98716653eb50c1f261a5d297db9bd04f1657f8cc593dcd90d4651d",
+    "3c5c0e27eef8266bcf6dce09c9b556c073cee3902c065a94e4ea7a59edb00993"
+  ],
+  "training": {
+    "lightgbm": {
+      "args": {
+        "source": "artifacts/research/kriging30_777/all/result.json",
+        "n_masks": 30,
+        "rounds": 8500,
+        "seeds": [
+          42,
+          137
+        ],
+        "threads": 5,
+        "out": "final_kriging",
+        "uncertainty": true,
+        "only_uncertainty": false
+      },
+      "source": {
+        "rmse": 0.053970317918946464,
+        "rmse_testlike": 0.05537171186391619,
+        "rmse_trim": 0.04715979765094974,
+        "n": 9199,
+        "gap_score_testlike": 13.39,
+        "rmse_s2": 0.05708314667301732,
+        "rmse_landsat": 0.05241818016560711,
+        "rmse_modis": 0.050544103357862975,
+        "rmse_old_hist": 0.05307237648179365,
+        "rmse_old_2025": 0.04588458847219124,
+        "rmse_new_hist_hist": 0.05537171186391619,
+        "rmse_new_hist_2025": 0.057618592997523504,
+        "rmse_new_2025only_2025": null,
+        "baseline_interp_any": 0.09303243414047667,
+        "baseline_same_sensor_interp_oracle": 0.08557094561428708,
+        "rule_sensor_acc": 0.9177084465702794,
+        "rmse_target": 0.05790783740897908,
+        "rounds": 8500,
+        "n_features": 427,
+        "seconds": 425.3118344169925,
+        "args": {
+          "val_seed": 777,
+          "n_masks": 30,
+          "share": 0.15,
+          "modes": [
+            "all"
+          ],
+          "out": "kriging30_777",
+          "threads": 5,
+          "rounds": 8500,
+          "leaves": 63,
+          "min_leaf": 40,
+          "lr": 0.03,
+          "ff": 0.6,
+          "l2": 2.0,
+          "clip": [
+            -0.1,
+            1.0
+          ],
+          "objective": "regression",
+          "seed": 42,
+          "analog": false,
+          "kriging": true
+        },
+        "feature_mode": "all",
+        "importance": {
+          "curve_all_15": 0.4609,
+          "curve_all_6": 0.1086,
+          "curve_sl_15": 0.0902,
+          "clim_plus_anom": 0.0437,
+          "raw_landsat_interp": 0.0376,
+          "hyp_landsat": 0.0305,
+          "hyp_s2": 0.0152,
+          "nb_interp_val": 0.0152,
+          "hyp_modis": 0.0142,
+          "an_modis_bw35_k10": 0.0129,
+          "curve_sl_6": 0.0114,
+          "nb_interp_h": 0.0108,
+          "nb_n1_evi": 0.0071,
+          "sp_modis_value_k8_pred": 0.0064,
+          "an_s2_bw15_k10": 0.0048,
+          "an_landsat_bw15_k10": 0.0047,
+          "sp_modis_value_k3_pred": 0.0039,
+          "nb_p1_evi": 0.0034,
+          "an_s2_bw15_k3": 0.0031,
+          "an_modis_bw15_k10": 0.0027,
+          "rule_sensor": 0.0026,
+          "an_modis_bw35_k3": 0.0022,
+          "cy_s2_r5_n_year": 0.0021,
+          "an_landsat_bw15_k3": 0.002,
+          "dew_landsat": 0.0017,
+          "dew_s2": 0.0016,
+          "raw_landsat_median16": 0.0015,
+          "sp_modis_value_k78_pred": 0.0014,
+          "kg_s2_pred40": 0.0014,
+          "raw_landsat_curve6": 0.0013,
+          "kg_landsat_pred40": 0.0013,
+          "raw_modis_interp": 0.0013,
+          "an_modis_bw15_k3": 0.0012,
+          "xp_modis_n": 0.0012,
+          "de_landsat_d0": 0.0011,
+          "an_landsat_bw35_k10": 0.0011,
+          "nb_p1_h": 0.0011,
+          "an_landsat_bw15_k1": 0.001,
+          "cy_s2_r5_next": 0.001,
+          "doy": 0.001,
+          "mw_fwd_max": 0.001,
+          "nb_p2_h": 0.0009,
+          "cy_s2_r5_prev": 0.0009,
+          "raw_modis_p1_val": 0.0008,
+          "nb_p1_ndwi": 0.0008,
+          "nb_n1_ndwi": 0.0008,
+          "sp_s2_res_k78_pred": 0.0008,
+          "raw_landsat_curve12": 0.0008,
+          "raw_landsat_p1_evi": 0.0008,
+          "de_s2_min": 0.0007,
+          "nb_n2_evi": 0.0007,
+          "w_precip": 0.0007,
+          "w_precip7": 0.0007,
+          "cy_s2_r5_share_year": 0.0007,
+          "de_s2_d0": 0.0007,
+          "an_polygon_id": 0.0007,
+          "sp_modis_value_k1_pred": 0.0007,
+          "cy_modis_r16_prev": 0.0007,
+          "w_temp": 0.0007,
+          "raw_modis_n1_evi": 0.0006
+        },
+        "gap_score_target": 12.63
+      },
+      "n_train": 275970,
+      "n_known": 61325,
+      "final": true
+    },
+    "neural": [
+      {
+        "args": {
+          "kind": "residual",
+          "epochs": 260,
+          "seed": 0,
+          "val_seed": 777,
+          "hidden": 96,
+          "batch": 64,
+          "lr": 0.001,
+          "dropout": 0.25,
+          "out": "final_nn_s0",
+          "final": true,
+          "schedule_epochs": 400,
+          "fixed_epoch": null
+        },
+        "seconds": 846.5911541670212
+      }
+    ]
+  },
+  "uncertainty": {
+    "file": "uncertainty.txt",
+    "sha256": "0056a4478c51983f69ea5dfde4c01c8aa33000bbafc8269886f3d4ae0d4d27d7"
+  }
+}

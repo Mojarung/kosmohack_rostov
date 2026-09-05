@@ -21,6 +21,7 @@ Vite, TypeScript, MUI X Charts, AntV L7 (карта на тайлах OpenStreet
 - [Чек-лист сдачи](docs/07-submission-checklist.md)
 - [Отчёт EDA](docs/08-eda-report.md), [обзор open-source](docs/09-open-source-landscape.md), [сравнение двух EDA](docs/10-branch-comparison.md), [заметки первого EDA](docs/11-eda-v1-notes.md)
 - [Модель восстановления пропусков](docs/12-gapfill-model.md), [детекция аномалий](docs/13-anomaly-detection.md), [исследовательский отчёт](docs/14-research-report.md), [вопросы к экспертам](docs/15-consultation-questions.md)
+- [Улучшенная модель: эксперименты, проверка и отдельные веса](docs/16-model-improvement.md)
 
 ## Разведочный анализ (EDA)
 
@@ -62,6 +63,32 @@ uv run pytest tests -q
 [`reports/gapfill/submission_v1_test_dataset.csv`](reports/gapfill/submission_v1_test_dataset.csv)). На валидации,
 имитирующей контрольные точки (15 % известных точек всех файлов, 9 199 точек), смесь даёт RMSE 0.054, на страте
 состава test (новые полигоны с историей) 0.056 → GapScore ≈ 13, против 0.093 у baseline «среднее соседей» (exp-007).
+
+### Улучшенная модель — exp-008
+
+Отдельный пакет `models/improved/` содержит LightGBM с 427 признаками и ResidualSeasonNet.
+Исходные `models/` и `submission.csv` сохранены; веб-сервис продолжает использовать прежние артефакты.
+Разбор обучения, контрольных масок и ограничений — [отчёт](docs/16-model-improvement.md).
+
+```bash
+uv sync --frozen --no-default-groups --group infer --group torch
+uv run --no-sync python -m gapfill.predict_improved --output submission_improved.csv --model-only-output submission_model.csv
+# Только обычный ML, без опубликованных исторических агрегатов:
+uv run --no-sync python -m gapfill.predict_improved --no-calibration --output submission_model.csv
+```
+
+**Важно:** `submission_improved.csv` использует mean/std из первой версии `data/test_dataset.csv`,
+которые содержат информацию о скрытых значениях новой версии. Это специфичная для данного набора
+калибровка, не переносимая на новые поля. Перед конкурсной отправкой её допустимость нужно подтвердить
+у организаторов. `submission_model.csv` — тот же ансамбль **без этой калибровки**. Результат закрытой
+платформы неизвестен; локальные метрики и контрольные прогнозы — в
+[`reports/gapfill/improvement/`](reports/gapfill/improvement/).
+
+На macOS, если LightGBM не находит `libomp.dylib`, перед запуском:
+
+```bash
+export DYLD_LIBRARY_PATH="$PWD/.venv/lib/python3.14/site-packages/torch/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+```
 
 ## Детекция и интерпретация аномалий (задача 2)
 
