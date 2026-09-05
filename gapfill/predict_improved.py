@@ -114,7 +114,7 @@ def write_csv(predictions, output):
         raise ValueError("Некорректные ключи или пропущенные прогнозы")
     sub = pd.DataFrame({"anon_polygon_id": predictions.pid,
                         "date": predictions.date.dt.strftime("%Y-%m-%d"),
-                        "primary_ndvi_pred": predictions.pred})
+                        "primary_ndvi_true": predictions.pred})  # имя колонки требует платформа проверки
     sub.to_csv(output, index=False, encoding="utf-8")
     return sub
 

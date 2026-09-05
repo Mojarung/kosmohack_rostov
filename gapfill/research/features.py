@@ -38,7 +38,7 @@ def full_sensor_features(targets, context):
     pieces = []
     for name, code in SENSOR_CODE.items():
         rows = sensor_rows(context, name)
-        grouped = dict(rows.groupby("pid"))
+        grouped = dict(iter(rows.groupby("pid")))
         parts = []
         for pid, tg in targets.groupby("pid", sort=False):
             own = grouped.get(pid, rows.iloc[:0])

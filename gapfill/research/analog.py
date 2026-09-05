@@ -13,7 +13,7 @@ def _one_sensor(targets, rows, name):
     piv = rows.pivot(index="day_num", columns="pid", values="value")
     _, _, score = _pair_statistics(piv.to_numpy())
     pos = {p: i for i, p in enumerate(piv.columns)}
-    groups = dict(rows.groupby("pid"))
+    groups = dict(iter(rows.groupby("pid")))
     query_values = piv.reindex(targets.day_num).to_numpy()
     pieces = []
     for pid, indices in targets.groupby("pid", sort=False).indices.items():

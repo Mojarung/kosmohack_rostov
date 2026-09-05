@@ -35,7 +35,7 @@ def inside_episode(org: pd.DataFrame, ep: pd.DataFrame) -> np.ndarray:
     flag = np.zeros(len(org), dtype=bool)
     if ep.empty:
         return flag
-    by_pid = dict(ep.groupby("pid"))
+    by_pid = dict(iter(ep.groupby("pid")))
     for pid, idx in org.groupby("pid").indices.items():
         g = by_pid.get(pid)
         if g is None:

@@ -52,7 +52,7 @@ class Store:
         frames = []
         for path in [SUBMISSION_PATH, *EXTRA_SUBMISSIONS]:
             if path.exists():
-                sub = pd.read_csv(path).rename(columns={"anon_polygon_id": "pid", "primary_ndvi_pred": "value"})
+                sub = pd.read_csv(path).rename(columns={"anon_polygon_id": "pid", "primary_ndvi_pred": "value", "primary_ndvi_true": "value"})
                 frames.append(sub.assign(date=pd.to_datetime(sub["date"])))
         if not frames:
             return pd.DataFrame(columns=["pid", "date", "value"])

@@ -73,8 +73,8 @@ def build_features(targets: pd.DataFrame, context: pd.DataFrame, grid: pd.DataFr
     """Матрица признаков для targets по контексту context; индекс совпадает с targets.index."""
     ctx_df = annotate_context(context)
     tables = day_tables(ctx_df)
-    ctx_by = dict(ctx_df.groupby("pid"))
-    grid_by = dict(grid.groupby("pid"))
+    ctx_by = dict(iter(ctx_df.groupby("pid")))
+    grid_by = dict(iter(grid.groupby("pid")))
     empty = ctx_df.iloc[0:0]
     pieces = [_polygon_features(tg, ctx_by.get(pid, empty), grid_by[pid])
               for pid, tg in targets.groupby("pid", sort=False)]

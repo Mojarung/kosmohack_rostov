@@ -59,7 +59,7 @@ LightGBM + нейросеть по сезонной сетке (SeasonNet), см
 2026-09-05: 20 полигонов, история 2010–2024, 2 323 контрольные точки); по ней считается метрика. Первая версия
 `data/test_dataset.csv` больше не оценивается и используется только как дополнительные известные точки
 (параметр `--extra`; чтобы отключить — `--extra` без значений). Сравнение версий — [docs/03](docs/03-data.md).
-Выход — `submission.csv` (`anon_polygon_id,date,primary_ndvi_pred`, только строки `is_synthetic_gap = True`).
+Выход — `submission.csv` (`anon_polygon_id,date,primary_ndvi_true` — так требует платформа проверки, в ТЗ было `primary_ndvi_pred`, только строки `is_synthetic_gap = True`).
 
 **Инференс сданной модели** (ничего обучать не нужно, веса `models/improved/` лежат в репозитории):
 

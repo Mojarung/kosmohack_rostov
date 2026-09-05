@@ -23,7 +23,7 @@
 
 ## `submission.csv`
 
-- [x] Колонки ровно: `anon_polygon_id,date,primary_ndvi_pred`
+- [x] Колонки ровно: `anon_polygon_id,date,primary_ndvi_true` (платформа 2026-09-05 отвергла `primary_ndvi_pred` из ТЗ: «target column 'primary_ndvi_true' not found»)
 - [x] Только строки с `is_synthetic_gap = True` — *2 323 строки для второй версии test*
 - [x] Каждая пара `anon_polygon_id + date` ровно один раз — *проверяется в `write_submission`*
 - [x] Нет `NaN`, пропусков и лишних строк — *проверяется в `write_submission`*

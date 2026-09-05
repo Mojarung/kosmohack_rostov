@@ -69,7 +69,7 @@
 |---|---|
 | `anon_polygon_id` | Анонимный идентификатор полигона |
 | `date` | Дата контрольной точки в формате `YYYY-MM-DD` |
-| `primary_ndvi_pred` | Восстановленное значение `primary_ndvi` (вещественное число) |
+| `primary_ndvi_true` | Восстановленное значение `primary_ndvi` (вещественное число). В ТЗ колонка названа `primary_ndvi_pred`, но платформа проверки (2026-09-05) принимает только `primary_ndvi_true` |
 
 Требования к файлу:
 
@@ -81,7 +81,7 @@
 ### Пример
 
 ```csv
-anon_polygon_id,date,primary_ndvi_pred
+anon_polygon_id,date,primary_ndvi_true
 AOI-0001,2025-06-14,0.543218
 AOI-0037,2025-07-03,0.391005
 ```
