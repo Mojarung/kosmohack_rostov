@@ -208,6 +208,13 @@ def assemble_observations(pid: str, s2: pd.DataFrame, ls: pd.DataFrame, md: pd.D
     return df.loc[in_season].dropna(subset=["primary_ndvi"]).reset_index(drop=True)
 
 
+def weather_note(weather: pd.DataFrame) -> str:
+    """Подпись об источнике погоды для шапки поля: не число дней (история с 1989 г. пугает), а начальный год."""
+    if not len(weather):
+        return "ERA5 пуст"
+    return f"ERA5 с {weather['date'].min().year} г."
+
+
 def analyze_geometry(geometry: dict, name: str, start_year: int, end_year: int) -> dict:
     """Полный цикл для нового полигона: сбор → наблюдения → погода → детекция → JSON для интерфейса."""
     from service.analyze_new import analyze_new_polygon
@@ -231,14 +238,14 @@ def analyze_geometry(geometry: dict, name: str, start_year: int, end_year: int) 
     try:
         weather = collect_weather(centroid.y, centroid.x, years).assign(pid=pid)
         warnings.extend(weather.attrs.get("warnings", []))
-        notes.append(f"ERA5 {len(weather)} дней")
+        notes.append(weather_note(weather))
     except Exception as exc:
         log.exception("Метеоданные недоступны")
         weather = pd.DataFrame(columns=["date", "era5_temp_c", "era5_precip_mm", "pid"])
         notes.append(f"ERA5 недоступен ({type(exc).__name__})")
         warnings.append("Погода ERA5 не загрузилась")
     recent_weather = weather.loc[weather["date"].dt.year >= start_year] if len(weather) else weather
-    result = analyze_new_polygon(pid, obs, recent_weather)
+    result = analyze_new_polygon(pid, obs, recent_weather, display_name=name)   # имя поля — в тексты объяснений
     result["_weather"] = weather_records(weather)
     result["weather_source"] = SOURCE if len(weather) else "Погода недоступна"
     result["name"] = name

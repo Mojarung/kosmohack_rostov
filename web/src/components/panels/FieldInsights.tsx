@@ -85,7 +85,7 @@ export function FieldInsights({ detail, year }: { detail: PolygonDetail; year: n
       </details>
       {detail.geometry && <details className="field-insight" data-testid="area-card">
         <summary><span className="meta">Площадь снижения NDVI</span>
-          <strong>{change ? `${number(change.drop_area_ha)} га · ${number((change.drop_share ?? 0) * 100)}%` : scene ? "Нужны два снимка" : "Нужны снимки"}</strong>
+          <strong>{change ? `${number(change.drop_area_ha)} га · ${number((change.drop_share ?? 0) * 100)}%` : scene ? "Нужны два снимка" : "Откройте карту поля"}</strong>
           <span className="meta">{period}</span></summary>
         <div className="insight-evidence"><AreaEvidence scene={scene} />
           <button className="btn btn--sm btn--ghost" onClick={openMap}>Открыть карту поля</button></div>

@@ -17,6 +17,22 @@ from __future__ import annotations
 
 from anomaly.config import EARLY_DECLINE_DAYS, FLAT_PEAK_NDVI, LOW_PEAK_RATIO, PRECIP_DEFICIT_PCT, TEMP_ANOMALY_C
 
+
+def plural(n: int, one: str, few: str, many: str) -> str:
+    """Русское склонение существительного при числе: 1 день, 2 дня, 15 дней, 62 дня."""
+    n = abs(int(n))
+    if n % 10 == 1 and n % 100 != 11:
+        return one
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return few
+    return many
+
+
+def days(n: int) -> str:
+    """«N дней» с правильным склонением."""
+    return f"{int(n)} {plural(n, 'день', 'дня', 'дней')}"
+
+
 SEVERITY = {"критическая": -2.0, "умеренная": -1.0}
 REGION_LOW_Z = -0.7          # медианный Z соседей ниже — явление региональное
 REGION_NORMAL_Z = -0.3       # выше — соседи в норме, причина локальная
@@ -48,9 +64,9 @@ def _weather_signal(weather: dict) -> tuple[bool, list[str]]:
                          f"{comb['precip_norm_mm']:.0f} мм (дефицит {comb['precip_deficit_pct']:.0f} %)")
         if hot:
             notes.append(f"температура выше нормы на {comb['temp_anomaly_c']:.1f} °C ({comb['temp_c']:.1f} против "
-                         f"{comb['temp_norm_c']:.1f} °C), жарких дней {comb['hot_days']}")
+                         f"{comb['temp_norm_c']:.1f} °C), {days(comb['hot_days'])} с жарой")
         if comb.get("max_dry_spell", 0) >= 15:
-            notes.append(f"сухая серия {comb['max_dry_spell']} дней подряд")
+            notes.append(f"сухая серия {days(comb['max_dry_spell'])} подряд")
     for name, label in (("before", "за 30 дней до эпизода"), ("during", "во время эпизода")):
         b = weather.get(name)
         if stress and b and "precip_deficit_pct" in b and abs(b["precip_deficit_pct"]) >= PRECIP_DEFICIT_PCT:
@@ -80,10 +96,12 @@ def classify(ep: dict, pheno_dev: dict, pheno: dict, weather: dict, artifacts_ne
     context = rnotes + notes            # региональный контекст, затем погода — после главного аргумента причины
     peak_ratio = pheno_dev.get("peak_ratio")
     if ep["n_obs"] <= 2 and artifacts_near >= 2:
-        return "data_suspect", 0.4, [f"внутри эпизода всего {ep['n_obs']} наблюдений, рядом {artifacts_near} артефактов"] + context
+        obs_txt = f"{ep['n_obs']} {plural(ep['n_obs'], 'наблюдение', 'наблюдения', 'наблюдений')}"
+        art_txt = f"{artifacts_near} {plural(artifacts_near, 'артефакт', 'артефакта', 'артефактов')}"
+        return "data_suspect", 0.4, [f"внутри эпизода всего {obs_txt}, рядом {art_txt}"] + context
     if (peak_ratio is not None and peak_ratio >= 0.85 and pheno_dev.get("peak_shift_days", 0) >= ROTATION_PEAK_SHIFT
             and ep["end_doy"] <= 200):
-        return "crop_rotation", 0.7, [f"пик достигнут ({peak_ratio:.0%} нормы), но на {pheno_dev['peak_shift_days']} дней "
+        return "crop_rotation", 0.7, [f"пик достигнут ({peak_ratio:.0%} нормы), но на {days(pheno_dev['peak_shift_days'])} "
                                       "позже обычного: на поле яровая культура вместо привычной озимой, весеннее "
                                       "отставание — смена фазы, а не угнетение"] + context
     flat = pheno.get("valid") and (pheno["peak"] < FLAT_PEAK_NDVI or (peak_ratio is not None and peak_ratio < 0.6))
@@ -93,10 +111,10 @@ def classify(ep: dict, pheno_dev: dict, pheno: dict, weather: dict, artifacts_ne
                                           "кривая плоская с весны — поле не засеяно, под паром или занято другой культурой"] + context
     if peak_ratio is not None and peak_ratio >= 0.85 and pheno_dev.get("decline_shift_days", 0) <= -EARLY_DECLINE_DAYS:
         cause = "weather_drought" if stress else "early_decline"
-        main = [f"пик на уровне нормы ({peak_ratio:.0%}), но спад начался на {-pheno_dev['decline_shift_days']} дней раньше обычного"]
+        main = [f"пик на уровне нормы ({peak_ratio:.0%}), но спад начался на {days(-pheno_dev['decline_shift_days'])} раньше обычного"]
         return cause, 0.75 if stress else 0.6, (notes + main + rnotes) if stress else (main + context)
     if pheno_dev.get("sos_shift_days", 0) >= 15 and ep["start_doy"] <= 150 and (peak_ratio or 0) >= LOW_PEAK_RATIO:
-        return "late_start", 0.6, [f"рост начался на {pheno_dev['sos_shift_days']} дней позже нормы, "
+        return "late_start", 0.6, [f"рост начался на {days(pheno_dev['sos_shift_days'])} позже нормы, "
                                    f"но пик достигнут ({peak_ratio:.0%} нормы)"] + context
     if stress:
         return "weather_drought", 0.8 if scope == "regional" else 0.65, notes + rnotes
@@ -119,11 +137,17 @@ CAUSE_TEXT = {
 }
 
 
-def describe(pid: str, year: int, ep: dict, cause: str, confidence: float, reasons: list[str], norm_source: str) -> str:
-    """Текст объяснения эпизода на русском из фактов (без LLM)."""
+def describe(pid: str, year: int, ep: dict, cause: str, confidence: float, reasons: list[str], norm_source: str,
+             display_name: str | None = None) -> str:
+    """Текст объяснения эпизода на русском из фактов (без LLM).
+
+    `display_name` — имя поля для заголовка (у новых полей пользователя вместо технического FIELD-…);
+    по умолчанию используется идентификатор `pid`, как для полигонов кейса AOI-xxxx.
+    """
     sev = severity_label(ep)
-    head = (f"{pid}, сезон {year}: {sev} аномалия с {ep['start']} по {ep['end']} ({ep['days']} дней, "
-            f"{ep['n_obs']} наблюдений), фаза — {ep['phase']}. NDVI в худший день {ep['worst_date']}: "
+    obs_txt = f"{ep['n_obs']} {plural(ep['n_obs'], 'наблюдение', 'наблюдения', 'наблюдений')}"
+    head = (f"{display_name or pid}, сезон {year}: {sev} аномалия с {ep['start']} по {ep['end']} ({days(ep['days'])}, {obs_txt}), "
+            f"фаза — {ep['phase']}. NDVI в худший день {ep['worst_date']}: "
             f"{ep['ndvi_at_worst']:.2f} при норме {ep['norm_at_worst']:.2f} (Z = {ep['min_z']:.1f}).")
     body = f" Вероятная причина — {CAUSE_TEXT[cause]} (уверенность {confidence:.0%})."
     tail = (" Аргументы: " + "; ".join(reasons) + ".") if reasons else ""

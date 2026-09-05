@@ -47,6 +47,18 @@ const DRAW_HELPER = {
   polygonDrag: null,
 };
 
+// Слои рисовалки создаются раньше подложки, а L7 при равном zIndex рисует более поздние слои сверху.
+// Без явного zIndex тайлы карты перекрывали точки и линии контура, и казалось, что рисование не работает.
+const DRAW_LAYER_OPTIONS = { options: { zIndex: 10 } };
+const DRAW_STYLE = {
+  point: DRAW_LAYER_OPTIONS,
+  line: DRAW_LAYER_OPTIONS,
+  polygon: DRAW_LAYER_OPTIONS,
+  midPoint: DRAW_LAYER_OPTIONS,
+  dashLine: DRAW_LAYER_OPTIONS,
+  text: DRAW_LAYER_OPTIONS,
+};
+
 const STATUS_COLOR: Record<string, string> = {
   критическая: "#c8423f",
   умеренная: "#e8a33d",
@@ -128,6 +140,7 @@ export default function FieldMap({
         editable: true,
         multiple: false,
         helper: DRAW_HELPER,
+        style: DRAW_STYLE,
       });
       draw.disable();
       draw.on(DrawEvent.Add, () => {

@@ -22,7 +22,7 @@ SYSTEM_PROMPT = """Ты агроном-аналитик спутникового
 
 def facts_for_llm(row: dict) -> dict:
     """Компактный набор фактов эпизода для промпта (из строки episodes.csv или словаря run.py)."""
-    keys = ["pid", "year", "start", "end", "days", "n_obs", "min_z", "mean_z", "critical_days", "max_deficit",
+    keys = ["pid", "name", "year", "start", "end", "days", "n_obs", "min_z", "mean_z", "critical_days", "max_deficit",
             "worst_date", "ndvi_at_worst", "norm_at_worst", "phase", "severity", "cause", "confidence",
             "norm_source", "weather_source", "region_z", "region_share_depressed", "reasons"]
     facts = {k: row.get(k) for k in keys if row.get(k) is not None}
