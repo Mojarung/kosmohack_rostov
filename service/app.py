@@ -13,17 +13,18 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import math
 from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
-
-from dotenv import load_dotenv
 
 from service import field_store
 from service import polygons as user_polygons
@@ -46,6 +47,37 @@ WEB_INDEX = WEB_DIST / "index.html"
 
 _store: Store | None = None
 _pool: ProcessPoolExecutor | None = None
+
+# Предел площади участка. Sentinel-2 в 10 м на 500 км² — это уже гигабайты на сезон, дочерний процесс
+# сборщика падает по памяти и уносит с собой весь пул. Поле такого размера в хозяйстве не встречается.
+MAX_FIELD_HA = 50_000.0
+
+
+def area_hectares(geom) -> float:
+    """Площадь полигона в гектарах: квадратные градусы пересчитываются по широте центра."""
+    _, south, _, north = geom.bounds
+    km2_per_deg2 = 111.32 ** 2 * math.cos(math.radians((south + north) / 2))
+    return max(geom.area * km2_per_deg2, 0.0) * 100
+
+
+def run_in_collector(fn, *args, timeout: int = 1200):
+    """Выполняет задачу сборщика в отдельном процессе.
+
+    GDAL/rasterio и dask в пуле потоков сервера подвисают, поэтому сбор идёт процессом.
+    Если дочерний процесс убит (например, не хватило памяти), пул остаётся сломанным навсегда
+    и каждый следующий сбор мгновенно падает — поэтому здесь он сбрасывается, а пользователь
+    получает понятную причину вместо BrokenProcessPool.
+    """
+    global _pool
+    if _pool is None:
+        _pool = ProcessPoolExecutor(max_workers=1)
+    try:
+        return _pool.submit(fn, *args).result(timeout=timeout)
+    except BrokenProcessPool as exc:
+        _pool.shutdown(wait=False, cancel_futures=True)
+        _pool = None                 # следующий запрос получит новый пул
+        raise HTTPException(503, "Сборщику не хватило памяти на этом участке. Он перезапущен: "
+                                 "уменьшите площадь поля или период и повторите попытку") from exc
 
 
 @asynccontextmanager
@@ -108,6 +140,10 @@ class AnalyzeRequest(BaseModel):
             raise ValueError("Нужен корректный замкнутый контур поля GeoJSON Polygon") from exc
         if not valid:
             raise ValueError("Нужен корректный контур поля, площадь рамки не более 0.25 квадратных градусов")
+        if (area := area_hectares(geom)) > MAX_FIELD_HA:
+            raise ValueError(f"Участок слишком большой: {area / 100:.0f} км² при пределе "
+                             f"{MAX_FIELD_HA / 100:.0f} км². Снимки Sentinel-2 такой площади не помещаются "
+                             "в память сборщика — выделите отдельное поле")
         self.name = self.name.strip() or "новое поле"
         return self
 
@@ -250,7 +286,6 @@ def imagery_file(pid: str, year: int, date: str, index: str) -> FileResponse:
 @app.post("/api/polygon/{pid}/imagery")
 def collect_imagery(pid: str, year: int) -> dict:
     """Собирает карту Sentinel-2 по запросу для поля с координатами."""
-    global _pool
     report = field_store.read_report(pid)
     if not report or not report.get("geometry"):
         raise HTTPException(400, "У этого примера нет координат поля")
@@ -259,10 +294,10 @@ def collect_imagery(pid: str, year: int) -> dict:
     from service.imagery import collect, read
     if (cached := read(pid, year)) is not None:
         return {"available": True, "manifest": cached}
-    if _pool is None:
-        _pool = ProcessPoolExecutor(max_workers=1)
     try:
-        manifest = _pool.submit(collect, pid, report["geometry"], year).result(timeout=1200)
+        manifest = run_in_collector(collect, pid, report["geometry"], year)
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(502, f"Не удалось собрать карту: {type(exc).__name__}: {exc}") from exc
     return {"available": True, "manifest": manifest}
@@ -384,16 +419,14 @@ def analyze(req: AnalyzeRequest) -> JSONResponse:
 
     Сбор идёт в отдельном процессе: GDAL/rasterio и dask внутри пула потоков сервера подвисают.
     """
-    global _pool
     try:
         import service.collect  # noqa: F401  проверка, что группа geo установлена
     except ImportError as exc:
         raise HTTPException(501, f"сбор данных недоступен: {exc}") from exc
-    if _pool is None:
-        _pool = ProcessPoolExecutor(max_workers=1)
     try:
-        future = _pool.submit(_run_collect, req.geometry, req.name, req.start_year, req.end_year, req.job)
-        result = future.result(timeout=1200)
+        result = run_in_collector(_run_collect, req.geometry, req.name, req.start_year, req.end_year, req.job)
+    except HTTPException:           # сломанный пул уже описан понятным текстом
+        raise
     except Exception as exc:        # ошибки внешних API отдаём пользователю понятным текстом
         raise HTTPException(502, f"не удалось собрать данные: {type(exc).__name__}: {exc}") from exc
     field_store.save_report(result)                  # отчёт доступен по GET /api/polygon/{pid}
