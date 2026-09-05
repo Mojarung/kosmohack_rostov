@@ -1,102 +1,110 @@
-// Выполняется Playwright browser_run_code_unsafe с filename; нужны работающий сервис и реальные данные кейса.
+// MCP Playwright browser_run_code_unsafe({filename: ...}); реальный сервис и данные кейса.
 async (page) => {
-  const failures = [];
-  let checks = 0;
-  const check = (value, message) => { checks++; if (!value) throw new Error(message); };
-  const close = (a, b) => typeof a === "number" && Math.abs(a - b) < .002;
-  page.on("pageerror", error => failures.push(error.message));
-  let available = false;
-  for (let attempt=0; attempt<40 && !available; attempt++) {
-    try { available = (await page.request.get("http://127.0.0.1:8000/api/health",{timeout:1000})).ok(); } catch {}
-    if (!available) await new Promise(resolve=>setTimeout(resolve,500));
-  }
-  check(available,"Сервис не запустился за 20 секунд");
+  let checks=0; const errors=[];
+  const check=(ok,message)=>{checks++;if(!ok)throw new Error(message);};
+  const close=(a,b)=>typeof a==="number"&&Math.abs(a-b)<.002;
+  const api=async path=>{const r=await page.request.get("http://127.0.0.1:8000"+path);check(r.ok(),path);return r.json();};
+  page.on("pageerror",e=>errors.push(e.message));
+  await api("/api/health");
+  await page.setViewportSize({width:1440,height:1050});
   await page.goto("http://127.0.0.1:8000/");
-  await page.waitForFunction(() => document.querySelectorAll("#list .poly").length > 0);
-
-  async function openField(pid) {
+  await page.waitForFunction(()=>document.getElementById("weather-plot").data?.length>0);
+  async function field(pid,withWeather=true) {
     await page.locator("#search").fill(pid);
     await page.locator(`.poly[data-pid="${pid}"]`).click();
-    await page.waitForFunction(pid => S.data?.pid === pid && document.getElementById("ndvi").data?.length > 0, pid);
+    await page.waitForFunction(pid=>S.data?.pid===pid&&document.getElementById("ndvi").data?.length>0,pid);
+    if(withWeather)await ready();
   }
-  async function ready(year) {
-    await page.waitForFunction(year => document.getElementById("agro-heat").data?.at(-1).name === String(year), year);
+  async function ready() { await page.waitForFunction(()=>document.getElementById("weather-plot").data?.at(-1).name===String(S.year)); }
+  async function mode(key) {
+    await page.locator(`[data-weather="${key}"]`).click();
+    await page.waitForFunction(key=>document.querySelector(`[data-weather="${key}"]`).getAttribute("aria-pressed")==="true",key);
   }
+  async function values() { return page.locator("#weather-plot").evaluate(el=>({value:el.data.at(-1).y.at(-1),norm:el.data.find(t=>t.name==="Среднее прошлых лет")?.y.at(-1),range:el.layout.xaxis.range,traces:el.data.length})); }
 
-  await openField("AOI-0001");
-  await ready(2025);
-  check(await page.locator("#map").isVisible(), "Исходная карта пропала");
-  check(await page.locator("#agro-heat-section").isVisible(), "Тепло не появилось автоматически");
-  check(await page.locator("#agro-rain-section").isVisible(), "Осадки не появились автоматически");
-  check(await page.locator("#agro-extra form").count() === 0, "Осталась обязательная форма");
-  check(!await page.locator("#agro-water-mode").isVisible(), "Предлагается ET0 при отсутствии данных");
-  check(!await page.locator("#agro-extra details").evaluate(el => el.open), "Пояснения не свёрнуты");
-
-  const response = await page.request.get("http://127.0.0.1:8000/api/polygon/AOI-0001");
-  const report = await response.json(), weather = report.weather[2025];
-  const end = weather.date.indexOf("2025-10-30");
-  const expectedRain = weather.precip.slice(end-29,end+1).reduce((sum,v) => sum+v,0);
-  const expectedHeat = weather.temp.slice(0,end+1).reduce((sum,v) => sum+Math.max(v-10,0),0);
-  const historicRain = Object.entries(report.weather).filter(([year])=>Number(year)<2025 && Number(year)>=1995).map(([,w])=>{
-    const end = w.date.findIndex(d=>d.endsWith("-10-30"));
-    const values = w.precip.slice(end-29,end+1);
-    return end>=29 && values.length===30 && values.every(v=>v!==null) ? values.reduce((a,b)=>a+b,0) : null;
+  await field("AOI-0001");await mode("rain");
+  check(await page.locator("#map").isVisible(),"Исходная карта пропала");
+  check(await page.locator("#calculation").evaluate(el=>!el.open),"Подробности не свёрнуты");
+  check(await page.locator(".js-plotly-plot:visible").count()===2,"По умолчанию должно быть два графика");
+  check(await page.locator("section form").count()===0,"Осталась обязательная форма");
+  check(!await page.locator('[data-weather="water"]').isVisible(),"Предлагается ET0 без данных");
+  const report=await api("/api/polygon/AOI-0001"),w=report.weather[2025],end=w.date.indexOf("2025-10-30");
+  const expectedRain=w.precip.slice(end-29,end+1).reduce((a,b)=>a+b,0);
+  const expectedHeat=w.temp.slice(0,end+1).reduce((a,b)=>a+Math.max(b-10,0),0);
+  const historical=Object.entries(report.weather).filter(([y])=>+y<2025&&+y>=1995).map(([,v])=>{
+    const i=v.date.findIndex(d=>d.endsWith("-10-30")),days=v.precip.slice(i-29,i+1);
+    return i>=29&&days.length===30&&days.every(v=>v!==null)?days.reduce((a,b)=>a+b,0):null;
   }).filter(v=>v!==null);
-  let run = 0, expectedDry = 0;
-  for (const value of weather.precip.slice(0,end+1)) { run = value !== null && value < 1 ? run+1 : 0; expectedDry = Math.max(expectedDry,run); }
-  const drawn = await page.evaluate(() => ({
-    rain:document.getElementById("agro-water").data.at(-1).y.at(-1),
-    heat:document.getElementById("agro-heat").data.at(-1).y.at(-1),
-    norm:document.getElementById("agro-water").data.find(t=>t.name==="Среднее прошлых лет").y.at(-1),
-    dry:document.getElementById("agro-dry-spell").textContent,
-    old:["ndvi","zplot","wx"].map(id => document.getElementById(id).data?.length)
-  }));
-  check(close(drawn.rain,expectedRain), "Осадки на графике не совпадают с суммой исходных дней");
-  check(close(drawn.heat,expectedHeat), "Тепло на графике не совпадает с исходными температурами");
-  check(close(drawn.norm,historicRain.reduce((a,b)=>a+b,0)/historicRain.length), "Историческая норма включает неверные годы");
-  check(drawn.dry.includes(`${expectedDry} дн.`), "Сухой период не совпадает с исходными осадками");
-  check(drawn.old.every(n=>n>0), "Один из исходных графиков сломан");
-  await page.locator('#years button[data-y="2024"]').click();
-  await ready(2024);
-  await page.locator('#years button[data-y="2025"]').click();
-  await ready(2025);
+  let run=0,dry=0;for(const v of w.precip.slice(0,end+1)){run=v!==null&&v<1?run+1:0;dry=Math.max(dry,run);}
+  const rain=await values();
+  check(close(rain.value,expectedRain),"Осадки не совпадают с исходными днями");
+  check(close(rain.norm,historical.reduce((a,b)=>a+b,0)/historical.length),"Неверная историческая норма");
+  check((await page.locator("#metric-dry-value").innerText()).includes(`${dry} дн.`),"Неверный сухой период");
+  await mode("thermal");check(close((await values()).value,expectedHeat),"Тепло не совпадает с исходными температурами");
+  check(await page.locator(".js-plotly-plot:visible").count()===2,"Переключатель создаёт лишние графики");
 
-  await openField("AOI-0005");
-  await ready(2025);
-  check(await page.locator("#agro-water").evaluate(el=>el.data.length) === 1, "Нарисована выдуманная историческая норма");
-  check((await page.locator("#agro-water-value").innerText()).includes("истории для сравнения мало"), "Не указано отсутствие истории");
+  await page.locator("#calculation>summary").click();
+  await page.waitForFunction(()=>document.getElementById("raw-ndvi").data?.length>0);
+  check(await page.locator("#zplot").isVisible(),"Z недоступен в подробностях");
+  check(await page.locator("#wx").isVisible(),"Исходная погода недоступна");
+  check(await page.locator("#raw-ndvi").evaluate(el=>el.data.some(t=>t.name==="Восстановленные пропуски"&&t.y.length>0)),"Контрольные восстановления модели потерялись");
+  await page.locator("#calculation>summary").click();
+  await page.locator("#ndvi").scrollIntoViewIfNeeded();
+  const box=await page.locator("#ndvi").boundingBox();
+  await page.mouse.move(box.x+box.width*.55,box.y+box.height*.5);
+  await page.waitForFunction(()=>document.getElementById("metric-ndvi-label").textContent.includes("Кривая"));
+  check((await page.locator("#weather-plot .hoverlayer").textContent()).includes("Тепло"),"Наведение не синхронизируется");
+  const pickedDate=(await page.locator("#metric-ndvi-label").innerText()).split(" · ")[1];
+  check((await page.locator("#weather-readout").innerText()).startsWith(pickedDate),"На графиках разные даты наведения");
+  await page.mouse.move(0,0);
+  await page.locator(".episode>summary").first().click();
+  await page.locator("[data-episode]").first().click();
+  await page.waitForFunction(()=>document.getElementById("ndvi").layout.xaxis.range[0]!=="2025-04-01");
+  const episodeRange=await page.locator("#ndvi").evaluate(el=>el.layout.xaxis.range);
+  check(JSON.stringify((await values()).range)===JSON.stringify(episodeRange),"Период эпизода не синхронизируется");
+  await mode("rain");check(JSON.stringify((await values()).range)===JSON.stringify(episodeRange),"Переключатель теряет выбранный период");
+  await page.locator("#reset-period").click();
+  await page.waitForFunction(()=>document.getElementById("weather-plot").layout.xaxis.range[0]==="2025-04-01");
+  check((await values()).range[1]==="2025-10-30","Сброс не возвращает весь сезон");
+  await page.locator('#years button[data-y="2024"]').click();await ready();
+  check(await page.locator("#weather-plot").evaluate(el=>el.data.at(-1).name)==="2024","Сезон не сменился");
+  await page.locator('#years button[data-y="2025"]').click();await ready();
+  check(close((await values()).value,expectedRain),"Кэш вернул другой сезон");
 
-  const listResponse = await page.request.get("http://127.0.0.1:8000/api/polygons");
-  const noWeather = (await listResponse.json()).find(p=>!p.has_weather);
-  check(noWeather, "Нет реального примера без погоды для проверки");
-  const noWeatherRequest = page.waitForResponse(r=>r.url().includes(`/api/polygon/${noWeather.pid}/agro?`));
-  await openField(noWeather.pid);
-  await noWeatherRequest;
-  await page.waitForFunction(() => !document.getElementById("agro-water").data);
-  check(!await page.locator("#agro-extra").isVisible(), "Для поля без погоды показана пустая панель");
+  await field("AOI-0005");
+  check((await values()).traces===1,"Выдумана историческая норма для одного сезона");
+  check((await page.locator("#weather-readout").innerText()).includes("истории для сравнения мало"),"Нет пояснения к отсутствию нормы");
+  const noWeatherResponse=page.waitForResponse(r=>r.url().includes("/api/polygon/AOI-0006/agro?"));
+  await field("AOI-0006",false);
+  await noWeatherResponse;
+  await page.waitForFunction(()=>document.getElementById("metric-dry").hidden);
+  check(!await page.locator("#agro-extra").isVisible(),"Показана пустая погодная панель");
+  check(await page.locator("#ndvi").isVisible(),"Отсутствие погоды скрыло NDVI");
 
-  const savedResponse = await page.request.get("http://127.0.0.1:8000/api/saved-fields");
-  const saved = (await savedResponse.json()).find(p=>p.geometry);
-  let savedFieldChecked = false;
-  if (saved) {
-    await openField(saved.pid);
-    const savedYear = await page.evaluate(()=>S.year);
-    await ready(savedYear);
-    if (await page.locator("#agro-water-mode").isVisible()) {
-      await page.locator("#agro-water-mode").selectOption("water");
-      check((await page.locator("#agro-water-title").innerText()).includes("испарение"), "Не переключается водный баланс");
-      const agro = await (await page.request.get(`http://127.0.0.1:8000/api/polygon/${saved.pid}/agro?year=${savedYear}`)).json();
-      check(close(await page.locator("#agro-water").evaluate(el=>el.data.at(-1).y.at(-1)),agro.water.value.at(-1)), "На графике баланса остались осадки");
-      savedFieldChecked = true;
+  const saved=(await api("/api/saved-fields")).find(p=>p.geometry);let balanceChecked=false;
+  if(saved){
+    await field(saved.pid);
+    if(await page.locator('[data-weather="water"]').isVisible()){
+      await mode("water");const year=await page.evaluate(()=>S.year),agro=await api(`/api/polygon/${saved.pid}/agro?year=${year}`);
+      check(close((await values()).value,agro.water.value.at(-1)),"Переключатель баланса показывает осадки");balanceChecked=true;
     }
   }
+  const failPattern="**/api/polygon/AOI-0037/agro?*";
+  await page.route(failPattern,r=>r.fulfill({status:503,body:'{"detail":"test outage"}',contentType:"application/json"}));
+  await field("AOI-0037",false);
+  await page.locator("#weather-retry").waitFor({state:"visible"});
+  check(await page.locator("#ndvi").isVisible(),"Ошибка погоды сломала основной график");
+  await page.unroute(failPattern);await page.locator("#weather-retry").click();await ready();
+  check(!await page.locator("#weather-retry").isVisible(),"Повторная загрузка не восстановила график");
 
-  await openField("AOI-0001");
-  await ready(2025);
-  await page.locator("#agro-extra summary").click();
-  check(await page.locator("#agro-source").isVisible(), "Не открылись сведения о расчёте");
-  await page.locator("#agro-extra summary").click();
-  await page.locator("#agro-extra").scrollIntoViewIfNeeded();
-  check(failures.length === 0, "Ошибки браузера: " + failures.join("; "));
-  return {status:"passed",checks,rain:drawn.rain,heat:drawn.heat,dryDays:expectedDry,noWeather:noWeather.pid,savedFieldChecked};
+  await field("AOI-0001");await mode("rain");
+  await page.setViewportSize({width:390,height:844});
+  await page.locator("#ndvi").scrollIntoViewIfNeeded();
+  await page.waitForFunction(()=>document.documentElement.scrollWidth<=innerWidth&&document.getElementById("ndvi").clientWidth<=390);
+  check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),"Горизонтальная прокрутка на телефоне");
+  check(await page.locator("#ndvi").evaluate(el=>el.clientWidth<=390),"График выходит за экран");
+  await page.setViewportSize({width:1440,height:1050});
+  await page.locator("#ndvi").scrollIntoViewIfNeeded();
+  check(errors.length===0,"Ошибки JavaScript: "+errors.join("; "));
+  return {status:"passed",checks,rain:expectedRain,heat:expectedHeat,dryDays:dry,balanceChecked};
 }
