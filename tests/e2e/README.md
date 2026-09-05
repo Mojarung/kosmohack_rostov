@@ -1,5 +1,41 @@
 # E2E интерфейса и погодных графиков
 
+## Поиск улицы, адреса, области и координат
+
+`geocoding.js` проходит через настоящий собранный React, WebGL-карту и FastAPI. Только внешний
+Nominatim заменён локальным HTTP-сервером с фиксированными ответами. Проверяются отсутствие
+запросов при наборе, неоднозначный адрес, переход камеры к улице и целой области, координаты,
+рисование поля после поиска, пустой ответ, ошибка и повтор, отмена запоздалого ответа,
+неверные координаты и экран 390 px. Кэш фикстуры изолирован от данных приложения.
+
+```bash
+npm --prefix web run typecheck
+npm --prefix web run build
+uv run --no-sync --with pytest python -m pytest tests/test_geocoding.py -q
+# Отдельный терминал; перезапускать перед каждым прогоном, чтобы сбросить ошибку фикстуры и кэш:
+uv run --no-sync python -m tests.e2e.geocoding_server
+# Из корня репозитория; требуется установленный Playwright и Chrome:
+node tests/e2e/run_geocoding.mjs
+```
+
+Если Playwright установлен в другом каталоге, передайте `E2E_PLAYWRIGHT_MODULE=/абсолютный/путь/к/playwright`.
+`E2E_BROWSER` меняет канал браузера (по умолчанию `chrome`), `E2E_PORT` — порт сервера (8011),
+`E2E_BASE` — адрес для сценария. Можно также передать функцию из `geocoding.js` существующему
+MCP Playwright `page`. Скриншоты — `artifacts/e2e/geocoding-{desktop,mobile}.png`.
+
+Для отдельной проверки внешней интеграции запустите обычный сервис и запросите
+`/api/places?q=Ростов-на-Дону, Большая Садовая улица`: такой запрос использует реальный Nominatim,
+его результат зависит от доступности и текущих данных OSM.
+Полный браузерный сценарий без подмен: `E2E_LIVE=1 E2E_BASE=http://127.0.0.1:8000 node tests/e2e/run_geocoding.mjs`.
+Он проверяет найденную улицу, район/регион в адресе и фактический переход карты; снимки — `geocoding-live-*.png`.
+
+## Существующие сценарии
+
+Регрессия HTML вместо JSON (ошибки старого сервера/прокси, 404 API и успешный повтор):
+`E2E_RESPONSE=1 E2E_BASE=http://127.0.0.1:8000 node tests/e2e/run_geocoding.mjs`.
+Этот сценарий явно подменяет два ответа поиска (HTML 200 и текст 503), затем проверяет настоящий API.
+Бэкенд-маршруты отдельно: `uv run --no-sync --with pytest python -m pytest tests/test_spa_routes.py -q`.
+
 Сервис: `uv run --locked --group service python -m service`.
 
 Перед проверкой React-интерфейса: `npm --prefix web ci`, `npm --prefix web run typecheck`,

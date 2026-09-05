@@ -176,3 +176,13 @@ export interface AskAnswer {
   source: "llm" | "rules";
   tools_used: string[];
 }
+
+/** Найденное место из Nominatim: центр, рамка и разобранный адрес. */
+export interface PlaceResult {
+  id: string;
+  label: string;
+  center: [number, number];
+  bbox: [number, number, number, number] | null;
+  address: Record<string, string>;
+  kind: string;
+}

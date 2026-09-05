@@ -24,6 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
 from service import field_store
+from service.geocoding import router as geocoding_router
 from service import polygons as user_polygons
 from service.data import Store
 from service.meta import build_meta
@@ -55,6 +56,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="NDVI-мониторинг полей", version="1.0", lifespan=lifespan)
+app.include_router(geocoding_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
@@ -409,9 +411,14 @@ if WEB_INDEX.exists():
 
     @app.get("/{path:path}", include_in_schema=False)
     def spa(path: str) -> FileResponse:
+        # Неизвестный API-маршрут не должен маскироваться успешной HTML-страницей.
+        if path.split("/", 1)[0] in {"api", "static", "assets", "vendor"}:
+            raise HTTPException(404, "Маршрут не найден")
         # Отдаём только файлы внутри web/dist: путь приходит от клиента, поэтому проверяем,
         # что после разрешения он не вышел за пределы папки сборки (защита от «../»).
         candidate = (WEB_DIST / path).resolve()
         if path and candidate.is_file() and candidate.is_relative_to(WEB_DIST.resolve()):
             return FileResponse(candidate)
+        if Path(path).suffix in {".js", ".css", ".png", ".svg", ".woff", ".woff2", ".ico", ".jpg", ".mp4"}:
+            raise HTTPException(404, "Файл не найден")
         return FileResponse(WEB_INDEX, headers={"Cache-Control": "no-store"})

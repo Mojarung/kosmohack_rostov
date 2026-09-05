@@ -8,11 +8,12 @@
  *  только на экранах, где карта действительно нужна. */
 
 import { useEffect, useRef, useState } from "react";
-import { LineLayer, PolygonLayer, RasterLayer, Scene } from "@antv/l7";
+import { LineLayer, PointLayer, PolygonLayer, RasterLayer, Scene } from "@antv/l7";
 import { Map as L7Map } from "@antv/l7-maps";
 import { DrawEvent, DrawPolygon } from "@antv/l7-draw";
 
-import type { OsmField, UserPolygon } from "../../api/types";
+import type { OsmField, PlaceResult, UserPolygon } from "../../api/types";
+import { PlaceSearch } from "./PlaceSearch";
 
 type Basemap = "satellite" | "scheme";
 
@@ -123,6 +124,8 @@ export default function FieldMap({
   const [ready, setReady] = useState(false);
   const [basemap, setBasemap] = useState<Basemap>("scheme");
   const baseRef = useRef<{ tiles?: RasterLayer; labels?: RasterLayer }>({});
+  const [place, setPlace] = useState<PlaceResult | null>(null);
+  const [viewport, setViewport] = useState<number[]>([]);
 
   // --- инициализация сцены (один раз) ---
   useEffect(() => {
@@ -155,6 +158,7 @@ export default function FieldMap({
         const bounds = scene.getBounds() as number[][];
         if (!bounds) return;
         const [[west, south], [east, north]] = bounds;
+        setViewport([west, south, east, north]);
         callbacks.current.onViewportChange?.([south, west, north, east]);
       };
       scene.on("mapmove", emitViewport);
@@ -173,6 +177,24 @@ export default function FieldMap({
     // центр задаётся при монтировании: дальнейшее перемещение — это уже состояние карты
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Поиск меняет камеру и ставит метку; контур поля пользователь выбирает отдельно.
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene || !ready || !place) return;
+    const marker = new PointLayer({ zIndex: 8 });
+    marker.source([{ lng: place.center[0], lat: place.center[1] }], {
+      parser: { type: "json", x: "lng", y: "lat" },
+    }).shape("circle").size(9).color("#b03a76").style({ stroke: "#fff", strokeWidth: 2 });
+    scene.addLayer(marker);
+    if (place.bbox && place.bbox[0] < place.bbox[2] && place.bbox[1] < place.bbox[3]) {
+      const [west, south, east, north] = place.bbox;
+      scene.fitBounds([[west, south], [east, north]], { padding: 60, maxZoom: 15, duration: 0 });
+    } else {
+      scene.setZoomAndCenter(15, place.center);
+    }
+    return () => { scene.removeLayer(marker); };
+  }, [place, ready]);
 
   // --- подложка: пересобирается при переключении «Спутник» / «Схема» ---
   useEffect(() => {
@@ -303,8 +325,10 @@ export default function FieldMap({
   }, [drawing, ready]);
 
   return (
-    <div className="field-map" style={{ height }}>
+    <div className="field-map" style={{ height }} data-testid="field-map"
+      data-state={ready ? "ready" : "loading"} data-bounds={viewport.join(",")}>
       <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
+      <PlaceSearch onSelect={setPlace} />
 
       <div className="map-switch" role="group" aria-label="Подложка карты">
         {(Object.keys(BASEMAPS) as Basemap[]).map((key) => (
