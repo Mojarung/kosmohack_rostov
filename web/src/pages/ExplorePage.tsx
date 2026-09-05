@@ -188,7 +188,7 @@ export default function ExplorePage() {
               onViewportChange={(bbox) => {
                 bboxRef.current = bbox;
               }}
-              height={520}
+              height="100%"
             />
           </Suspense>
         </div>

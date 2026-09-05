@@ -39,8 +39,10 @@
   сводный отчёт `docs/14-research-report.md`. Набор полигонов пользователя — `service/polygons.py`
   (`artifacts/service/polygons/`, API `/api/user-polygons`, карточка «Мои поля», цвет контура на карте по тяжести).
 - Сверка с ТЗ по пунктам — `docs/07-submission-checklist.md` (статусы 2026-09-05); вопросы к экспертам и трекерам — `docs/15-consultation-questions.md`.
-- Не сделано: презентация; LLM-объяснения не проверены (нет ключа); сборка Docker не проверена (демон не запущен);
-  сверка с ответами организаторов к первой версии test — ждём файл. Сбор данных для нового поля проверен: 7 сезонов за ~3 мин (exp-104).
+- Docker проверен: `docker compose up --build` собирается, интерфейс и API отвечают, batch-инференс в контейнере
+  воспроизводит submission (расхождение 7e-5, CPU против GPU). Образ 1.33 ГБ (группы infer + geo + service + torch CPU).
+- Не сделано: презентация; LLM-объяснения не проверены (нет ключа); сверка с ответами организаторов
+  к первой версии test — ждём файл. Сбор данных для нового поля проверен: 6 сезонов за 2 мин 49 с через интерфейс.
 
 ## Неочевидное про данные
 
@@ -64,7 +66,8 @@ uv sync                          # базовые зависимости + dev
 uv run python -m eda.run_all     # полный EDA (~30 с)
 uv sync --group ml               # бустинги, whittaker-eilers, optuna, shap
 uv sync --group geo              # STAC, rasterio, xarray, geopandas, Open-Meteo, osmnx
-uv sync --group dl               # torch, PyPOTS, pygrinder, chronos
+UV_TORCH_BACKEND=cu130 uv sync --group dl   # torch (CUDA 13.0 для RTX 5070), PyPOTS, pygrinder, chronos
+uv sync --group torch            # только torch (по умолчанию CPU-сборка) — хватает для инференса из models/
 uv sync --group service          # FastAPI, uvicorn, plotly, duckdb
 uv sync --group agent            # pydantic-ai, anthropic, mcp
 uv sync --group openeo           # отдельно: конфликтует с geo по xarray

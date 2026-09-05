@@ -86,8 +86,15 @@ docker compose up --build      # соберёт интерфейс и бэкен
 ```
 
 Образ собирается в два этапа: `node:24-alpine` собирает интерфейс (`web/`), затем образ `uv` с Python 3.14
-ставит зависимости и получает готовую статику. Поля, добавленные пользователем, лежат в именованном томе и
-переживают перезапуск. Нужен только интернет для внешних каталогов данных; ключи и регистрация не требуются.
+ставит зависимости (`infer`, `geo`, `service` плюс CPU-сборка torch) и получает готовую статику. Поля,
+добавленные пользователем, лежат в именованном томе и переживают перезапуск. Нужен только интернет для внешних
+каталогов данных; ключи и регистрация не требуются.
+
+Batch-инференс в том же контейнере:
+
+```bash
+docker compose exec app uv run python -m gapfill.predict_saved   --input data/test_features_new.csv --output submission.csv
+```
 
 ### Запуск без Docker
 
@@ -148,8 +155,13 @@ API: `GET /api/polygons`, `GET /api/polygon/{pid}`, `GET /api/episodes?year=&cau
 | Группа | Что внутри | Команда |
 |---|---|---|
 | `ml` | scikit-learn, LightGBM, CatBoost, XGBoost, statsmodels, whittaker-eilers, optuna, shap | `uv sync --group ml` |
+| `infer` | только LightGBM и scikit-learn — минимум для инференса и детекции, эту группу берёт образ Docker | `uv sync --group infer` |
 | `dl` | torch, PyPOTS, pygrinder, chronos-forecasting (эксперименты) | `uv sync --group dl` |
-| `torch` | только torch — хватает для инференса SeasonNet из `models/`, эту группу берёт образ Docker | `uv sync --group torch` |
+| `torch` | только torch — хватает для инференса SeasonNet из `models/` | `uv sync --group torch` |
+
+Индекс сборки torch задаётся переменной `UV_TORCH_BACKEND`: `UV_TORCH_BACKEND=cu130 uv sync --group dl` — сборка
+под CUDA 13.0 (RTX 5070, для обучения нейросети), `UV_TORCH_BACKEND=cpu uv sync --group torch` — CPU. В образе
+Docker torch ставится из индекса CPU отдельной строкой, чтобы в контейнер не попадали пакеты `nvidia-*`.
 | `geo` | pystac-client, odc-stac, stackstac, planetary-computer, rasterio, rioxarray, xarray, geopandas, shapely, earthengine-api, openmeteo-requests, osmnx, overpy | `uv sync --group geo` |
 | `openeo` | клиент Copernicus Data Space (конфликтует с `geo` по xarray) | `uv sync --group openeo` |
 | `service` | FastAPI, uvicorn, pydantic, httpx | `uv sync --group service` |

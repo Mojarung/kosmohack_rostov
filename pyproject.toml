@@ -32,10 +32,17 @@ dl = [
     "pypots>=1.5",
     "torch>=2.14.0",
 ]
-# Только torch: этого хватает для инференса SeasonNet из models/ (образ Docker берёт эту группу,
-# полная dl нужна лишь для экспериментов с Chronos и PyPOTS)
+# Только torch: этого хватает для инференса SeasonNet из models/ (полная dl нужна лишь для
+# экспериментов с Chronos и PyPOTS)
 torch = [
     "torch>=2.14.0",
+]
+# Минимум для инференса и детекции аномалий в контейнере: LightGBM для восстановления пропусков,
+# scikit-learn для поиска нетипичных сезонов. Бустинги для экспериментов (CatBoost, XGBoost),
+# Optuna и SHAP в образ не входят — они нужны только при подборе моделей.
+infer = [
+    "lightgbm>=4.7.0",
+    "scikit-learn>=1.9.0",
 ]
 geo = [
     "earthaccess>=0.19.0",
@@ -90,12 +97,11 @@ testpaths = ["tests"]
 # поэтому живёт в отдельной группе: uv sync --group openeo
 conflicts = [[{ group = "geo" }, { group = "openeo" }]]
 
-# torch с CUDA 13.0 для RTX 5070 (Blackwell, sm_120): на PyPI под Windows лежит CPU-сборка,
-# поэтому torch берём из индекса PyTorch (explicit = true — только для torch)
+# torch: индекс выбирается переменной UV_TORCH_BACKEND, а не жёсткой привязкой в файле.
+#   UV_TORCH_BACKEND=cu130 uv sync --group dl   — сборка под CUDA 13.0 (RTX 5070, Blackwell sm_120), для обучения
+#   UV_TORCH_BACKEND=cpu   uv sync --group torch — CPU-сборка, её ставит образ Docker (инференс из models/)
+# Жёсткая привязка к индексу CUDA тянула бы пакеты nvidia-* и в контейнер, раздувая образ на несколько гигабайт.
 [[tool.uv.index]]
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
 explicit = true
-
-[tool.uv.sources]
-torch = [{ index = "pytorch-cu130", marker = "sys_platform == 'win32' or sys_platform == 'linux'" }]
