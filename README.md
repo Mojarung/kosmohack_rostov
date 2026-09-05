@@ -91,6 +91,9 @@ API: `GET /api/polygons`, `GET /api/polygon/{pid}`, `GET /api/episodes?year=&cau
 "start_year": 2019, "end_year": 2025}`). Объяснение эпизодов языковой моделью включается переменной окружения
 `ANTHROPIC_API_KEY` (`uv sync --group agent`); без неё текст формируется по правилам.
 
+Контейнер: `docker build -t kosmohack . && docker run -p 8000:8000 kosmohack` (`Dockerfile` на образе
+`ghcr.io/astral-sh/uv:python3.14-bookworm-slim`; на машине разработки демон Docker не был запущен, сборка не проверена).
+
 ## Зависимости
 
 Базовые зависимости ставятся `uv sync`. Остальное разбито на группы в `pyproject.toml` (все версии актуальны на сентябрь 2026 и имеют wheels под Python 3.14):

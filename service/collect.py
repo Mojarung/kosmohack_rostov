@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import logging
+import time
 from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
 import urllib.request
@@ -25,6 +27,7 @@ from odc.stac import load as stac_load
 from rasterio.features import geometry_mask
 from shapely.geometry import shape
 
+log = logging.getLogger("service.collect")
 EARTH_SEARCH = "https://earth-search.aws.element84.com/v1"
 PLANETARY = "https://planetarycomputer.microsoft.com/api/stac/v1"
 OPEN_METEO = "https://archive-api.open-meteo.com/v1/archive"
@@ -54,10 +57,15 @@ def _load_parallel(items, bands: list[str], geom, resolution: int, dtype=None):
     return lazy.compute()
 
 
-def _by_years(fn, years: range, max_workers: int = 4) -> pd.DataFrame:
+def _by_years(fn, years: range, max_workers: int = 4, label: str = "") -> pd.DataFrame:
     """Сезоны собираются параллельно (каждый год — отдельный запрос к каталогу и своя загрузка)."""
+    def timed(year):
+        t0 = time.time()
+        frame = fn(year)
+        log.info("%s %s: %d сцен за %.0f с", label, year, len(frame), time.time() - t0)
+        return frame
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        frames = list(pool.map(fn, years))
+        frames = list(pool.map(timed, years))
     frames = [f for f in frames if len(f)]
     return pd.concat(frames, ignore_index=True).sort_values("date").reset_index(drop=True) if frames else pd.DataFrame()
 
@@ -102,7 +110,7 @@ def _s2_year(geom, year: int) -> pd.DataFrame:
 
 def collect_s2(geom, years: range) -> pd.DataFrame:
     """Sentinel-2 L2A: NDVI по чистым пикселям (SCL) на каждую сцену."""
-    return _by_years(lambda y: _s2_year(geom, y), years)
+    return _by_years(lambda y: _s2_year(geom, y), years, label="S2")
 
 
 def _landsat_year(geom, year: int) -> pd.DataFrame:
@@ -131,7 +139,7 @@ def _landsat_year(geom, year: int) -> pd.DataFrame:
 
 def collect_landsat(geom, years: range) -> pd.DataFrame:
     """Landsat 8/9 C2 L2 (Planetary Computer): NDVI по пикселям без облаков/теней по qa_pixel."""
-    return _by_years(lambda y: _landsat_year(geom, y), years)
+    return _by_years(lambda y: _landsat_year(geom, y), years, label="Landsat")
 
 
 def _modis_year(geom, year: int) -> pd.DataFrame:
@@ -155,7 +163,7 @@ def _modis_year(geom, year: int) -> pd.DataFrame:
 
 def collect_modis(geom, years: range) -> pd.DataFrame:
     """MODIS MOD13Q1 (Planetary Computer): готовый NDVI композита с фильтром надёжности."""
-    return _by_years(lambda y: _modis_year(geom, y), years)
+    return _by_years(lambda y: _modis_year(geom, y), years, label="MODIS")
 
 
 def collect_weather(lat: float, lon: float, years: range) -> pd.DataFrame:
