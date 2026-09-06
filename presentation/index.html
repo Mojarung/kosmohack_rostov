@@ -377,98 +377,6 @@ html, body { height: 100%; background: #23261f; overflow: hidden; }
   </div>
 </section>
 
-<section class="slide">
-
-  <!-- слой 0: форма сезона, по которой идёт весь разговор -->
-  <svg class="layer" viewBox="0 0 1280 720" fill="none" aria-hidden="true">
-    <path d="M-20 560C160 556 250 300 420 268s250 118 400 176 340 74 500 60"
-      stroke="#1a1d16" stroke-opacity="0.05" stroke-width="86" stroke-linecap="round" />
-  </svg>
-
-  <div class="pad">
-
-    <p class="t-label">В чём проблема</p>
-    <h2 class="t-headline" style="margin-top: 12px; max-width: 800px">
-      Три спутника дают разные числа для одного и того же поля
-    </h2>
-
-    <div class="body" style="margin-top: 22px; display: grid; grid-template-columns: 1fr 1fr; gap: 34px; align-items: start; flex: none">
-
-      <!-- смещение сенсоров: числа из EDA, а не иллюстрация -->
-      <div>
-        <svg viewBox="0 0 540 244" width="100%" fill="none" aria-hidden="true">
-          <g stroke="#e2ded2" stroke-width="1">
-            <path d="M56 34h468M56 106h468M56 178h468" />
-          </g>
-          <path d="M56 178C118 176 150 96 214 84s96 26 152 42 118 20 162 14"
-            stroke="#3a6ea5" stroke-width="2.6" stroke-linecap="round" />
-          <path d="M56 156C118 154 150 74 214 62s96 26 152 42 118 20 162 14"
-            stroke="#6b5b95" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="7 6" />
-          <path d="M56 128C118 126 150 46 214 34s96 26 152 42 118 20 162 14"
-            stroke="#c2703a" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="2 7" />
-
-          <g stroke="#1a1d16" stroke-opacity="0.5" stroke-width="1.2">
-            <path d="M214 84v44" />
-          </g>
-          <path d="M204 84h20M204 106h20M204 128h20" stroke="#1a1d16" stroke-opacity="0.5" stroke-width="1.2" />
-
-          <circle cx="214" cy="84" r="5" fill="#3a6ea5" />
-          <circle cx="214" cy="62" r="5" fill="#6b5b95" />
-          <circle cx="214" cy="34" r="5" fill="#c2703a" />
-
-          <text x="238" y="30" font-family="Golos Text" font-size="14.5" font-weight="600" fill="#c2703a">MODIS</text>
-          <text x="318" y="30" font-family="JetBrains Mono" font-size="14" fill="#585c4e">+0.083</text>
-          <text x="238" y="58" font-family="Golos Text" font-size="14.5" font-weight="600" fill="#6b5b95">Landsat</text>
-          <text x="318" y="58" font-family="JetBrains Mono" font-size="14" fill="#585c4e">+0.037</text>
-          <text x="238" y="107" font-family="Golos Text" font-size="14.5" font-weight="600" fill="#3a6ea5">Sentinel-2</text>
-          <text x="330" y="107" font-family="JetBrains Mono" font-size="14" fill="#585c4e">0</text>
-
-          <text x="56" y="222" font-family="Golos Text" font-size="13" fill="#585c4e">одно поле, один сезон, три спутника</text>
-        </svg>
-
-        <div class="card card--flat card--tight" style="margin-top: 8px">
-          <p class="t-small" style="font-size: 14.5px">
-            В исходных данных <b>четверть «плохих» точек</b> появилась из-за смены спутника.
-            Ещё <b>31 %</b> «плохих» точек — одиночные выбросы, обычно облако или тень.
-          </p>
-        </div>
-      </div>
-
-      <div class="col" style="gap: 20px">
-        <ul class="ticks" style="gap: 12px">
-          <li><b>Первым делом определяем, какой спутник снимал спрятанную точку.</b> У каждого спутника своё расписание, поэтому это получается в 92 случаях из 100.</li>
-          <li><b>Снимки соседних полей за один день ошибаются похоже</b> — из-за атмосферы. Поэтому соседние поля используем как подсказку.</li>
-          <li><b>Координат полей в данных нет,</b> поэтому модель учится только на данных кейса.</li>
-        </ul>
-      </div>
-    </div>
-
-    <div class="row" style="gap: 0; align-items: flex-start; border-top: 1px solid var(--outline-var); padding-top: 16px; margin-top: auto">
-      <div style="flex: 1">
-        <span class="fig fig--m">78</span>
-        <span class="t-small" style="display: block; margin-top: 8px">полей в данных кейса</span>
-      </div>
-      <div style="flex: 1.2">
-        <span class="fig fig--m">61 325</span>
-        <span class="t-small" style="display: block; margin-top: 8px">снимков, где зелень известна</span>
-      </div>
-      <div style="flex: 1">
-        <span class="fig fig--m">2 323</span>
-        <span class="t-small" style="display: block; margin-top: 8px">точек спрятано, их надо восстановить</span>
-      </div>
-      <div style="flex: 1.1">
-        <span class="fig fig--m">16<span class="unit"> лет</span></span>
-        <span class="t-small" style="display: block; margin-top: 8px">с 2010 по 2025, из них 2020 и 2024 засушливые</span>
-      </div>
-    </div>
-
-    <div class="foot" style="margin-top: 0">
-      <span></span>
-      <span class="num">03</span>
-    </div>
-  </div>
-</section>
-
 <section class="slide slide--dark">
 
   <svg class="layer" viewBox="0 0 1280 720" fill="none" aria-hidden="true">
@@ -575,7 +483,7 @@ html, body { height: 100%; background: #23261f; overflow: hidden; }
 
     <div class="foot">
       <span></span>
-      <span class="num">04</span>
+      <span class="num">03</span>
     </div>
   </div>
 </section>
@@ -665,7 +573,7 @@ html, body { height: 100%; background: #23261f; overflow: hidden; }
 
     <div class="foot">
       <span></span>
-      <span class="num">05</span>
+      <span class="num">04</span>
     </div>
   </div>
 </section>
@@ -722,7 +630,7 @@ html, body { height: 100%; background: #23261f; overflow: hidden; }
 
     <div class="foot">
       <span></span>
-      <span class="num">06</span>
+      <span class="num">05</span>
     </div>
   </div>
 </section>
@@ -777,7 +685,7 @@ html, body { height: 100%; background: #23261f; overflow: hidden; }
 
     <div class="foot">
       <span></span>
-      <span class="num">07</span>
+      <span class="num">06</span>
     </div>
   </div>
 </section>
@@ -843,7 +751,7 @@ html, body { height: 100%; background: #23261f; overflow: hidden; }
 
     <div class="foot">
       <span></span>
-      <span class="num">08</span>
+      <span class="num">07</span>
     </div>
   </div>
 </section>
@@ -906,7 +814,7 @@ html, body { height: 100%; background: #23261f; overflow: hidden; }
 
     <div class="foot">
       <span></span>
-      <span class="num">09</span>
+      <span class="num">08</span>
     </div>
   </div>
 </section>
