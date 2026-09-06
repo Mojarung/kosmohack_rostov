@@ -1,10 +1,10 @@
 /** Динамика реальных наблюдений и площадь снижения на паре чистых снимков. */
-import { lazy, Suspense, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../api/client";
 import type { ImageIndex, ImageManifest, ImageScene } from "../../api/analytics";
 import type { PolygonDetail } from "../../api/types";
-import { shortDate } from "../../lib/format";
+import { ms, shortDate } from "../../lib/format";
 import { number } from "../../lib/metrics";
 import { InfoPopover } from "../ui/InfoPopover";
 import { ImageDatePicker } from "./ImageDatePicker";
@@ -28,15 +28,21 @@ function AreaEvidence({ scene }: { scene?: ImageScene }) {
   </>;
 }
 
-function ImageView({ manifest, scene, index, onDate, onIndex }: {
-  manifest: ImageManifest; scene: ImageScene; index: ImageIndex;
-  onDate: (date: string) => void; onIndex: (index: ImageIndex) => void;
+function sceneUrl(manifest: ImageManifest, date: string, index: ImageIndex) {
+  return `/api/polygon/${encodeURIComponent(manifest.pid)}/imagery/${manifest.year}/${date}/${index}.png?v=${manifest.generation}`;
+}
+
+function ImageView({ manifest, scene, index, playing, onDate, onIndex, onPlay }: {
+  manifest: ImageManifest; scene: ImageScene; index: ImageIndex; playing: boolean;
+  onDate: (date: string) => void; onIndex: (index: ImageIndex) => void; onPlay: () => void;
 }) {
   const spec = LAYERS[index], stats = index === "change" ? scene.change! : scene[index];
-  const url = `/api/polygon/${encodeURIComponent(manifest.pid)}/imagery/${manifest.year}/${scene.date}/${index}.png?v=${manifest.generation}`;
+  const url = sceneUrl(manifest, scene.date, index);
   return <>
     <div className="imagery-controls">
       <ImageDatePicker dates={manifest.scenes.map(s => s.date)} value={scene.date} onChange={onDate} />
+      <button type="button" className="btn btn--sm" aria-pressed={playing} onClick={onPlay}
+        title={playing ? "Остановить" : "Прокрутить все снимки сезона"}>{playing ? "■ Стоп" : "▶ Сезон"}</button>
       <div className="metric-tabs" role="group" aria-label="Слой карты">
         {(Object.keys(LAYERS) as ImageIndex[]).map(key => <button key={key} type="button" data-image={key}
           aria-pressed={key === index} disabled={key === "change" && !scene.change} onClick={() => onIndex(key)}>{LAYERS[key].label}</button>)}
@@ -54,9 +60,9 @@ function ImageView({ manifest, scene, index, onDate, onIndex }: {
   </>;
 }
 
-export function FieldInsights({ detail, year }: { detail: PolygonDetail; year: number }) {
+export function FieldInsights({ detail, year, onHover }: { detail: PolygonDetail; year: number; onHover?: (time: number | null) => void }) {
   const client = useQueryClient(), mapRef = useRef<HTMLElement>(null);
-  const [opened, setOpened] = useState(false), [date, setDate] = useState("");
+  const [opened, setOpened] = useState(false), [date, setDate] = useState(""), [playing, setPlaying] = useState(false);
   const key = ["imagery", detail.pid, year];
   const imagery = useQuery({ queryKey: key, queryFn: ({ signal }) => api.imagery(detail.pid, year, signal),
     enabled: Boolean(detail.geometry), retry: false,
@@ -73,6 +79,25 @@ export function FieldInsights({ detail, year }: { detail: PolygonDetail; year: n
   const index = preferredIndex === "change" && !scene?.change ? "ndvi" : preferredIndex;
   const trend = detail.insights?.[year];
   const change = scene?.change;
+  // Таймлапс: кадры сменяются раз в 0,7 с, курсор графиков идёт вместе с датой снимка.
+  useEffect(() => {
+    if (!playing || !manifest) return;
+    const dates = manifest.scenes.map(s => s.date), layer = index === "change" ? "ndvi" : index;
+    for (const d of dates) { const img = new Image(); img.src = sceneUrl(manifest, d, layer); }
+    let i = Math.max(0, dates.indexOf(scene?.date ?? ""));
+    if (i >= dates.length - 1) i = -1;
+    const id = setInterval(() => {
+      i += 1;
+      setDate(dates[i]); onHover?.(ms(dates[i]));
+      if (i >= dates.length - 1) setPlaying(false);
+    }, 700);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, manifest]);
+  function togglePlay() {
+    if (!playing && index === "change") setIndex("ndvi");
+    setPlaying(v => !v);
+  }
   const period = change ? `${shortDate(change.previous_date)} → ${shortDate(scene!.date)}`
     : scene ? "По двум снимкам Sentinel-2" : "Считается по двум снимкам Sentinel-2: загрузите их в карте поля";
   function openMap() {
@@ -117,7 +142,8 @@ export function FieldInsights({ detail, year }: { detail: PolygonDetail; year: n
           {collecting && detail.geometry && <Suspense fallback={<p className="meta">Открываем контур поля…</p>}>
             <FieldOutlinePreview geometry={detail.geometry} /></Suspense>}
         </>}
-        {manifest && scene && <ImageView manifest={manifest} scene={scene} index={index} onDate={setDate} onIndex={setIndex} />}
+        {manifest && scene && <ImageView manifest={manifest} scene={scene} index={index} playing={playing}
+          onDate={d => { setPlaying(false); setDate(d); }} onIndex={setIndex} onPlay={togglePlay} />}
       </div>}
     </section>}
   </div>;

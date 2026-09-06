@@ -32,29 +32,37 @@ export default function ImageryMap({ manifest, url }: { manifest: Pick<ImageMani
     return () => { disposed = true; map.destroy(); };
   }, [manifest, west, south, east, north]);
 
+  const current = useRef<ILayer | null>(null);
   useEffect(() => {
     if (!scene || !url) return;
-    setLoadedUrl(""); setErrorUrl("");
+    setErrorUrl("");
     let disposed = false;
-    let layer: ILayer | undefined;
     const image = new Image();
     image.src = url;
     // Ошибку PNG обрабатываем до передачи в L7: загрузчик L7 иначе может ждать бесконечно.
+    // Прежний слой снимаем только после того, как новый отрисован: так кадры сменяются без мигания.
     image.decode().then(() => {
       if (disposed) return;
-      layer = new ImageLayer({ zIndex: 2 }).source(image, {
+      const layer = new ImageLayer({ zIndex: 2 }).source(image, {
         parser: { type: "image", extent: [west, south, east, north] },
       });
-      layer.on("inited", () => { if (!disposed) { scene.render(); setLoadedUrl(url); } });
+      layer.on("inited", () => {
+        if (disposed) { scene.removeLayer(layer); return; }
+        const previous = current.current;
+        current.current = layer;
+        if (previous) scene.removeLayer(previous);
+        scene.render(); setLoadedUrl(url);
+      });
       scene.addLayer(layer);
     }).catch(() => { if (!disposed) setErrorUrl(url); });
-    return () => { disposed = true; if (layer) scene.removeLayer(layer); };
+    return () => { disposed = true; };
   }, [scene, url, west, south, east, north, attempt]);
+  useEffect(() => () => { current.current = null; }, [scene]);
 
   return <div className="field-map imagery-map" data-testid="imagery-map" data-image-url={url}
     data-state={!url ? (scene ? "outline" : "loading") : errorUrl === url ? "error" : loadedUrl === url ? "ready" : "loading"}>
     <div ref={container} style={{ position: "absolute", inset: 0 }} />
-    {url && loadedUrl !== url && <div className="imagery-map-status" role="status">
+    {url && (errorUrl === url || !loadedUrl) && <div className="imagery-map-status" role="status">
       {errorUrl === url ? "Снимок не загрузился." : "Загружаем снимок…"}
       {errorUrl === url && <button className="btn btn--sm btn--ghost" onClick={() => setAttempt(v => v + 1)}>Повторить загрузку карты</button>}
     </div>}

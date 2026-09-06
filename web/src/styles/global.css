@@ -202,6 +202,70 @@ button {
   border-color: transparent;
 }
 
+/* --- чип культуры: фото «вырастает» из чипа при наведении (components/ui/CropChip.tsx) --- */
+.crop-chip {
+  position: relative;
+  cursor: default;
+}
+
+.crop-chip:hover {
+  z-index: 40;
+}
+
+.crop-pop {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  width: 280px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(26, 29, 22, 0.06), 0 24px 48px -20px rgba(26, 29, 22, 0.45);
+  opacity: 0;
+  transform: translate3d(0, -10px, 0) scale(0.55);
+  transform-origin: 28px 0;
+  pointer-events: none;
+  z-index: 40;
+  transition: opacity 0.3s var(--ease), transform 0.45s var(--ease);
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: var(--font-sans);
+  white-space: normal;
+}
+
+.crop-chip:hover .crop-pop {
+  opacity: 1;
+  transform: none;
+}
+
+.crop-pop img {
+  display: block;
+  width: 100%;
+  height: 176px;
+  object-fit: cover;
+  transform: scale(1.12);
+  transition: transform 0.9s var(--ease);
+}
+
+.crop-chip:hover .crop-pop img {
+  transform: scale(1);
+}
+
+.crop-pop-caption {
+  display: block;
+  padding: 8px 12px 10px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crop-pop,
+  .crop-pop img {
+    transition: none;
+  }
+}
+
 .btn {
   display: inline-flex;
   align-items: center;

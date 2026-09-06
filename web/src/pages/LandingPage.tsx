@@ -8,7 +8,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 import { api } from "../api/client";
-import { CurveArt, DroughtArt, GapArt, LayersArt, SatelliteArt, SproutArt } from "../components/art/Art";
+import { CurveArt, DroughtArt, GapArt, SatelliteArt, SproutArt } from "../components/art/Art";
 import { HeroVideo } from "../components/hero/HeroVideo";
 import { Cursor } from "../components/motion/Cursor";
 
@@ -271,26 +271,6 @@ export function LandingPage() {
         </section>
       )}
 
-      <section className="landing-section">
-        <div className="landing-inner landing-cta spring-in">
-          <LayersArt size={54} />
-          <h2 className="display" style={{ fontSize: "clamp(26px, 3vw, 40px)", marginTop: 14 }}>
-            Проверьте на своём поле
-          </h2>
-          <p style={{ maxWidth: "56ch", margin: "10px auto 0" }}>
-            Найдите контур в OpenStreetMap или обведите участок сами. Через пару минут появится ряд NDVI за
-            несколько сезонов, восстановленная кривая и список периодов угнетения с объяснением.
-          </p>
-          <div className="row" style={{ gap: 12, justifyContent: "center", marginTop: 22, flexWrap: "wrap" }}>
-            <Link to="/explore" className="btn btn--pill btn--lg" style={{ textDecoration: "none" }}>
-              Открыть карту
-            </Link>
-            <Link to="/method" className="btn btn--pill btn--lg btn--ghost" style={{ textDecoration: "none" }}>
-              Как устроено решение
-            </Link>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }

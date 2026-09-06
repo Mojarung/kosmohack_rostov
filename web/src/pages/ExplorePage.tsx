@@ -9,6 +9,7 @@ import { api } from "../api/client";
 import type { CollectSource, OsmField, PolygonDetail } from "../api/types";
 import { plural, severityTone } from "../lib/format";
 import { FieldArt, SearchFieldsArt } from "../components/art/Art";
+import { AskPanel } from "../components/panels/AskPanel";
 import { SeasonPanel } from "../components/panels/SeasonPanel";
 import { ErrorNote } from "../components/ui/Loader";
 import { PagePending } from "../components/ui/PagePending";
@@ -193,7 +194,8 @@ export default function ExplorePage() {
             </span>
           </span>
         </div>
-        <SeasonPanel key={detail.pid} detail={detail} />
+        {/* тот же агент и печатный отчёт, что на полях кейса: маршруты находят собранное поле по его pid */}
+        <SeasonPanel key={detail.pid} detail={detail} aside={(year) => <AskPanel pid={detail.pid} year={year} />} />
       </div>
     );
   }

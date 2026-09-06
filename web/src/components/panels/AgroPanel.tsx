@@ -19,7 +19,7 @@ export function AgroPanel({ context, loading, error, retry, year, control, hover
   control: RangeControl; hover: number | null; onHover: (time: number | null) => void;
   preferred: WeatherMode; onMode: (mode: WeatherMode) => void;
 }) {
-  const [kolobokEnabled, setKolobokEnabled] = useState(false);
+  const [kolobokEnabled, setKolobokEnabled] = useState(true);   // колобок катится сразу, кнопка в легенде его прячет
   if (loading || error) return <div className="season-weather" role="status">
     <span className="meta">{loading ? "Загружаем погоду…" : "Погода не загрузилась."}</span>
     {error && <button className="btn btn--sm btn--ghost" onClick={retry}>Повторить загрузку погоды</button>}

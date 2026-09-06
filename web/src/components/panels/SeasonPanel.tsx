@@ -76,7 +76,7 @@ function SeasonContent({ detail, year, onYear, aside }: { detail: PolygonDetail;
       </div>
       <p className="meta chart-instruction">Линия — зелень поля, серая полоса — как бывает обычно. Выделите период мышью, чтобы приблизить; двойной клик — весь сезон.</p>
       </div>
-      <FieldInsights detail={detail} year={year} />
+      <FieldInsights detail={detail} year={year} onHover={setHover} />
       <div ref={weatherTarget} tabIndex={-1} role="region" aria-label="График погоды" className="metric-chart-target">
       <AgroPanel context={agro.data} loading={agro.isPending} error={agro.isError} retry={() => void agro.refetch()}
         year={year} control={control} hover={hover} onHover={setHover} preferred={weatherMode} onMode={setWeatherMode} />

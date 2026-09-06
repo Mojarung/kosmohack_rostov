@@ -6,6 +6,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { AskPanel } from "../components/panels/AskPanel";
 import { SeasonPanel } from "../components/panels/SeasonPanel";
+import { CropChip } from "../components/ui/CropChip";
 import { ErrorNote } from "../components/ui/Loader";
 import { PagePending } from "../components/ui/PagePending";
 
@@ -35,7 +36,7 @@ export default function FieldPage() {
           ← поля кейса
         </Link>
         <span className="screen-title">{data.name || data.pid}</span>
-        <span className="tag">{data.crop}</span>
+        <CropChip crop={data.crop} />
         <span className="meta">{data.kind}</span>
         <span className="head-facts">
           {facts.map((fact) => (
